@@ -1,0 +1,4 @@
+dist
+coverage
+.worktrees
+pnpm-lock.yaml
