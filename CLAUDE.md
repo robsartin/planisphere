@@ -88,7 +88,7 @@ A change is not "done" until `pnpm typecheck && pnpm lint && pnpm test:cov && pn
 ## Working style
 
 - Keep changes scoped. A bugfix doesn't need surrounding cleanup; a feature doesn't need speculative abstractions.
-- No comments explaining *what* well-named code already says. Only write a comment when the *why* is non-obvious.
+- No comments explaining _what_ well-named code already says. Only write a comment when the _why_ is non-obvious.
 - Prefer editing existing files over creating new ones.
 - When a task is ambiguous, ask before coding — not after.
 

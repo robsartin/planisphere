@@ -36,18 +36,18 @@ A web-based planisphere: an interactive star chart that shows the sky visible fr
 
 ### 3.2 Tech stack
 
-| Layer | Choice |
-|---|---|
-| Language | TypeScript (strict) |
-| Rendering | CesiumJS |
-| Orbital math | satellite.js (SGP4 / TLE) |
-| Astronomy math | Astronomy Engine (ecliptic/equatorial transforms, Sun/Moon/planet ephemerides) |
-| Build | Vite |
-| Test runner | Vitest |
-| Lint/format | ESLint + Prettier |
-| Package manager | pnpm |
-| Hosting | Cloudflare Pages (static) |
-| CI | GitHub Actions |
+| Layer           | Choice                                                                         |
+| --------------- | ------------------------------------------------------------------------------ |
+| Language        | TypeScript (strict)                                                            |
+| Rendering       | CesiumJS                                                                       |
+| Orbital math    | satellite.js (SGP4 / TLE)                                                      |
+| Astronomy math  | Astronomy Engine (ecliptic/equatorial transforms, Sun/Moon/planet ephemerides) |
+| Build           | Vite                                                                           |
+| Test runner     | Vitest                                                                         |
+| Lint/format     | ESLint + Prettier                                                              |
+| Package manager | pnpm                                                                           |
+| Hosting         | Cloudflare Pages (static)                                                      |
+| CI              | GitHub Actions                                                                 |
 
 Dependency additions require ADR-lite justification in `docs/adr/`.
 
@@ -93,7 +93,7 @@ Heavy work (star culling, TLE propagation for large catalogs) runs in a Web Work
 All fallible operations return `Result<T, E>` rather than throwing. Exceptions are reserved for programmer errors (invariant violations).
 
 ```ts
-type Ok<T>  = { ok: true;  value: T };
+type Ok<T> = { ok: true; value: T };
 type Err<E> = { ok: false; error: E };
 type Result<T, E> = Ok<T> | Err<E>;
 ```
