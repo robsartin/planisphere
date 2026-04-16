@@ -32,11 +32,11 @@ Render a dark sky dome with ~9,100 correctly-positioned stars from the observer'
 
 ## 3. Dependencies
 
-| Package | Version | License | Purpose |
-|---|---|---|---|
-| `astronomy-engine` | latest stable | MIT | Sidereal time, equatorial→horizontal transforms, precession/nutation |
-| `cesium` | latest stable | Apache 2.0 | 3D rendering engine for the sky dome |
-| `vite-plugin-cesium` | latest stable | MIT | Copies Cesium static assets (workers, etc.) into `dist/` at build time |
+| Package              | Version       | License    | Purpose                                                                |
+| -------------------- | ------------- | ---------- | ---------------------------------------------------------------------- |
+| `astronomy-engine`   | latest stable | MIT        | Sidereal time, equatorial→horizontal transforms, precession/nutation   |
+| `cesium`             | latest stable | Apache 2.0 | 3D rendering engine for the sky dome                                   |
+| `vite-plugin-cesium` | latest stable | MIT        | Copies Cesium static assets (workers, etc.) into `dist/` at build time |
 
 Each dependency gets a short ADR in `docs/adr/` per project rules (CLAUDE.md).
 
@@ -84,11 +84,11 @@ public/
 
 ```ts
 type StarRecord = {
-  hip: number;       // Hipparcos ID
-  ra: number;        // Right Ascension, degrees, J2000
-  dec: number;       // Declination, degrees, J2000
-  mag: number;       // Visual magnitude
-  name?: string;     // Common name for ~300 brightest (Sirius, Vega, etc.)
+  hip: number; // Hipparcos ID
+  ra: number; // Right Ascension, degrees, J2000
+  dec: number; // Declination, degrees, J2000
+  mag: number; // Visual magnitude
+  name?: string; // Common name for ~300 brightest (Sirius, Vega, etc.)
 };
 ```
 
@@ -97,12 +97,12 @@ type StarRecord = {
 ```ts
 type AltAzStar = {
   hip: number;
-  alt: number;       // Altitude in degrees (0 = horizon, 90 = zenith)
-  az: number;        // Azimuth in degrees (0 = north, clockwise)
+  alt: number; // Altitude in degrees (0 = horizon, 90 = zenith)
+  az: number; // Azimuth in degrees (0 = north, clockwise)
   mag: number;
   name?: string;
-  size: number;      // Billboard pixel size (from magToVisual)
-  opacity: number;   // Billboard opacity 0–1 (from magToVisual)
+  size: number; // Billboard pixel size (from magToVisual)
+  opacity: number; // Billboard opacity 0–1 (from magToVisual)
 };
 ```
 
