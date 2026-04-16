@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { writeFileSync, mkdirSync } from "node:fs";
 
-const HYG_URL = "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv";
+const HYG_URL =
+  "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv";
 
 console.log("Fetching HYG database...");
 const response = await fetch(HYG_URL);
