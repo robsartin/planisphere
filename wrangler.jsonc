@@ -1,0 +1,7 @@
+{
+  "name": "planisphere",
+  "compatibility_date": "2026-04-16",
+  "assets": {
+    "directory": "./dist",
+  },
+}
