@@ -29,7 +29,7 @@ export function filterVisibleStars(
       alt,
       az,
       mag: star.mag,
-      name: star.name,
+      ...(star.name !== undefined ? { name: star.name } : {}),
       size,
       opacity,
     });
