@@ -25,6 +25,7 @@ The script below is idempotent; run it from the repo root:
     bash scripts/protect-main.sh <owner>/<repo>
 
 Requires:
+
 - `gh` CLI authenticated with admin rights on the repo.
 - CI has already run on `main` at least once so the check names exist.
 
