@@ -8,7 +8,7 @@ export function initCamera(camera: Camera, lat: number, lon: number): void {
     destination: Cartesian3.fromDegrees(lon, lat, height),
     orientation: {
       heading: CesiumMath.toRadians(0),
-      pitch: CesiumMath.toRadians(-90),
+      pitch: CesiumMath.toRadians(89.9),
       roll: 0,
     },
   });
