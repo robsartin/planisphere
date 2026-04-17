@@ -18,7 +18,7 @@ function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null 
 }
 
 export function generateSunSprite(): HTMLCanvasElement {
-  const size = 48;
+  const size = 96;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -26,10 +26,11 @@ export function generateSunSprite(): HTMLCanvasElement {
   if (!ctx) return canvas;
   const center = size / 2;
   const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
-  gradient.addColorStop(0, "rgba(253, 184, 19, 1)");
-  gradient.addColorStop(0.2, "rgba(253, 184, 19, 0.8)");
-  gradient.addColorStop(0.5, "rgba(253, 150, 19, 0.3)");
-  gradient.addColorStop(1, "rgba(253, 150, 19, 0)");
+  gradient.addColorStop(0, "rgba(255, 255, 50, 1)");
+  gradient.addColorStop(0.1, "rgba(255, 230, 0, 0.95)");
+  gradient.addColorStop(0.25, "rgba(255, 215, 0, 0.7)");
+  gradient.addColorStop(0.5, "rgba(255, 200, 0, 0.25)");
+  gradient.addColorStop(1, "rgba(255, 180, 0, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   return canvas;

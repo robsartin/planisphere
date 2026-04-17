@@ -25,12 +25,12 @@ type BodyConfig = {
 };
 
 const BODY_CONFIGS: BodyConfig[] = [
-  { body: Body.Sun, id: "Sun", color: "#FDB813", size: 24, mag: -26.74 },
+  { body: Body.Sun, id: "Sun", color: "#FFD700", size: 40, mag: -26.74 },
   { body: Body.Moon, id: "Moon", color: "#E8E8E0", size: 20, mag: -12.7 },
   { body: Body.Mercury, id: "Mercury", color: "#B5A7A7", size: 6, mag: 0.0 },
   { body: Body.Venus, id: "Venus", color: "#FFFFCC", size: 10, mag: -4.0 },
   { body: Body.Mars, id: "Mars", color: "#CC4422", size: 8, mag: 1.0 },
-  { body: Body.Jupiter, id: "Jupiter", color: "#D4A96A", size: 9, mag: -2.0 },
+  { body: Body.Jupiter, id: "Jupiter", color: "#E8C8C0", size: 9, mag: -2.0 },
   { body: Body.Saturn, id: "Saturn", color: "#C8B07A", size: 7, mag: 0.5 },
 ];
 
