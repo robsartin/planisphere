@@ -263,9 +263,7 @@ describe("handleIntent routing", () => {
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(() =>
-      capturedDispatch!({ type: "set-observer", lat: 51.5, lon: -0.12 }),
-    ).not.toThrow();
+    expect(() => capturedDispatch!({ type: "set-observer", lat: 51.5, lon: -0.12 })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
