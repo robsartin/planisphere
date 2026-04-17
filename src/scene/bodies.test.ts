@@ -100,9 +100,9 @@ describe("sprite generators (with 2d context)", () => {
     mockGetContext.mockReturnValueOnce(ctx);
     const canvas = generateSunSprite();
     expect(canvas).toBeInstanceOf(HTMLCanvasElement);
-    expect(canvas.width).toBe(48);
+    expect(canvas.width).toBe(96);
     expect(ctx.createRadialGradient).toHaveBeenCalledOnce();
-    expect(ctx.gradient.addColorStop).toHaveBeenCalledTimes(4);
+    expect(ctx.gradient.addColorStop).toHaveBeenCalledTimes(5);
     expect(ctx.fillRect).toHaveBeenCalledOnce();
   });
 
