@@ -35,6 +35,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  optimizeDeps: {
+    exclude: ["satellite.js"],
+  },
   build: {
     target: "es2022",
     sourcemap: true,
