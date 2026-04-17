@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { parseStateFromSearchParams } from "./state";
+import { parseStateFromSearchParams, serializeStateToSearchParams } from "./state";
+import type { AppState, LayerVisibility } from "./state/state";
 import {
   parseCatalog,
   filterVisibleStars,
   computeBodyPositions,
   parseConstellations,
   filterVisibleConstellations,
+  parseBoundaries,
+  filterVisibleBoundaries,
 } from "./astro";
 import {
   createViewer,
@@ -16,10 +19,90 @@ import {
   createConstellationLayer,
   createCompassLayer,
   createSatelliteLayer,
+  createBoundaryLayer,
+} from "./scene";
+import type {
+  StarLayer,
+  BodyLayer,
+  ConstellationLayer,
+  BoundaryLayer,
+  SatelliteLayer,
+  CompassLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
+import { createPanel, createTimeControls, createLocationControls, createLayerControls } from "./ui";
+import type { UIIntent } from "./ui";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
+import rawBoundaries from "../data/boundaries.json";
+
+type Layers = {
+  star: StarLayer;
+  body: BodyLayer;
+  constellation: ConstellationLayer;
+  boundary: BoundaryLayer;
+  satellite: SatelliteLayer | null;
+  compass: CompassLayer;
+};
+
+function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void {
+  layers.star.setVisible(visibility.stars);
+  layers.body.setVisible(visibility.planets);
+  layers.constellation.setVisible(visibility.constellationLines);
+  layers.boundary.setVisible(visibility.constellationBoundaries);
+  layers.compass.setVisible(visibility.compass);
+  if (layers.satellite) layers.satellite.setVisible(visibility.satellites);
+}
+
+function rerender(
+  state: AppState,
+  layers: Layers,
+  catalogResult: ReturnType<typeof parseCatalog>,
+): void {
+  if (!catalogResult.ok) return;
+  const { observer, timeUtc } = state;
+
+  const visibleStars = filterVisibleStars(catalogResult.value, observer.lat, observer.lon, timeUtc);
+  layers.star.update(visibleStars, observer.lat, observer.lon);
+
+  const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
+  layers.body.update(bodies, observer.lat, observer.lon);
+
+  const constellationResult = parseConstellations(rawConstellations);
+  if (constellationResult.ok) {
+    const visibleConstellations = filterVisibleConstellations(
+      constellationResult.value,
+      visibleStars,
+    );
+    layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
+  }
+
+  const boundaryResult = parseBoundaries(rawBoundaries);
+  if (boundaryResult.ok) {
+    const visibleBoundaries = filterVisibleBoundaries(
+      boundaryResult.value,
+      observer.lat,
+      observer.lon,
+      timeUtc,
+    );
+    layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
+  } else {
+    console.warn(`Boundary load warning: ${boundaryResult.error.message}`);
+  }
+
+  layers.compass.update(observer.lat, observer.lon);
+
+  applyLayerVisibility(layers, state.layers);
+  layers.constellation.setOpacity(state.opacity.constellationLines * 0.25);
+  layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
+  if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
+}
+
+function updateUrl(state: AppState): void {
+  const params = serializeStateToSearchParams(state);
+  const url = `${globalThis.location.pathname}?${params.toString()}`;
+  globalThis.history.replaceState(null, "", url);
+}
 
 export async function bootstrap(
   root: HTMLElement | null,
@@ -34,7 +117,7 @@ export async function bootstrap(
     showError(errorDiv, `State error: ${stateResult.error.kind}`);
     return;
   }
-  const { observer, timeUtc } = stateResult.value;
+  let state = stateResult.value;
 
   const catalogResult = parseCatalog(rawStars);
   if (!catalogResult.ok) {
@@ -49,52 +132,101 @@ export async function bootstrap(
   }
   const viewer = viewerResult.value;
 
-  initCamera(viewer.camera, observer.lat, observer.lon);
+  initCamera(viewer.camera, state.observer.lat, state.observer.lon);
 
-  const visibleStars = filterVisibleStars(catalogResult.value, observer.lat, observer.lon, timeUtc);
-  const starLayer = createStarLayer(viewer.scene);
-  starLayer.update(visibleStars, observer.lat, observer.lon);
+  // Create all layers
+  const layers: Layers = {
+    star: createStarLayer(viewer.scene),
+    body: createBodyLayer(viewer.scene),
+    constellation: createConstellationLayer(viewer.scene),
+    boundary: createBoundaryLayer(viewer.scene),
+    satellite: null,
+    compass: createCompassLayer(viewer.scene),
+  };
 
-  const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
-  const bodyLayer = createBodyLayer(viewer.scene);
-  bodyLayer.update(bodies, observer.lat, observer.lon);
+  // Initial render
+  rerender(state, layers, catalogResult);
 
-  const constellationResult = parseConstellations(rawConstellations);
-  if (constellationResult.ok) {
-    const visibleConstellations = filterVisibleConstellations(
-      constellationResult.value,
-      visibleStars,
-    );
-    const constellationLayer = createConstellationLayer(viewer.scene);
-    constellationLayer.update(visibleConstellations, observer.lat, observer.lon);
-  } else {
-    console.warn(`Constellation load warning: ${constellationResult.error.message}`);
-  }
-
-  const compassLayer = createCompassLayer(viewer.scene);
-  compassLayer.update(observer.lat, observer.lon);
-
+  // Satellite layer (async)
   const tleResult = await fetchTle();
   if (tleResult.ok) {
     const satResult = parseTle(tleResult.value);
     if (satResult.ok) {
+      const satLayer = createSatelliteLayer(viewer.scene);
+      layers.satellite = satLayer;
       const visibleSats = propagateSatellites(
         satResult.value,
-        observer.lat,
-        observer.lon,
-        timeUtc,
+        state.observer.lat,
+        state.observer.lon,
+        state.timeUtc,
         true,
       );
-      const satLayer = createSatelliteLayer(viewer.scene);
-      satLayer.update(visibleSats, observer.lat, observer.lon);
+      satLayer.update(visibleSats, state.observer.lat, state.observer.lon);
+      satLayer.setVisible(state.layers.satellites);
+      satLayer.setOpacity(state.opacity.satelliteTrails * 0.3);
     } else {
       console.warn(`TLE parse warning: ${satResult.error.message}`);
     }
   }
 
+  // Tooltip
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
     createTooltip(viewer, cesiumContainer);
+  }
+
+  // Intent handler
+  function handleIntent(intent: UIIntent): void {
+    switch (intent.type) {
+      case "set-time": {
+        state = { ...state, timeUtc: intent.time };
+        rerender(state, layers, catalogResult);
+        updateUrl(state);
+        break;
+      }
+      case "set-observer": {
+        state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
+        initCamera(viewer.camera, intent.lat, intent.lon);
+        rerender(state, layers, catalogResult);
+        updateUrl(state);
+        break;
+      }
+      case "toggle-layer": {
+        const newLayers = { ...state.layers, [intent.layer]: !state.layers[intent.layer] };
+        state = { ...state, layers: newLayers };
+        applyLayerVisibility(layers, state.layers);
+        updateUrl(state);
+        break;
+      }
+      case "set-opacity": {
+        const newOpacity = { ...state.opacity, [intent.layer]: intent.value };
+        state = { ...state, opacity: newOpacity };
+        layers.constellation.setOpacity(state.opacity.constellationLines * 0.25);
+        layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
+        if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
+        updateUrl(state);
+        break;
+      }
+    }
+  }
+
+  // Build UI panel
+  const panelRoot = document.getElementById("ui-panel-root");
+  if (panelRoot) {
+    const panel = createPanel(panelRoot);
+
+    const uiContainer = document.createElement("div");
+
+    const timeEl = createTimeControls(state.timeUtc, handleIntent);
+    uiContainer.appendChild(timeEl);
+
+    const locationEl = createLocationControls(state.observer.lat, state.observer.lon, handleIntent);
+    uiContainer.appendChild(locationEl);
+
+    const layerEl = createLayerControls(state.layers, state.opacity, handleIntent);
+    uiContainer.appendChild(layerEl);
+
+    panel.setContent(uiContainer);
   }
 }
 

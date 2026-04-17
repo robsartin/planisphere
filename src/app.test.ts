@@ -19,6 +19,7 @@ vi.mock("cesium", () => ({
   BillboardCollection: vi.fn().mockImplementation(() => ({
     add: vi.fn(),
     removeAll: vi.fn(),
+    show: true,
     length: 0,
   })),
   Cartesian3: Object.assign(
@@ -51,15 +52,20 @@ vi.mock("cesium", () => ({
   ScreenSpaceEventType: { MOUSE_MOVE: 0 },
   defined: (v: unknown) => v !== undefined && v !== null,
   PolylineCollection: vi.fn().mockImplementation(() => ({
-    add: vi.fn(),
+    add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
     removeAll: vi.fn(),
+    get length() {
+      return 0;
+    },
+    show: true,
   })),
   LabelCollection: vi.fn().mockImplementation(() => ({
     add: vi.fn(),
     removeAll: vi.fn(),
+    show: true,
   })),
   LabelStyle: { FILL: 0 },
-  Material: { fromType: vi.fn().mockReturnValue({}) },
+  Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
 }));
 
 vi.mock("../data/stars.json", () => ({
@@ -71,6 +77,37 @@ vi.mock("../data/stars.json", () => ({
 
 vi.mock("../data/constellations.json", () => ({
   default: [{ id: "Ori", name: "Orion", lines: [[27366, 26311]] }],
+}));
+
+vi.mock("../data/boundaries.json", () => ({
+  default: [
+    {
+      id: "Ori",
+      vertices: [
+        { ra: 75, dec: 10 },
+        { ra: 90, dec: 10 },
+        { ra: 90, dec: -10 },
+      ],
+    },
+  ],
+}));
+
+// Captured dispatch function from UI mock — used in intent tests
+let capturedDispatch: ((intent: unknown) => void) | null = null;
+
+// Mock UI modules — they exercise DOM which is fully covered in their own tests
+vi.mock("./ui", () => ({
+  createPanel: vi.fn().mockReturnValue({
+    element: document.createElement("div"),
+    setContent: vi.fn(),
+    setCollapsed: vi.fn(),
+  }),
+  createTimeControls: vi.fn().mockImplementation((_time: unknown, dispatch: unknown) => {
+    capturedDispatch = dispatch as (intent: unknown) => void;
+    return document.createElement("div");
+  }),
+  createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
+  createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
 }));
 
 // Mock the TLE bundled data
@@ -168,5 +205,88 @@ describe("bootstrap", () => {
     expect(errorDiv.style.display).not.toBe("none");
     expect(errorDiv.textContent).toMatch(/Scene error/);
     document.body.removeChild(root);
+  });
+
+  it("builds UI panel when ui-panel-root is present", async () => {
+    capturedDispatch = null;
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    const panelRoot = document.createElement("div");
+    panelRoot.id = "ui-panel-root";
+    document.body.appendChild(panelRoot);
+    document.body.appendChild(root);
+
+    await bootstrap(root);
+
+    expect(capturedDispatch).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+});
+
+describe("handleIntent routing", () => {
+  function makeRoot() {
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    const panelRoot = document.createElement("div");
+    panelRoot.id = "ui-panel-root";
+    document.body.appendChild(panelRoot);
+    document.body.appendChild(root);
+    return { root, panelRoot };
+  }
+
+  it("set-time intent re-renders without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(capturedDispatch).not.toBeNull();
+    expect(() =>
+      capturedDispatch!({ type: "set-time", time: new Date("2026-05-01T00:00:00Z") }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-observer intent re-renders without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({ type: "set-observer", lat: 51.5, lon: -0.12 }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("toggle-layer intent updates layer visibility without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "toggle-layer", layer: "stars" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-opacity intent updates opacity without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({ type: "set-opacity", layer: "constellationLines", value: 0.5 }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
   });
 });
