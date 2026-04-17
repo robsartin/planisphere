@@ -102,4 +102,36 @@ describe("createTooltip", () => {
     expect(mockDestroy).toHaveBeenCalledOnce();
     expect(container.querySelector("div")).toBeNull();
   });
+
+  it("shows tooltip with body info when a CelestialBody billboard is picked", () => {
+    const container = document.createElement("div");
+    const viewer = makeMockViewer();
+    createTooltip(viewer as never, container);
+
+    const moveCallback = mockSetInputAction.mock.calls[0]![0] as (movement: {
+      endPosition: { x: number; y: number };
+    }) => void;
+
+    mockPick.mockReturnValueOnce({
+      id: {
+        id: "Moon",
+        alt: 55.3,
+        az: 120.1,
+        ra: 100.5,
+        dec: -5.2,
+        mag: -12.7,
+        size: 20,
+        color: "#E8E8E0",
+        illumination: 0.75,
+        phaseAngle: 90,
+      },
+    });
+    moveCallback({ endPosition: { x: 150, y: 250 } });
+
+    const tooltipDiv = container.querySelector("div")!;
+    expect(tooltipDiv.style.display).toBe("block");
+    expect(tooltipDiv.innerHTML).toContain("Moon");
+    expect(tooltipDiv.innerHTML).toContain("-12.7");
+    expect(tooltipDiv.innerHTML).toContain("75%");
+  });
 });

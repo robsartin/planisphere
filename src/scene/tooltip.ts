@@ -2,6 +2,7 @@
 import { ScreenSpaceEventHandler, ScreenSpaceEventType, defined } from "cesium";
 import type { Cartesian2, Viewer } from "cesium";
 import type { AltAzStar } from "../astro";
+import type { CelestialBody } from "../astro";
 
 export type Tooltip = {
   destroy: () => void;
@@ -33,6 +34,40 @@ function isAltAzStar(obj: unknown): obj is AltAzStar {
   );
 }
 
+function isCelestialBody(obj: unknown): obj is CelestialBody {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "id" in obj &&
+    typeof (obj as Record<string, unknown>).id === "string" &&
+    "alt" in obj &&
+    "az" in obj &&
+    "mag" in obj
+  );
+}
+
+function formatStar(star: AltAzStar): string {
+  const label = star.name ?? `HIP ${String(star.hip)}`;
+  return (
+    `<strong>${label}</strong><br>` +
+    `mag ${star.mag.toFixed(2)}<br>` +
+    `Alt ${star.alt.toFixed(1)}\u00B0 Az ${star.az.toFixed(1)}\u00B0<br>` +
+    `RA ${formatRa(star.ra)} Dec ${formatDec(star.dec)}`
+  );
+}
+
+function formatBody(body: CelestialBody): string {
+  let html =
+    `<strong>${body.id}</strong><br>` +
+    `mag ${body.mag.toFixed(2)}<br>` +
+    `Alt ${body.alt.toFixed(1)}\u00B0 Az ${body.az.toFixed(1)}\u00B0<br>` +
+    `RA ${formatRa(body.ra)} Dec ${formatDec(body.dec)}`;
+  if (body.illumination !== undefined) {
+    html += `<br>${Math.round(body.illumination * 100)}% illuminated`;
+  }
+  return html;
+}
+
 export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
   const el = document.createElement("div");
   el.style.cssText =
@@ -47,14 +82,18 @@ export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
     const picked: { id?: unknown } | undefined = viewer.scene.pick(movement.endPosition) as
       | { id?: unknown }
       | undefined;
-    if (defined(picked) && picked !== undefined && isAltAzStar(picked.id)) {
-      const star = picked.id;
-      const label = star.name ?? `HIP ${String(star.hip)}`;
-      el.innerHTML =
-        `<strong>${label}</strong><br>` +
-        `mag ${star.mag.toFixed(2)}<br>` +
-        `Alt ${star.alt.toFixed(1)}\u00B0 Az ${star.az.toFixed(1)}\u00B0<br>` +
-        `RA ${formatRa(star.ra)} Dec ${formatDec(star.dec)}`;
+
+    let html: string | null = null;
+    if (defined(picked) && picked !== undefined) {
+      if (isAltAzStar(picked.id)) {
+        html = formatStar(picked.id);
+      } else if (isCelestialBody(picked.id)) {
+        html = formatBody(picked.id);
+      }
+    }
+
+    if (html !== null) {
+      el.innerHTML = html;
       el.style.display = "block";
       el.style.left = `${String(movement.endPosition.x + 14)}px`;
       el.style.top = `${String(movement.endPosition.y + 14)}px`;
