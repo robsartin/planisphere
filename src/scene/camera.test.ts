@@ -24,10 +24,10 @@ describe("initCamera", () => {
     expect(args).toHaveProperty("orientation");
   });
 
-  it("orientation pitch points upward (negative = looking up in Cesium)", () => {
+  it("orientation pitch points upward (positive = looking up in Cesium)", () => {
     const { mock, setView } = makeCamera();
     initCamera(mock, 40.0, -74.0);
     const [args] = setView.mock.calls[0] as [{ orientation: { pitch: number } }];
-    expect(args.orientation.pitch).toBeLessThan(0);
+    expect(args.orientation.pitch).toBeGreaterThan(0);
   });
 });
