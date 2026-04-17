@@ -22,3 +22,11 @@ Constellation stick-figure data derived from Stellarium
 (https://github.com/Stellarium/stellarium).
 Stellarium is licensed under GPL-2.0; the constellation line data
 (skycultures/modern_st/) is in the public domain.
+
+satellite.js
+Copyright (c) 2013-2024 Shashwat Kandadai and Contributors
+License: MIT
+https://github.com/shashwatak/satellite-js
+
+TLE data from CelesTrak (https://celestrak.org)
+Dr. T.S. Kelso. Used with attribution.

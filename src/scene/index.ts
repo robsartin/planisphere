@@ -6,3 +6,4 @@ export { type Tooltip, createTooltip } from "./tooltip";
 export { type BodyLayer, createBodyLayer } from "./bodies";
 export { type ConstellationLayer, createConstellationLayer } from "./constellations";
 export { type CompassLayer, createCompassLayer } from "./compass";
+export { type SatelliteLayer, createSatelliteLayer } from "./satellites";
