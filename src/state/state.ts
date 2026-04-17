@@ -3,9 +3,26 @@ import { err, ok, type Result } from "../result";
 
 export type Observer = { readonly lat: number; readonly lon: number };
 
+export type LayerVisibility = {
+  readonly stars: boolean;
+  readonly planets: boolean;
+  readonly satellites: boolean;
+  readonly constellationLines: boolean;
+  readonly constellationBoundaries: boolean;
+  readonly compass: boolean;
+};
+
+export type LayerOpacity = {
+  readonly constellationLines: number; // 0–1
+  readonly constellationBoundaries: number; // 0–1
+  readonly satelliteTrails: number; // 0–1
+};
+
 export type AppState = {
   readonly observer: Observer;
   readonly timeUtc: Date;
+  readonly layers: LayerVisibility;
+  readonly opacity: LayerOpacity;
 };
 
 export type StateParseError =
@@ -15,9 +32,35 @@ export type StateParseError =
   | { kind: "lon-out-of-range"; value: number }
   | { kind: "time-invalid"; raw: string };
 
+const ALL_LAYER_KEYS: readonly (keyof LayerVisibility)[] = [
+  "stars",
+  "planets",
+  "satellites",
+  "constellationLines",
+  "constellationBoundaries",
+  "compass",
+];
+
+export const DEFAULT_LAYERS: LayerVisibility = {
+  stars: true,
+  planets: true,
+  satellites: true,
+  constellationLines: true,
+  constellationBoundaries: true,
+  compass: true,
+};
+
+export const DEFAULT_OPACITY: LayerOpacity = {
+  constellationLines: 1.0,
+  constellationBoundaries: 1.0,
+  satelliteTrails: 1.0,
+};
+
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
   timeUtc: new Date("2026-04-15T00:00:00.000Z"),
+  layers: DEFAULT_LAYERS,
+  opacity: DEFAULT_OPACITY,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -38,6 +81,26 @@ function parseTime(raw: string): Result<Date, StateParseError> {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return err({ kind: "time-invalid", raw });
   return ok(d);
+}
+
+function parseLayerVisibility(raw: string | null): LayerVisibility {
+  if (raw === null) return DEFAULT_LAYERS;
+  const keys = new Set(raw.split(",").map((k) => k.trim()));
+  return {
+    stars: keys.has("stars"),
+    planets: keys.has("planets"),
+    satellites: keys.has("satellites"),
+    constellationLines: keys.has("constellationLines"),
+    constellationBoundaries: keys.has("constellationBoundaries"),
+    compass: keys.has("compass"),
+  };
+}
+
+function parseOpacity(raw: string | null, defaultValue: number): number {
+  if (raw === null) return defaultValue;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return defaultValue;
+  return Math.min(1, Math.max(0, n / 100));
 }
 
 export function parseStateFromSearchParams(
@@ -68,7 +131,18 @@ export function parseStateFromSearchParams(
     timeUtc = r.value;
   }
 
-  return ok({ observer: { lat, lon }, timeUtc });
+  const layers = parseLayerVisibility(params.get("layers"));
+
+  const opacity: LayerOpacity = {
+    constellationLines: parseOpacity(params.get("op_cl"), DEFAULT_OPACITY.constellationLines),
+    constellationBoundaries: parseOpacity(
+      params.get("op_cb"),
+      DEFAULT_OPACITY.constellationBoundaries,
+    ),
+    satelliteTrails: parseOpacity(params.get("op_st"), DEFAULT_OPACITY.satelliteTrails),
+  };
+
+  return ok({ observer: { lat, lon }, timeUtc, layers, opacity });
 }
 
 export function serializeStateToSearchParams(state: AppState): URLSearchParams {
@@ -76,5 +150,22 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
   params.set("lat", String(state.observer.lat));
   params.set("lon", String(state.observer.lon));
   params.set("t", state.timeUtc.toISOString());
+
+  // Only write layers param if not all visible
+  const visibleKeys = ALL_LAYER_KEYS.filter((k) => state.layers[k]);
+  if (visibleKeys.length < ALL_LAYER_KEYS.length) {
+    params.set("layers", visibleKeys.join(","));
+  }
+
+  if (state.opacity.constellationLines !== 1.0) {
+    params.set("op_cl", String(Math.round(state.opacity.constellationLines * 100)));
+  }
+  if (state.opacity.constellationBoundaries !== 1.0) {
+    params.set("op_cb", String(Math.round(state.opacity.constellationBoundaries * 100)));
+  }
+  if (state.opacity.satelliteTrails !== 1.0) {
+    params.set("op_st", String(Math.round(state.opacity.satelliteTrails * 100)));
+  }
+
   return params;
 }

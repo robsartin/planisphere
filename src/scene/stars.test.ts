@@ -188,3 +188,17 @@ describe("StarLayer.update", () => {
     expect(callArgs.position).toBeDefined();
   });
 });
+
+describe("StarLayer.setVisible", () => {
+  it("has a setVisible method", () => {
+    const layer = createStarLayer(makeMockScene() as never);
+    expect(layer).toHaveProperty("setVisible");
+    expect(typeof layer.setVisible).toBe("function");
+  });
+
+  it("does not throw when called with true or false", () => {
+    const layer = createStarLayer(makeMockScene() as never);
+    expect(() => layer.setVisible(false)).not.toThrow();
+    expect(() => layer.setVisible(true)).not.toThrow();
+  });
+});

@@ -193,3 +193,17 @@ describe("BodyLayer.update", () => {
     expect(mockAdd).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("BodyLayer.setVisible", () => {
+  it("has a setVisible method", () => {
+    const layer = createBodyLayer(makeMockScene() as never);
+    expect(layer).toHaveProperty("setVisible");
+    expect(typeof layer.setVisible).toBe("function");
+  });
+
+  it("does not throw when called with true or false", () => {
+    const layer = createBodyLayer(makeMockScene() as never);
+    expect(() => layer.setVisible(false)).not.toThrow();
+    expect(() => layer.setVisible(true)).not.toThrow();
+  });
+});

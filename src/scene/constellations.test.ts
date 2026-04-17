@@ -129,3 +129,23 @@ describe("ConstellationLayer.update", () => {
     expect(mockLabelAdd).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ConstellationLayer.setVisible", () => {
+  it("has setVisible and setOpacity methods", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    expect(layer).toHaveProperty("setVisible");
+    expect(layer).toHaveProperty("setOpacity");
+  });
+
+  it("does not throw when setVisible is called", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    expect(() => layer.setVisible(false)).not.toThrow();
+    expect(() => layer.setVisible(true)).not.toThrow();
+  });
+
+  it("does not throw when setOpacity is called", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    layer.update(CONSTELLATIONS, 33, -117);
+    expect(() => layer.setOpacity(0.5)).not.toThrow();
+  });
+});
