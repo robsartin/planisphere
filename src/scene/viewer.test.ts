@@ -39,4 +39,19 @@ describe("createViewer", () => {
     expect(isErr(r)).toBe(true);
     if (isErr(r)) expect(r.error.kind).toBe("scene-init-failed");
   });
+
+  it("returns Err when Viewer constructor throws", async () => {
+    const { Viewer } = await import("cesium");
+    const mock = vi.mocked(Viewer);
+    mock.mockImplementationOnce(() => {
+      throw new Error("WebGL not available");
+    });
+    const container = document.createElement("div");
+    container.id = "cesium-throw";
+    document.body.appendChild(container);
+    const r = createViewer("cesium-throw");
+    expect(isErr(r)).toBe(true);
+    if (isErr(r)) expect(r.error.message).toContain("WebGL not available");
+    document.body.removeChild(container);
+  });
 });
