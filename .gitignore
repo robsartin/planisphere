@@ -8,6 +8,9 @@ coverage/
 # Worktrees (managed by git worktree; contents must never be tracked)
 .worktrees/
 
+# Claude Code
+.claude/
+
 # Editor / OS
 .DS_Store
 .vscode/
