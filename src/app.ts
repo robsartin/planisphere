@@ -14,6 +14,7 @@ import {
   createBodyLayer,
   createTooltip,
   createConstellationLayer,
+  createCompassLayer,
 } from "./scene";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
@@ -67,6 +68,9 @@ export function bootstrap(
   } else {
     console.warn(`Constellation load warning: ${constellationResult.error.message}`);
   }
+
+  const compassLayer = createCompassLayer(viewer.scene);
+  compassLayer.update(observer.lat, observer.lon);
 
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
