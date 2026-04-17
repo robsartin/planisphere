@@ -1,11 +1,19 @@
 Planisphere
 Copyright 2026 Rob Sartin
 
-This product includes software developed by third parties; their licenses
-and attributions are listed below. Bundled dependencies will be added as
-they are introduced in later plans.
+This product includes software developed by third parties:
 
 ---
-No bundled third-party runtime dependencies have shipped yet.
-(CesiumJS, satellite.js, Astronomy Engine, and catalog data will be
-added under Plans 02–05.)
+Astronomy Engine
+Copyright (c) 2019-2024 Don Cross
+License: MIT
+https://github.com/cosinekitty/astronomy
+
+CesiumJS
+Copyright 2011-2024 CesiumGS, Inc. and Contributors
+License: Apache 2.0
+https://github.com/CesiumGS/cesium
+
+Star catalog derived from the Hipparcos catalogue (ESA, 1997)
+via the HYG Database (https://github.com/astronexus/HYG-Database).
+The Hipparcos data is in the public domain.
