@@ -5,3 +5,11 @@ export { type StarVisual, magToVisual } from "./magnitude";
 export { type AltAzStar, filterVisibleStars } from "./visibility";
 export { type MoonIllumination, getMoonIllumination } from "./moon-phase";
 export { type CelestialBody, computeBodyPositions } from "./bodies";
+export {
+  type ConstellationRecord,
+  type ConstellationLoadError,
+  type VisibleLine,
+  type VisibleConstellation,
+  parseConstellations,
+  filterVisibleConstellations,
+} from "./constellations";

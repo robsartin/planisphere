@@ -17,3 +17,8 @@ https://github.com/CesiumGS/cesium
 Star catalog derived from the Hipparcos catalogue (ESA, 1997)
 via the HYG Database (https://github.com/astronexus/HYG-Database).
 The Hipparcos data is in the public domain.
+
+Constellation stick-figure data derived from Stellarium
+(https://github.com/Stellarium/stellarium).
+Stellarium is licensed under GPL-2.0; the constellation line data
+(skycultures/modern_st/) is in the public domain.
