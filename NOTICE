@@ -30,3 +30,8 @@ https://github.com/shashwatak/satellite-js
 
 TLE data from CelesTrak (https://celestrak.org)
 Dr. T.S. Kelso. Used with attribution.
+
+IAU constellation boundary data from the Catalogue of Constellation Boundary Data
+(Davenhall & Leggett, 1989), available from CDS VizieR
+(https://cdsarc.cds.unistra.fr/ftp/VI/49/).
+The boundary data is in the public domain.
