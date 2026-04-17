@@ -39,6 +39,8 @@ describe("filterVisibleStars", () => {
     if (result.length > 0) {
       const s = result[0];
       expect(s).toHaveProperty("hip");
+      expect(s).toHaveProperty("ra");
+      expect(s).toHaveProperty("dec");
       expect(s).toHaveProperty("alt");
       expect(s).toHaveProperty("az");
       expect(s).toHaveProperty("mag");

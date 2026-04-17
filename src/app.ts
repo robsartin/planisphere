@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { parseStateFromSearchParams } from "./state";
 import { parseCatalog, filterVisibleStars } from "./astro";
-import { createViewer, initCamera, createStarLayer } from "./scene";
+import { createViewer, initCamera, createStarLayer, createTooltip } from "./scene";
 import rawStars from "../data/stars.json";
 
 export function bootstrap(
@@ -37,6 +37,11 @@ export function bootstrap(
   const visibleStars = filterVisibleStars(catalogResult.value, observer.lat, observer.lon, timeUtc);
   const starLayer = createStarLayer(viewer.scene);
   starLayer.update(visibleStars, observer.lat, observer.lon);
+
+  const cesiumContainer = document.getElementById("cesium-container");
+  if (cesiumContainer) {
+    createTooltip(viewer, cesiumContainer);
+  }
 }
 
 function showError(el: HTMLElement | null, message: string): void {

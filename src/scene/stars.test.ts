@@ -56,9 +56,29 @@ function makeMockScene() {
 }
 
 const STARS: AltAzStar[] = [
-  { hip: 32349, alt: 45, az: 180, mag: -1.46, name: "Sirius", size: 16, opacity: 1.0 },
-  { hip: 69673, alt: 70, az: 90, mag: 0.03, name: "Vega", size: 14, opacity: 0.95 },
-  { hip: 99999, alt: 10, az: 270, mag: 5.8, size: 3, opacity: 0.42 },
+  {
+    hip: 32349,
+    ra: 101.29,
+    dec: -16.72,
+    alt: 45,
+    az: 180,
+    mag: -1.46,
+    name: "Sirius",
+    size: 16,
+    opacity: 1.0,
+  },
+  {
+    hip: 69673,
+    ra: 279.23,
+    dec: 38.78,
+    alt: 70,
+    az: 90,
+    mag: 0.03,
+    name: "Vega",
+    size: 14,
+    opacity: 0.95,
+  },
+  { hip: 99999, ra: 0, dec: 0, alt: 10, az: 270, mag: 5.8, size: 3, opacity: 0.42 },
 ];
 
 beforeEach(() => {

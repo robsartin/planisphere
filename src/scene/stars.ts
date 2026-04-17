@@ -78,6 +78,7 @@ export function createStarLayer(scene: Scene): StarLayer {
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        id: star,
       });
     }
   }

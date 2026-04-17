@@ -21,7 +21,10 @@ vi.mock("cesium", () => ({
     removeAll: vi.fn(),
     length: 0,
   })),
-  Cartesian3: { fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }) },
+  Cartesian3: Object.assign(
+    vi.fn().mockImplementation((x: number, y: number, z: number) => ({ x, y, z })),
+    { fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }) },
+  ),
   Color: {
     BLACK: { clone: () => ({ red: 0, green: 0, blue: 0, alpha: 1 }) },
     WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },
@@ -30,6 +33,20 @@ vi.mock("cesium", () => ({
   Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
   HorizontalOrigin: { CENTER: 0 },
   VerticalOrigin: { CENTER: 0 },
+  Transforms: {
+    eastNorthUpToFixedFrame: vi
+      .fn()
+      .mockReturnValue([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+  },
+  Matrix4: {
+    multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
+  },
+  ScreenSpaceEventHandler: vi.fn().mockImplementation(() => ({
+    setInputAction: vi.fn(),
+    destroy: vi.fn(),
+  })),
+  ScreenSpaceEventType: { MOUSE_MOVE: 0 },
+  defined: (v: unknown) => v !== undefined && v !== null,
 }));
 
 vi.mock("../data/stars.json", () => ({

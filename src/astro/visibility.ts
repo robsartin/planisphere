@@ -5,6 +5,8 @@ import { magToVisual } from "./magnitude";
 
 export type AltAzStar = {
   readonly hip: number;
+  readonly ra: number;
+  readonly dec: number;
   readonly alt: number;
   readonly az: number;
   readonly mag: number;
@@ -26,6 +28,8 @@ export function filterVisibleStars(
     const { size, opacity } = magToVisual(star.mag);
     result.push({
       hip: star.hip,
+      ra: star.ra,
+      dec: star.dec,
       alt,
       az,
       mag: star.mag,
