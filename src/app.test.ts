@@ -50,6 +50,16 @@ vi.mock("cesium", () => ({
   })),
   ScreenSpaceEventType: { MOUSE_MOVE: 0 },
   defined: (v: unknown) => v !== undefined && v !== null,
+  PolylineCollection: vi.fn().mockImplementation(() => ({
+    add: vi.fn(),
+    removeAll: vi.fn(),
+  })),
+  LabelCollection: vi.fn().mockImplementation(() => ({
+    add: vi.fn(),
+    removeAll: vi.fn(),
+  })),
+  LabelStyle: { FILL: 0 },
+  Material: { fromType: vi.fn().mockReturnValue({}) },
 }));
 
 vi.mock("../data/stars.json", () => ({
@@ -57,6 +67,10 @@ vi.mock("../data/stars.json", () => ({
     { hip: 11767, ra: 37.9546, dec: 89.2641, mag: 2.02, name: "Polaris" },
     { hip: 32349, ra: 101.2872, dec: -16.7161, mag: -1.46, name: "Sirius" },
   ],
+}));
+
+vi.mock("../data/constellations.json", () => ({
+  default: [{ id: "Ori", name: "Orion", lines: [[27366, 26311]] }],
 }));
 
 import { bootstrap } from "./app";

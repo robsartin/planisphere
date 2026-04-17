@@ -1,8 +1,22 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { parseStateFromSearchParams } from "./state";
-import { parseCatalog, filterVisibleStars, computeBodyPositions } from "./astro";
-import { createViewer, initCamera, createStarLayer, createBodyLayer, createTooltip } from "./scene";
+import {
+  parseCatalog,
+  filterVisibleStars,
+  computeBodyPositions,
+  parseConstellations,
+  filterVisibleConstellations,
+} from "./astro";
+import {
+  createViewer,
+  initCamera,
+  createStarLayer,
+  createBodyLayer,
+  createTooltip,
+  createConstellationLayer,
+} from "./scene";
 import rawStars from "../data/stars.json";
+import rawConstellations from "../data/constellations.json";
 
 export function bootstrap(
   root: HTMLElement | null,
@@ -41,6 +55,18 @@ export function bootstrap(
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
   const bodyLayer = createBodyLayer(viewer.scene);
   bodyLayer.update(bodies, observer.lat, observer.lon);
+
+  const constellationResult = parseConstellations(rawConstellations);
+  if (constellationResult.ok) {
+    const visibleConstellations = filterVisibleConstellations(
+      constellationResult.value,
+      visibleStars,
+    );
+    const constellationLayer = createConstellationLayer(viewer.scene);
+    constellationLayer.update(visibleConstellations, observer.lat, observer.lon);
+  } else {
+    console.warn(`Constellation load warning: ${constellationResult.error.message}`);
+  }
 
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
