@@ -10,18 +10,26 @@ export type CompassLayer = {
 type DirectionLabel = {
   text: string;
   az: number;
-  bold: boolean;
+  rank: "cardinal" | "intercardinal" | "secondary";
 };
 
 const DIRECTIONS: DirectionLabel[] = [
-  { text: "N", az: 0, bold: true },
-  { text: "NE", az: 45, bold: false },
-  { text: "E", az: 90, bold: true },
-  { text: "SE", az: 135, bold: false },
-  { text: "S", az: 180, bold: true },
-  { text: "SW", az: 225, bold: false },
-  { text: "W", az: 270, bold: true },
-  { text: "NW", az: 315, bold: false },
+  { text: "N", az: 0, rank: "cardinal" },
+  { text: "NNE", az: 22.5, rank: "secondary" },
+  { text: "NE", az: 45, rank: "intercardinal" },
+  { text: "ENE", az: 67.5, rank: "secondary" },
+  { text: "E", az: 90, rank: "cardinal" },
+  { text: "ESE", az: 112.5, rank: "secondary" },
+  { text: "SE", az: 135, rank: "intercardinal" },
+  { text: "SSE", az: 157.5, rank: "secondary" },
+  { text: "S", az: 180, rank: "cardinal" },
+  { text: "SSW", az: 202.5, rank: "secondary" },
+  { text: "SW", az: 225, rank: "intercardinal" },
+  { text: "WSW", az: 247.5, rank: "secondary" },
+  { text: "W", az: 270, rank: "cardinal" },
+  { text: "WNW", az: 292.5, rank: "secondary" },
+  { text: "NW", az: 315, rank: "intercardinal" },
+  { text: "NNW", az: 337.5, rank: "secondary" },
 ];
 
 export function createCompassLayer(scene: Scene): CompassLayer {
@@ -35,8 +43,15 @@ export function createCompassLayer(scene: Scene): CompassLayer {
       labels.add({
         position,
         text: dir.text,
-        font: dir.bold ? "bold 16px sans-serif" : "14px sans-serif",
-        fillColor: Color.WHITE.withAlpha(dir.bold ? 0.85 : 0.6),
+        font:
+          dir.rank === "cardinal"
+            ? "bold 16px sans-serif"
+            : dir.rank === "intercardinal"
+              ? "14px sans-serif"
+              : "12px sans-serif",
+        fillColor: Color.WHITE.withAlpha(
+          dir.rank === "cardinal" ? 0.85 : dir.rank === "intercardinal" ? 0.6 : 0.4,
+        ),
         style: LabelStyle.FILL,
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,

@@ -66,7 +66,7 @@ describe("CompassLayer.update", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     layer.update(33, -117);
     expect(mockRemoveAll).toHaveBeenCalledOnce();
-    expect(mockAdd).toHaveBeenCalledTimes(8);
+    expect(mockAdd).toHaveBeenCalledTimes(16);
   });
 
   it("cardinal directions use bold font", () => {
@@ -77,12 +77,20 @@ describe("CompassLayer.update", () => {
     expect(nCall.font).toContain("bold");
   });
 
+  it("secondary intercardinal directions use smallest font", () => {
+    const layer = createCompassLayer(makeMockScene() as never);
+    layer.update(33, -117);
+    const nneCall = mockAdd.mock.calls[1]![0] as { text: string; font: string };
+    expect(nneCall.text).toBe("NNE");
+    expect(nneCall.font).toContain("12px");
+  });
+
   it("intercardinal directions use regular font", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     layer.update(33, -117);
-    const neCall = mockAdd.mock.calls[1]![0] as { text: string; font: string };
+    const neCall = mockAdd.mock.calls[2]![0] as { text: string; font: string };
     expect(neCall.text).toBe("NE");
-    expect(neCall.font).not.toContain("bold");
+    expect(neCall.font).toContain("14px");
   });
 
   it("clears previous labels before adding", () => {
@@ -92,6 +100,6 @@ describe("CompassLayer.update", () => {
     mockRemoveAll.mockClear();
     layer.update(40, -74);
     expect(mockRemoveAll).toHaveBeenCalledOnce();
-    expect(mockAdd).toHaveBeenCalledTimes(8);
+    expect(mockAdd).toHaveBeenCalledTimes(16);
   });
 });
