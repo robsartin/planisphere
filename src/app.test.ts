@@ -28,6 +28,9 @@ vi.mock("cesium", () => ({
   Color: {
     BLACK: { clone: () => ({ red: 0, green: 0, blue: 0, alpha: 1 }) },
     WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },
+    fromCssColorString: vi.fn().mockReturnValue({
+      withAlpha: (a: number) => ({ alpha: a }),
+    }),
   },
   Ion: { defaultAccessToken: "" },
   Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
