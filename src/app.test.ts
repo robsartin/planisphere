@@ -73,12 +73,27 @@ vi.mock("../data/constellations.json", () => ({
   default: [{ id: "Ori", name: "Orion", lines: [[27366, 26311]] }],
 }));
 
+// Mock the TLE bundled data
+vi.mock("../data/tle/visual.txt?raw", () => ({
+  default:
+    "ISS (ZARYA)\n1 25544U 98067A   24100.50000000  .00016717  00000-0  10270-3 0  9006\n2 25544  51.6400 208.9163 0002476 102.8574 355.4846 15.49909786447384",
+}));
+
+// Mock the sat module so tests don't do real network/propagation
+vi.mock("./sat", () => ({
+  fetchTle: vi.fn().mockResolvedValue({ ok: true, value: "" }),
+  parseTle: vi
+    .fn()
+    .mockReturnValue({ ok: false, error: { kind: "tle-parse-failed", message: "mocked" } }),
+  propagateSatellites: vi.fn().mockReturnValue([]),
+}));
+
 import { bootstrap } from "./app";
 import * as astro from "./astro";
 import { err } from "./result";
 
 describe("bootstrap", () => {
-  it("creates a cesium-container div when root exists", () => {
+  it("creates a cesium-container div when root exists", async () => {
     const root = document.createElement("main");
     root.id = "app";
     const cesiumDiv = document.createElement("div");
@@ -89,17 +104,17 @@ describe("bootstrap", () => {
     root.appendChild(errorDiv);
     document.body.appendChild(root);
 
-    bootstrap(root);
+    await bootstrap(root);
 
     expect(document.getElementById("cesium-container")).toBeTruthy();
     document.body.removeChild(root);
   });
 
-  it("does nothing when root is null", () => {
-    expect(() => bootstrap(null)).not.toThrow();
+  it("does nothing when root is null", async () => {
+    await expect(bootstrap(null)).resolves.toBeUndefined();
   });
 
-  it("shows error text when state parsing fails", () => {
+  it("shows error text when state parsing fails", async () => {
     const root = document.createElement("main");
     root.id = "app";
     const errorDiv = document.createElement("div");
@@ -107,14 +122,14 @@ describe("bootstrap", () => {
     root.appendChild(errorDiv);
     document.body.appendChild(root);
 
-    bootstrap(root, new URLSearchParams({ lat: "999" }));
+    await bootstrap(root, new URLSearchParams({ lat: "999" }));
 
     expect(errorDiv.style.display).not.toBe("none");
     expect(errorDiv.textContent).toMatch(/lat-out-of-range/);
     document.body.removeChild(root);
   });
 
-  it("shows error text when catalog parsing fails", () => {
+  it("shows error text when catalog parsing fails", async () => {
     const spy = vi
       .spyOn(astro, "parseCatalog")
       .mockReturnValueOnce(err({ kind: "catalog-load-failed", message: "empty catalog" }));
@@ -125,7 +140,10 @@ describe("bootstrap", () => {
     root.appendChild(errorDiv);
     document.body.appendChild(root);
 
-    bootstrap(root, new URLSearchParams({ lat: "34", lon: "-118", t: "2026-01-15T04:00:00Z" }));
+    await bootstrap(
+      root,
+      new URLSearchParams({ lat: "34", lon: "-118", t: "2026-01-15T04:00:00Z" }),
+    );
 
     expect(errorDiv.style.display).not.toBe("none");
     expect(errorDiv.textContent).toMatch(/Catalog error/);
@@ -133,7 +151,7 @@ describe("bootstrap", () => {
     spy.mockRestore();
   });
 
-  it("shows error text when viewer creation fails", () => {
+  it("shows error text when viewer creation fails", async () => {
     const root = document.createElement("main");
     root.id = "app";
     const errorDiv = document.createElement("div");
@@ -142,7 +160,10 @@ describe("bootstrap", () => {
     // No #cesium-container in DOM → createViewer returns Err
     document.body.appendChild(root);
 
-    bootstrap(root, new URLSearchParams({ lat: "34", lon: "-118", t: "2026-01-15T04:00:00Z" }));
+    await bootstrap(
+      root,
+      new URLSearchParams({ lat: "34", lon: "-118", t: "2026-01-15T04:00:00Z" }),
+    );
 
     expect(errorDiv.style.display).not.toBe("none");
     expect(errorDiv.textContent).toMatch(/Scene error/);

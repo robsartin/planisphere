@@ -15,14 +15,16 @@ import {
   createTooltip,
   createConstellationLayer,
   createCompassLayer,
+  createSatelliteLayer,
 } from "./scene";
+import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
 
-export function bootstrap(
+export async function bootstrap(
   root: HTMLElement | null,
   params: URLSearchParams = new URLSearchParams(globalThis.location?.search ?? ""),
-): void {
+): Promise<void> {
   if (!root) return;
 
   const errorDiv = root.querySelector<HTMLElement>("#error");
@@ -71,6 +73,24 @@ export function bootstrap(
 
   const compassLayer = createCompassLayer(viewer.scene);
   compassLayer.update(observer.lat, observer.lon);
+
+  const tleResult = await fetchTle();
+  if (tleResult.ok) {
+    const satResult = parseTle(tleResult.value);
+    if (satResult.ok) {
+      const visibleSats = propagateSatellites(
+        satResult.value,
+        observer.lat,
+        observer.lon,
+        timeUtc,
+        true,
+      );
+      const satLayer = createSatelliteLayer(viewer.scene);
+      satLayer.update(visibleSats, observer.lat, observer.lon);
+    } else {
+      console.warn(`TLE parse warning: ${satResult.error.message}`);
+    }
+  }
 
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
