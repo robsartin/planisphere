@@ -140,3 +140,23 @@ describe("SatelliteLayer.update", () => {
     expect(mockPolylineAdd).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("SatelliteLayer.setVisible", () => {
+  it("has setVisible and setOpacity methods", () => {
+    const layer = createSatelliteLayer(makeMockScene() as never);
+    expect(layer).toHaveProperty("setVisible");
+    expect(layer).toHaveProperty("setOpacity");
+  });
+
+  it("does not throw when setVisible is called", () => {
+    const layer = createSatelliteLayer(makeMockScene() as never);
+    expect(() => layer.setVisible(false)).not.toThrow();
+    expect(() => layer.setVisible(true)).not.toThrow();
+  });
+
+  it("does not throw when setOpacity is called", () => {
+    const layer = createSatelliteLayer(makeMockScene() as never);
+    layer.update(SATS, 33, -117);
+    expect(() => layer.setOpacity(0.5)).not.toThrow();
+  });
+});

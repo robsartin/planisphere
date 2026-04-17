@@ -6,6 +6,7 @@ import { altAzToCartesian } from "./stars";
 
 export type BodyLayer = {
   update: (bodies: CelestialBody[], lat: number, lon: number) => void;
+  setVisible: (visible: boolean) => void;
 };
 
 function getContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
@@ -114,5 +115,9 @@ export function createBodyLayer(scene: Scene): BodyLayer {
     }
   }
 
-  return { update };
+  function setVisible(visible: boolean): void {
+    (billboards as unknown as { show: boolean }).show = visible;
+  }
+
+  return { update, setVisible };
 }

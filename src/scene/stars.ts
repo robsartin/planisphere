@@ -16,6 +16,7 @@ const SKY_RADIUS = 1e5;
 
 export type StarLayer = {
   update: (stars: AltAzStar[], lat: number, lon: number) => void;
+  setVisible: (visible: boolean) => void;
 };
 
 export function generateStarSprite(): HTMLCanvasElement {
@@ -83,5 +84,9 @@ export function createStarLayer(scene: Scene): StarLayer {
     }
   }
 
-  return { update };
+  function setVisible(visible: boolean): void {
+    (billboards as unknown as { show: boolean }).show = visible;
+  }
+
+  return { update, setVisible };
 }

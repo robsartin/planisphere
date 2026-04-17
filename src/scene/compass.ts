@@ -5,6 +5,7 @@ import { altAzToCartesian } from "./stars";
 
 export type CompassLayer = {
   update: (lat: number, lon: number) => void;
+  setVisible: (visible: boolean) => void;
 };
 
 type DirectionLabel = {
@@ -60,5 +61,9 @@ export function createCompassLayer(scene: Scene): CompassLayer {
     }
   }
 
-  return { update };
+  function setVisible(visible: boolean): void {
+    (labels as unknown as { show: boolean }).show = visible;
+  }
+
+  return { update, setVisible };
 }

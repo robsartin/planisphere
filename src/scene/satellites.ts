@@ -15,6 +15,8 @@ const SAT_COLOR = "#00FF88";
 
 export type SatelliteLayer = {
   update: (satellites: VisibleSatellite[], lat: number, lon: number) => void;
+  setVisible: (visible: boolean) => void;
+  setOpacity: (opacity: number) => void;
 };
 
 function generateSatSprite(): HTMLCanvasElement {
@@ -47,9 +49,12 @@ export function createSatelliteLayer(scene: Scene): SatelliteLayer {
   scene.primitives.add(polylines);
   const spriteImage = generateSatSprite();
 
+  const trailPolylines: Array<{ material: { uniforms: { color: { alpha: number } } } }> = [];
+
   function update(satellites: VisibleSatellite[], lat: number, lon: number): void {
     billboards.removeAll();
     polylines.removeAll();
+    trailPolylines.length = 0;
 
     for (const sat of satellites) {
       billboards.add({
@@ -66,16 +71,30 @@ export function createSatelliteLayer(scene: Scene): SatelliteLayer {
       if (sat.trail.length >= 2) {
         const positions = sat.trail.map((pt) => altAzToCartesian(pt.alt, pt.az, lat, lon));
         positions.push(altAzToCartesian(sat.alt, sat.az, lat, lon));
-        polylines.add({
+        const pl = polylines.add({
           positions,
           width: 1,
           material: Material.fromType("Color", {
             color: Color.fromCssColorString(SAT_COLOR).withAlpha(0.3),
           }),
         });
+        trailPolylines.push(pl as never);
       }
     }
   }
 
-  return { update };
+  function setVisible(visible: boolean): void {
+    (billboards as unknown as { show: boolean }).show = visible;
+    (polylines as unknown as { show: boolean }).show = visible;
+  }
+
+  function setOpacity(opacity: number): void {
+    for (const pl of trailPolylines) {
+      if (pl?.material?.uniforms?.color !== undefined) {
+        pl.material.uniforms.color.alpha = opacity;
+      }
+    }
+  }
+
+  return { update, setVisible, setOpacity };
 }
