@@ -38,6 +38,14 @@ vi.mock("cesium", () => {
     HorizontalOrigin: { CENTER: 0 },
     VerticalOrigin: { CENTER: 0 },
     Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
+    Transforms: {
+      eastNorthUpToFixedFrame: vi
+        .fn()
+        .mockReturnValue([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+    },
+    Matrix4: {
+      multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
+    },
   };
 });
 

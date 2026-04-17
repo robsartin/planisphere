@@ -4,6 +4,8 @@ import {
   Cartesian3,
   Color,
   Math as CesiumMath,
+  Matrix4,
+  Transforms,
   HorizontalOrigin,
   VerticalOrigin,
 } from "cesium";
@@ -46,15 +48,18 @@ export function altAzToCartesian(alt: number, az: number, lat: number, lon: numb
   const altRad = CesiumMath.toRadians(alt);
   const azRad = CesiumMath.toRadians(az);
   const cosAlt = Math.cos(altRad);
-  const dx = -cosAlt * Math.sin(azRad);
-  const dy = cosAlt * Math.cos(azRad);
-  const dz = Math.sin(altRad);
+
+  // Direction in local ENU (East-North-Up) frame
+  const east = cosAlt * Math.sin(azRad);
+  const north = cosAlt * Math.cos(azRad);
+  const up = Math.sin(altRad);
+
+  const localDir = new Cartesian3(east * SKY_RADIUS, north * SKY_RADIUS, up * SKY_RADIUS);
+
+  // Transform local ENU direction to ECEF via the observer's reference frame
   const observerPos = Cartesian3.fromDegrees(lon, lat, 0);
-  return new Cartesian3(
-    observerPos.x + dx * SKY_RADIUS,
-    observerPos.y + dy * SKY_RADIUS,
-    observerPos.z + dz * SKY_RADIUS,
-  );
+  const enuToFixed = Transforms.eastNorthUpToFixedFrame(observerPos);
+  return Matrix4.multiplyByPoint(enuToFixed, localDir, new Cartesian3());
 }
 
 export function createStarLayer(scene: Scene): StarLayer {
