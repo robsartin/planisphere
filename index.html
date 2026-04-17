@@ -28,22 +28,11 @@
     </style>
   </head>
   <body>
-    <div
-      id="error"
-      style="
-        display: none;
-        position: fixed;
-        top: 8px;
-        left: 8px;
-        color: red;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 8px;
-        border-radius: 4px;
-        z-index: 9999;
-      "
-    ></div>
-    <div id="ui-panel-root"></div>
-    <div id="cesium-container" style="width: 100vw; height: 100vh"></div>
+    <main id="app">
+      <div id="cesium-container"></div>
+      <div id="error" style="display: none"></div>
+      <div id="ui-panel-root"></div>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

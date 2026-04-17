@@ -62,7 +62,10 @@ export function createCompassLayer(scene: Scene): CompassLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (labels as unknown as { show: boolean }).show = visible;
+    for (let i = 0; i < labels.length; i++) {
+      const label = labels.get(i);
+      label.show = visible;
+    }
   }
 
   return { update, setVisible };
