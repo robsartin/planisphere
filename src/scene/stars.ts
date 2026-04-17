@@ -12,7 +12,7 @@ import {
 import type { Scene } from "cesium";
 import type { AltAzStar } from "../astro";
 
-const SKY_RADIUS = 1e7;
+const SKY_RADIUS = 1e5;
 
 export type StarLayer = {
   update: (stars: AltAzStar[], lat: number, lon: number) => void;
@@ -77,6 +77,7 @@ export function createStarLayer(scene: Scene): StarLayer {
         color: Color.WHITE.withAlpha(star.opacity),
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
       });
     }
   }
