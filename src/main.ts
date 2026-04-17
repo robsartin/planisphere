@@ -2,4 +2,4 @@
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { bootstrap } from "./app";
 
-bootstrap(document.getElementById("app"));
+void bootstrap(document.getElementById("app"));

@@ -3,6 +3,7 @@ import { ScreenSpaceEventHandler, ScreenSpaceEventType, defined } from "cesium";
 import type { Cartesian2, Viewer } from "cesium";
 import type { AltAzStar } from "../astro";
 import type { CelestialBody } from "../astro";
+import type { VisibleSatellite } from "../sat";
 
 export type Tooltip = {
   destroy: () => void;
@@ -68,6 +69,26 @@ function formatBody(body: CelestialBody): string {
   return html;
 }
 
+function isVisibleSatellite(obj: unknown): obj is VisibleSatellite {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "noradId" in obj &&
+    "alt" in obj &&
+    "az" in obj &&
+    "velocity" in obj
+  );
+}
+
+function formatSatellite(sat: VisibleSatellite): string {
+  return (
+    `<strong>${sat.name}</strong> (NORAD ${String(sat.noradId)})<br>` +
+    `Alt ${sat.alt.toFixed(1)}\u00B0 Az ${sat.az.toFixed(1)}\u00B0<br>` +
+    `Orbit: ${Math.round(sat.height)} km<br>` +
+    `Velocity: ${sat.velocity.toFixed(2)} km/s`
+  );
+}
+
 export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
   const el = document.createElement("div");
   el.style.cssText =
@@ -89,6 +110,8 @@ export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
         html = formatStar(picked.id);
       } else if (isCelestialBody(picked.id)) {
         html = formatBody(picked.id);
+      } else if (isVisibleSatellite(picked.id)) {
+        html = formatSatellite(picked.id);
       }
     }
 
