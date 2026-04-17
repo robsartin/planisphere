@@ -13,3 +13,11 @@ export {
   parseConstellations,
   filterVisibleConstellations,
 } from "./constellations";
+export {
+  type BoundaryVertex,
+  type BoundaryRecord,
+  type BoundaryLoadError,
+  type VisibleBoundary,
+  parseBoundaries,
+  filterVisibleBoundaries,
+} from "./boundaries";
