@@ -53,4 +53,26 @@ ${ISS_TLE}`;
     expect(sats).toHaveLength(1);
     expect(sats[0]!.name).toBe("ISS (ZARYA)");
   });
+
+  it("skips lines that don't start with TLE line markers", () => {
+    const withJunk = `JUNK LINE ONE
+JUNK LINE TWO
+JUNK LINE THREE
+${ISS_TLE}`;
+    const sats = expectOk(parseTle(withJunk));
+    expect(sats).toHaveLength(1);
+    expect(sats[0]!.name).toBe("ISS (ZARYA)");
+  });
+
+  it("returns Err when all entries are invalid", () => {
+    const allBad = `BAD ONE
+NOT A TLE LINE 1
+NOT A TLE LINE 2
+BAD TWO
+ALSO NOT LINE 1
+ALSO NOT LINE 2`;
+    const r = parseTle(allBad);
+    expect(isErr(r)).toBe(true);
+    if (isErr(r)) expect(r.error.kind).toBe("tle-parse-failed");
+  });
 });

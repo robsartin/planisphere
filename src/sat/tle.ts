@@ -37,7 +37,11 @@ export function parseTle(raw: unknown): Result<SatelliteRecord[], TleParseError>
 
     try {
       const satrec = twoline2satrec(line1, line2);
-      if (satrec.error !== SatRecError.None || !Number.isFinite(satrec.no) || !Number.isFinite(satrec.inclo)) {
+      if (
+        satrec.error !== SatRecError.None ||
+        !Number.isFinite(satrec.no) ||
+        !Number.isFinite(satrec.inclo)
+      ) {
         i += 3;
         continue;
       }
