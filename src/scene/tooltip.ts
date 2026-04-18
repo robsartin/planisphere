@@ -89,7 +89,10 @@ function formatSatellite(sat: VisibleSatellite): string {
   );
 }
 
-function pickHtml(viewer: { scene: { pick: (pos: Cartesian2) => unknown } }, position: Cartesian2): string | null {
+function pickHtml(
+  viewer: { scene: { pick: (pos: Cartesian2) => unknown } },
+  position: Cartesian2,
+): string | null {
   const picked: { id?: unknown } | undefined = viewer.scene.pick(position) as
     | { id?: unknown }
     | undefined;
@@ -173,7 +176,9 @@ export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = CLOSE_BTN_STYLE;
     closeBtn.textContent = "\u00D7";
-    closeBtn.addEventListener("click", () => { dismissPinned(); });
+    closeBtn.addEventListener("click", () => {
+      dismissPinned();
+    });
 
     pinnedEl.innerHTML = html;
     pinnedEl.appendChild(closeBtn);
