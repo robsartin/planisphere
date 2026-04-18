@@ -636,9 +636,12 @@ export async function bootstrap(
         break;
       }
       case "set-language": {
-        state = { ...state, language: intent.language };
+        // Name overrides are only defined for the Western (IAU) asterism set, so a
+        // language change implies Western skyculture — otherwise the labels stay in
+        // the non-Western culture's native names and the user's choice is ignored.
+        state = { ...state, language: intent.language, skyculture: "western" };
+        data.activeAsterisms = null;
         layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
-        // Only constellation labels need updating, but we rebuild to pick up new text
         scheduleRerender(state);
         updateUrl(state);
         break;

@@ -496,6 +496,20 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
   });
 
+  it("set-language resets a non-western skyculture back to western", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ sky: "chinese" }));
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    capturedDispatch!({ type: "set-language", language: "en" });
+    // URL should no longer carry a non-default sky param
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).not.toContain("sky=chinese");
+    spy.mockRestore();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
   it("now intent handles missing geolocation API gracefully", async () => {
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
