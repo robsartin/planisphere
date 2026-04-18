@@ -3,6 +3,7 @@ export {
   type AppState,
   type Observer,
   type StateParseError,
+  type ViewDirection,
   DEFAULT_STATE,
   parseStateFromSearchParams,
   serializeStateToSearchParams,

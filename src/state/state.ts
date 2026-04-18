@@ -18,11 +18,17 @@ export type LayerOpacity = {
   readonly ecliptic: number; // 0–1
 };
 
+export type ViewDirection = {
+  readonly az: number;
+  readonly alt: number;
+};
+
 export type AppState = {
   readonly observer: Observer;
   readonly timeUtc: Date;
   readonly layers: LayerVisibility;
   readonly opacity: LayerOpacity;
+  readonly view: ViewDirection;
 };
 
 export type StateParseError =
@@ -54,11 +60,14 @@ export const DEFAULT_OPACITY: LayerOpacity = {
   ecliptic: 0.4,
 };
 
+export const DEFAULT_VIEW: ViewDirection = { az: 0, alt: 89.9 };
+
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
   timeUtc: new Date("2026-04-15T00:00:00.000Z"),
   layers: DEFAULT_LAYERS,
   opacity: DEFAULT_OPACITY,
+  view: DEFAULT_VIEW,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -140,7 +149,20 @@ export function parseStateFromSearchParams(
     ecliptic: parseOpacity(params.get("op_ecl"), DEFAULT_OPACITY.ecliptic),
   };
 
-  return ok({ observer: { lat, lon }, timeUtc, layers, opacity });
+  const rawVaz = params.get("vaz");
+  const rawValt = params.get("valt");
+  const viewAz =
+    rawVaz !== null && Number.isFinite(Number(rawVaz)) ? Number(rawVaz) : DEFAULT_VIEW.az;
+  const viewAlt =
+    rawValt !== null && Number.isFinite(Number(rawValt)) ? Number(rawValt) : DEFAULT_VIEW.alt;
+
+  return ok({
+    observer: { lat, lon },
+    timeUtc,
+    layers,
+    opacity,
+    view: { az: viewAz, alt: viewAlt },
+  });
 }
 
 export function serializeStateToSearchParams(state: AppState): URLSearchParams {
@@ -169,6 +191,11 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
   }
   if (state.opacity.ecliptic !== DEFAULT_OPACITY.ecliptic) {
     params.set("op_ecl", String(Math.round(state.opacity.ecliptic * 100)));
+  }
+
+  if (state.view.az !== DEFAULT_VIEW.az || state.view.alt !== DEFAULT_VIEW.alt) {
+    params.set("vaz", String(Math.round(state.view.az * 10) / 10));
+    params.set("valt", String(Math.round(state.view.alt * 10) / 10));
   }
 
   return params;
