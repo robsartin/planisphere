@@ -78,18 +78,51 @@ export function createTimeControls(
   }
   section.appendChild(buttonsRow);
 
-  // Now button
+  // Now button row: "Now" + "📍 Now" (with geolocation)
+  const nowRow = document.createElement("div");
+  nowRow.style.display = "flex";
+  nowRow.style.gap = "4px";
+
   const nowBtn = document.createElement("button");
   nowBtn.textContent = "Now";
   applyButton(nowBtn);
-  nowBtn.style.width = "100%";
+  nowBtn.style.flex = "1";
   nowBtn.addEventListener("click", () => {
     const now = new Date();
     current = now;
     input.value = toDatetimeLocal(now);
     dispatch({ type: "set-time", time: new Date(now) });
   });
-  section.appendChild(nowBtn);
+  nowRow.appendChild(nowBtn);
+
+  const liveBtn = document.createElement("button");
+  liveBtn.textContent = "📍 Now";
+  liveBtn.title = "Snap to current time and GPS location";
+  applyButton(liveBtn);
+  liveBtn.style.flex = "1";
+  liveBtn.addEventListener("click", () => {
+    liveBtn.textContent = "Locating…";
+    liveBtn.disabled = true;
+    dispatch({ type: "now" });
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          liveBtn.textContent = "📍 Now";
+          liveBtn.disabled = false;
+        },
+        () => {
+          liveBtn.textContent = "📍 Now";
+          liveBtn.disabled = false;
+        },
+      );
+    } else {
+      liveBtn.textContent = "📍 Now";
+      liveBtn.disabled = false;
+    }
+  });
+  nowRow.appendChild(liveBtn);
+
+  section.appendChild(nowRow);
 
   return section;
 }

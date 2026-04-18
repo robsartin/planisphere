@@ -514,6 +514,31 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "now": {
+        const now = new Date();
+        state = { ...state, timeUtc: now };
+        scheduleRerender(state);
+        refreshPlanetInfo(state);
+        rebuildSearchIndex(state);
+        updateUrl(state);
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude: lat, longitude: lon } = position.coords;
+              state = { ...state, observer: { lat, lon } };
+              initCamera(viewer.camera, lat, lon);
+              scheduleRerender(state);
+              refreshPlanetInfo(state);
+              rebuildSearchIndex(state);
+              updateUrl(state);
+            },
+            () => {
+              // Geolocation denied or failed — time already set, keep current location
+            },
+          );
+        }
+        break;
+      }
     }
   }
 
