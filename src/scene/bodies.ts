@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { BillboardCollection, Color, HorizontalOrigin, VerticalOrigin } from "cesium";
+import { BillboardCollection, HorizontalOrigin, VerticalOrigin } from "cesium";
 import type { Scene } from "cesium";
 import type { CelestialBody } from "../astro";
 import { altAzToCartesian } from "./stars";
@@ -106,7 +106,6 @@ export function createBodyLayer(scene: Scene): BodyLayer {
         position: altAzToCartesian(body.alt, body.az, lat, lon),
         image: spriteForBody(body),
         scale: body.size / 16,
-        color: Color.fromCssColorString(body.color).withAlpha(1.0),
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
