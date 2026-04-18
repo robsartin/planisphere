@@ -67,6 +67,7 @@ import {
   createFovControls,
   createEventsPanel,
 } from "./ui";
+import type { TimeControls } from "./ui";
 import { computeUpcomingEvents } from "./astro/events";
 import type { CelestialEvent } from "./astro/events";
 import type { UIIntent } from "./ui";
@@ -555,6 +556,8 @@ export async function bootstrap(
     );
   }
 
+  let timeControls: TimeControls | null = null;
+
   // Intent handler
   function handleIntent(intent: UIIntent): void {
     switch (intent.type) {
@@ -565,6 +568,7 @@ export async function bootstrap(
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
+        timeControls?.setTime(intent.time);
         updateUrl(state);
         break;
       }
@@ -651,6 +655,7 @@ export async function bootstrap(
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
+        timeControls?.setTime(now);
         updateUrl(state);
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -696,8 +701,8 @@ export async function bootstrap(
     const searchEl = createSearch((query) => searchObjects(searchIndex, query), handleIntent);
     uiContainer.appendChild(searchEl);
 
-    const timeEl = createTimeControls(state.timeUtc, handleIntent);
-    uiContainer.appendChild(timeEl);
+    timeControls = createTimeControls(state.timeUtc, handleIntent);
+    uiContainer.appendChild(timeControls.element);
 
     const locationEl = createLocationControls(state.observer.lat, state.observer.lon, handleIntent);
     uiContainer.appendChild(locationEl);

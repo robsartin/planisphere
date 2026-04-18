@@ -2,6 +2,7 @@
 export type { Panel } from "./panel";
 export { createPanel } from "./panel";
 export { createTimeControls } from "./time-controls";
+export type { TimeControls } from "./time-controls";
 export { createLocationControls } from "./location-controls";
 export { createLayerControls } from "./layer-controls";
 export { createViewControls } from "./view-controls";

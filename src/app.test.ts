@@ -153,7 +153,7 @@ vi.mock("./ui", () => ({
   }),
   createTimeControls: vi.fn().mockImplementation((_time: unknown, dispatch: unknown) => {
     capturedDispatch = dispatch as (intent: unknown) => void;
-    return document.createElement("div");
+    return { element: document.createElement("div"), setTime: vi.fn() };
   }),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
   createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
