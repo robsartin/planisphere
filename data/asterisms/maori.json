@@ -1,0 +1,45 @@
+{
+  "id": "maori",
+  "name": "Māori",
+  "constellations": [
+    {
+      "id": "CON maori 001",
+      "name": "Taki-o-Autahi",
+      "lines": [
+        [61084, 60718],
+        [62434, 59747]
+      ]
+    },
+    {
+      "id": "CON maori 002",
+      "name": "Te Taura-o-te-waka-o-tamarereti",
+      "lines": [[68702, 71683]]
+    },
+    {
+      "id": "CON maori 003",
+      "name": "Tau-toro",
+      "lines": [[26727, 26311, 25930]]
+    },
+    {
+      "id": "CON maori 004",
+      "name": "Te-Waka-o-Tama-Rereti",
+      "lines": [[82396, 82514, 82671, 84143, 86228, 87073, 86670, 85927, 85696]]
+    },
+    {
+      "id": "CON maori 005",
+      "name": "Matakarehu",
+      "lines": [[21421, 20894, 20205, 20455, 20889]]
+    },
+    {
+      "id": "CON maori 006",
+      "name": "Te-Ra-o-Tainui",
+      "lines": [
+        [21421, 20894, 20205, 20455, 20889],
+        [21421, 20889],
+        [20205, 25930],
+        [17499, 20205],
+        [26727, 26311, 25930]
+      ]
+    }
+  ]
+}

@@ -3,9 +3,22 @@ import { err, ok, type Result } from "../result";
 import type { VisibleConstellation, VisibleLine } from "./constellations";
 import type { AltAzStar } from "./visibility";
 
-export type SkycultureId = "western" | "chinese";
+export type SkycultureId =
+  | "western"
+  | "chinese"
+  | "indian"
+  | "norse_edda"
+  | "hawaiian_starlines"
+  | "maori";
 
-export const SKYCULTURES: readonly SkycultureId[] = ["western", "chinese"];
+export const SKYCULTURES: readonly SkycultureId[] = [
+  "western",
+  "chinese",
+  "indian",
+  "norse_edda",
+  "hawaiian_starlines",
+  "maori",
+];
 
 export type AsterismConstellation = {
   readonly id: string;
