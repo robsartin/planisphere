@@ -4,6 +4,6 @@ import { bootstrap } from "./app";
 
 void bootstrap(document.getElementById("app"));
 
-if ("serviceWorker" in navigator) {
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
