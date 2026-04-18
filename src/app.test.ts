@@ -314,6 +314,26 @@ describe("handleIntent routing", () => {
     vi.useRealTimers();
   });
 
+  it("set-time preserves existing observer location and updates URL with new time only", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ lat: "51.5", lon: "-0.12" }));
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    const eventTime = new Date("2026-08-12T00:00:00.000Z");
+    capturedDispatch!({ type: "set-time", time: eventTime });
+    const urls = spy.mock.calls.map((c) => String(c[2]));
+    const lastUrl = urls[urls.length - 1]!;
+    expect(lastUrl).toContain("lat=51.5");
+    expect(lastUrl).toContain("lon=-0.12");
+    expect(lastUrl).toContain(`t=${encodeURIComponent(eventTime.toISOString())}`);
+    spy.mockRestore();
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
+  });
+
   it("set-observer intent re-renders without throwing", async () => {
     vi.useFakeTimers();
     capturedDispatch = null;
