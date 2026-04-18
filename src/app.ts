@@ -36,6 +36,7 @@ import {
   createMessierLayer,
   createMilkyWayLayer,
   createTrailLayer,
+  createReticleLayer,
   setCameraView,
 } from "./scene";
 import type {
@@ -50,6 +51,7 @@ import type {
   MessierLayer,
   MilkyWayLayer,
   TrailLayer,
+  ReticleLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import type { SatelliteRecord, TleParseError } from "./sat";
@@ -62,6 +64,7 @@ import {
   createViewControls,
   createPlanetInfo,
   createSearch,
+  createFovControls,
 } from "./ui";
 import type { UIIntent } from "./ui";
 import { buildSearchIndex, searchObjects } from "./astro/search";
@@ -106,6 +109,7 @@ type Layers = {
   messier: MessierLayer;
   milkyWay: MilkyWayLayer;
   trail: TrailLayer;
+  reticle: ReticleLayer | null;
 };
 
 const TRAIL_DURATION_HOURS = 4;
@@ -366,6 +370,7 @@ export async function bootstrap(
   setupTrackballControls(viewer);
 
   // Create all layers
+  const cesiumContainerEl = document.getElementById("cesium-container");
   const layers: Layers = {
     star: createStarLayer(viewer.scene),
     body: createBodyLayer(viewer.scene),
@@ -378,7 +383,11 @@ export async function bootstrap(
     messier: createMessierLayer(viewer.scene),
     milkyWay: createMilkyWayLayer(viewer.scene),
     trail: createTrailLayer(viewer.scene),
+    reticle: cesiumContainerEl ? createReticleLayer(viewer.scene, cesiumContainerEl) : null,
   };
+
+  // Apply initial reticle preset from URL state
+  layers.reticle?.setPreset(state.fov);
 
   // Current trail selection (ephemeral — not URL-persisted)
   let trailBodyId: string | null = null;
@@ -609,6 +618,12 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "set-fov": {
+        state = { ...state, fov: intent.preset };
+        layers.reticle?.setPreset(intent.preset);
+        updateUrl(state);
+        break;
+      }
       case "now": {
         const now = new Date();
         state = { ...state, timeUtc: now };
@@ -668,6 +683,9 @@ export async function bootstrap(
 
     const viewEl = createViewControls(0, 89.9, handleIntent);
     uiContainer.appendChild(viewEl);
+
+    const fovEl = createFovControls(state.fov, handleIntent);
+    uiContainer.appendChild(fovEl);
 
     const layerEl = createLayerControls(
       state.layers,

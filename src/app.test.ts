@@ -16,97 +16,105 @@ vi.mock("./workers/astro-worker-client", () => {
   };
 });
 
-vi.mock("cesium", () => ({
-  Viewer: vi.fn().mockImplementation(() => ({
-    scene: {
-      skyBox: undefined,
-      skyAtmosphere: undefined,
-      sun: { show: true },
-      moon: { show: true },
-      backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
-      globe: { show: true },
-      primitives: { add: vi.fn() },
-      canvas: document.createElement("canvas"),
-      screenSpaceCameraController: {
-        enableRotate: true,
-        enableTranslate: true,
-        enableZoom: true,
-        enableTilt: true,
-        enableLook: true,
+vi.mock("cesium", () => {
+  const mockCamera = {
+    setView: vi.fn(),
+    direction: { x: 0, y: 0, z: 1 },
+    up: { x: 0, y: 1, z: 0 },
+    right: { x: 1, y: 0, z: 0 },
+    frustum: { fovy: Math.PI / 3, fov: Math.PI / 3 },
+  };
+  return {
+    Viewer: vi.fn().mockImplementation(() => ({
+      scene: {
+        skyBox: undefined,
+        skyAtmosphere: undefined,
+        sun: { show: true },
+        moon: { show: true },
+        backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
+        globe: { show: true },
+        primitives: { add: vi.fn() },
+        canvas: document.createElement("canvas"),
+        camera: mockCamera,
+        screenSpaceCameraController: {
+          enableRotate: true,
+          enableTranslate: true,
+          enableZoom: true,
+          enableTilt: true,
+          enableLook: true,
+        },
       },
+      imageryLayers: { removeAll: vi.fn() },
+      camera: mockCamera,
+      destroy: vi.fn(),
+    })),
+    BillboardCollection: vi.fn().mockImplementation(() => ({
+      add: vi.fn(),
+      removeAll: vi.fn(),
+      show: true,
+      length: 0,
+    })),
+    Cartesian3: Object.assign(
+      vi.fn().mockImplementation((x: number, y: number, z: number) => ({ x, y, z })),
+      {
+        fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
+        cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
+        normalize: vi.fn((_v: object, result: object) => result),
+      },
+    ),
+    Color: {
+      BLACK: { clone: () => ({ red: 0, green: 0, blue: 0, alpha: 1 }) },
+      WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },
+      fromCssColorString: vi.fn().mockReturnValue({
+        withAlpha: (a: number) => ({ alpha: a }),
+      }),
     },
-    imageryLayers: { removeAll: vi.fn() },
-    camera: {
-      setView: vi.fn(),
-      direction: { x: 0, y: 0, z: 1 },
-      up: { x: 0, y: 1, z: 0 },
-      right: { x: 1, y: 0, z: 0 },
+    Ion: { defaultAccessToken: "" },
+    Math: {
+      toRadians: (d: number) => (d * Math.PI) / 180,
+      toDegrees: (r: number) => (r * 180) / Math.PI,
     },
-    destroy: vi.fn(),
-  })),
-  BillboardCollection: vi.fn().mockImplementation(() => ({
-    add: vi.fn(),
-    removeAll: vi.fn(),
-    show: true,
-    length: 0,
-  })),
-  Cartesian3: Object.assign(
-    vi.fn().mockImplementation((x: number, y: number, z: number) => ({ x, y, z })),
-    {
-      fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
-      cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
-      normalize: vi.fn((_v: object, result: object) => result),
+    HorizontalOrigin: { CENTER: 0 },
+    VerticalOrigin: { CENTER: 0 },
+    Transforms: {
+      eastNorthUpToFixedFrame: vi
+        .fn()
+        .mockReturnValue([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
     },
-  ),
-  Color: {
-    BLACK: { clone: () => ({ red: 0, green: 0, blue: 0, alpha: 1 }) },
-    WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },
-    fromCssColorString: vi.fn().mockReturnValue({
-      withAlpha: (a: number) => ({ alpha: a }),
-    }),
-  },
-  Ion: { defaultAccessToken: "" },
-  Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
-  HorizontalOrigin: { CENTER: 0 },
-  VerticalOrigin: { CENTER: 0 },
-  Transforms: {
-    eastNorthUpToFixedFrame: vi
-      .fn()
-      .mockReturnValue([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
-  },
-  Matrix4: {
-    multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
-  },
-  ScreenSpaceEventHandler: vi.fn().mockImplementation(() => ({
-    setInputAction: vi.fn(),
-    destroy: vi.fn(),
-  })),
-  ScreenSpaceEventType: { MOUSE_MOVE: 0, LEFT_DOWN: 1, LEFT_UP: 2 },
-  Matrix3: {
-    fromQuaternion: vi.fn().mockReturnValue({}),
-    multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),
-  },
-  Quaternion: {
-    fromAxisAngle: vi.fn().mockReturnValue({}),
-    multiply: vi.fn().mockReturnValue({}),
-  },
-  defined: (v: unknown) => v !== undefined && v !== null,
-  PolylineCollection: vi.fn().mockImplementation(() => ({
-    add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
-    removeAll: vi.fn(),
-    get length() {
-      return 0;
+    Matrix4: {
+      multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
     },
-    show: true,
-  })),
-  LabelCollection: vi.fn().mockImplementation(() => ({
-    add: vi.fn(),
-    removeAll: vi.fn(),
-    show: true,
-  })),
-  LabelStyle: { FILL: 0 },
-  Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
-}));
+    ScreenSpaceEventHandler: vi.fn().mockImplementation(() => ({
+      setInputAction: vi.fn(),
+      destroy: vi.fn(),
+    })),
+    ScreenSpaceEventType: { MOUSE_MOVE: 0, LEFT_DOWN: 1, LEFT_UP: 2 },
+    Matrix3: {
+      fromQuaternion: vi.fn().mockReturnValue({}),
+      multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),
+    },
+    Quaternion: {
+      fromAxisAngle: vi.fn().mockReturnValue({}),
+      multiply: vi.fn().mockReturnValue({}),
+    },
+    defined: (v: unknown) => v !== undefined && v !== null,
+    PolylineCollection: vi.fn().mockImplementation(() => ({
+      add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
+      removeAll: vi.fn(),
+      get length() {
+        return 0;
+      },
+      show: true,
+    })),
+    LabelCollection: vi.fn().mockImplementation(() => ({
+      add: vi.fn(),
+      removeAll: vi.fn(),
+      show: true,
+    })),
+    LabelStyle: { FILL: 0 },
+    Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
+  };
+});
 
 vi.mock("../data/stars.json", () => ({
   default: [
@@ -152,6 +160,7 @@ vi.mock("./ui", () => ({
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
   createPlanetInfo: vi.fn().mockReturnValue(document.createElement("div")),
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
+  createFovControls: vi.fn().mockReturnValue(document.createElement("div")),
 }));
 
 // Mock the TLE bundled data
@@ -515,6 +524,16 @@ describe("handleIntent routing", () => {
     await bootstrap(root);
     capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Sun" });
     expect(() => capturedDispatch!({ type: "hide-trail" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-fov intent updates reticle preset without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "set-fov", preset: "binoculars" })).not.toThrow();
+    expect(() => capturedDispatch!({ type: "set-fov", preset: "off" })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
