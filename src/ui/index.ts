@@ -8,6 +8,7 @@ export { createViewControls } from "./view-controls";
 export { createPlanetInfo } from "./planet-info";
 export { createSearch } from "./search";
 export { createFovControls } from "./fov-controls";
+export { createEventsPanel } from "./events-panel";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import type { Language } from "../astro/constellation-names";

@@ -161,6 +161,7 @@ vi.mock("./ui", () => ({
   createPlanetInfo: vi.fn().mockReturnValue(document.createElement("div")),
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
   createFovControls: vi.fn().mockReturnValue(document.createElement("div")),
+  createEventsPanel: vi.fn().mockReturnValue(document.createElement("div")),
 }));
 
 // Mock the TLE bundled data

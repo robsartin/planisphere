@@ -48,3 +48,14 @@ export {
   parseFovPreset,
   getFovDegrees,
 } from "./fov-presets";
+export {
+  type CelestialEvent,
+  type ConjunctionEvent,
+  type LunarEclipseEvent,
+  type MeteorShowerEvent,
+  type EventsError,
+  computeUpcomingEvents,
+  computeConjunctions,
+  computeLunarEclipses,
+  computeMeteorShowerPeaks,
+} from "./events";

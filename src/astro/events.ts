@@ -1,0 +1,254 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+import {
+  AngleBetween,
+  Body,
+  GeoVector,
+  NextLunarEclipse,
+  SearchLunarEclipse,
+} from "astronomy-engine";
+import { ok, type Result } from "../result";
+import rawMeteorShowers from "../../data/meteor-showers.json";
+
+// Meteor-shower reference data: International Meteor Organization (IMO) calendar.
+// Dates listed are canonical annual peaks (UTC); the real peak drifts by a few hours
+// year-to-year, which is acceptable for a high-level "upcoming events" list.
+type MeteorShowerRecord = {
+  readonly id: string;
+  readonly name: string;
+  readonly peakMonth: number; // 1..12
+  readonly peakDay: number; // 1..31
+  readonly zhr: number; // zenith hourly rate (approximate)
+};
+
+const METEOR_SHOWERS = rawMeteorShowers as readonly MeteorShowerRecord[];
+
+const CONJUNCTION_BODIES: readonly { readonly id: string; readonly body: Body }[] = [
+  { id: "Sun", body: Body.Sun },
+  { id: "Moon", body: Body.Moon },
+  { id: "Mercury", body: Body.Mercury },
+  { id: "Venus", body: Body.Venus },
+  { id: "Mars", body: Body.Mars },
+  { id: "Jupiter", body: Body.Jupiter },
+  { id: "Saturn", body: Body.Saturn },
+];
+
+/** Maximum angular separation (degrees) we'll call a "conjunction". */
+const CONJUNCTION_THRESHOLD_DEG = 5;
+/** Coarse sample step for conjunction search (hours). */
+const CONJUNCTION_STEP_HOURS = 6;
+
+export type ConjunctionEvent = {
+  readonly kind: "conjunction";
+  readonly when: Date;
+  readonly title: string;
+  readonly description: string;
+  readonly body1: string;
+  readonly body2: string;
+  readonly separationDeg: number;
+};
+
+export type LunarEclipseEvent = {
+  readonly kind: "lunar-eclipse";
+  readonly when: Date;
+  readonly title: string;
+  readonly description: string;
+  readonly eclipseKind: "penumbral" | "partial" | "total";
+  readonly obscuration: number;
+};
+
+export type MeteorShowerEvent = {
+  readonly kind: "meteor-shower-peak";
+  readonly when: Date;
+  readonly title: string;
+  readonly description: string;
+  readonly showerId: string;
+  readonly showerName: string;
+  readonly zhr: number;
+};
+
+export type CelestialEvent = ConjunctionEvent | LunarEclipseEvent | MeteorShowerEvent;
+
+/** Typed domain errors returned from computeUpcomingEvents. Currently none are produced,
+ *  but the Result wrapper keeps the boundary consistent if future variants (e.g. parse
+ *  failure of the bundled shower table) surface. */
+export type EventsError = { readonly kind: "unknown"; readonly message: string };
+
+// ---------- Meteor showers ----------
+
+/** Return upcoming meteor-shower peaks within `lookaheadDays` of `now`. */
+export function computeMeteorShowerPeaks(now: Date, lookaheadDays: number): MeteorShowerEvent[] {
+  const horizon = now.getTime() + lookaheadDays * 24 * 3600 * 1000;
+  const nowYear = now.getUTCFullYear();
+  const events: MeteorShowerEvent[] = [];
+
+  for (const s of METEOR_SHOWERS) {
+    // Try current year first; if already past, roll forward to next year.
+    let peak = Date.UTC(nowYear, s.peakMonth - 1, s.peakDay, 0, 0, 0);
+    if (peak < now.getTime()) {
+      peak = Date.UTC(nowYear + 1, s.peakMonth - 1, s.peakDay, 0, 0, 0);
+    }
+    if (peak > horizon) continue;
+    events.push({
+      kind: "meteor-shower-peak",
+      when: new Date(peak),
+      title: `${s.name} meteor shower peak`,
+      description: `Expect up to ~${s.zhr} meteors per hour at peak under dark skies.`,
+      showerId: s.id,
+      showerName: s.name,
+      zhr: s.zhr,
+    });
+  }
+
+  events.sort((a, b) => a.when.getTime() - b.when.getTime());
+  return events;
+}
+
+// ---------- Lunar eclipses ----------
+
+/** Return lunar eclipses within `lookaheadDays` of `now`. */
+export function computeLunarEclipses(now: Date, lookaheadDays: number): LunarEclipseEvent[] {
+  const horizon = now.getTime() + lookaheadDays * 24 * 3600 * 1000;
+  const events: LunarEclipseEvent[] = [];
+
+  let info = SearchLunarEclipse(now);
+  // Safety cap: eclipses are at most ~2/year, so < 10 iterations is plenty per year.
+  for (let i = 0; i < 20; i++) {
+    const t = info.peak.date.getTime();
+    if (t > horizon) break;
+    if (t >= now.getTime()) {
+      events.push({
+        kind: "lunar-eclipse",
+        when: info.peak.date,
+        title: `Lunar eclipse (${info.kind})`,
+        description: `${capitalize(info.kind)} lunar eclipse; peak obscuration ${(info.obscuration * 100).toFixed(0)}%.`,
+        eclipseKind: info.kind as "penumbral" | "partial" | "total",
+        obscuration: info.obscuration,
+      });
+    }
+    info = NextLunarEclipse(info.peak);
+  }
+
+  return events;
+}
+
+function capitalize(s: string): string {
+  if (s.length === 0) return s;
+  const first = s.charAt(0);
+  return first.toUpperCase() + s.slice(1);
+}
+
+// ---------- Conjunctions ----------
+
+function angularSeparationDeg(b1: Body, b2: Body, date: Date): number {
+  const v1 = GeoVector(b1, date, true);
+  const v2 = GeoVector(b2, date, true);
+  return AngleBetween(v1, v2);
+}
+
+/**
+ * Find close approaches between all pairs of (Sun, Moon, Mercury..Saturn).
+ *
+ * We sample every CONJUNCTION_STEP_HOURS across the lookahead window, spot local minima
+ * in angular separation that drop below CONJUNCTION_THRESHOLD_DEG, then refine with a
+ * small golden-section / parabolic narrowing over the 3-sample bracket.
+ *
+ * This is approximate — good for UI display, not for precision ephemerides.
+ */
+export function computeConjunctions(now: Date, lookaheadDays: number): ConjunctionEvent[] {
+  const events: ConjunctionEvent[] = [];
+  const startMs = now.getTime();
+  const endMs = startMs + lookaheadDays * 24 * 3600 * 1000;
+  const stepMs = CONJUNCTION_STEP_HOURS * 3600 * 1000;
+
+  for (let i = 0; i < CONJUNCTION_BODIES.length; i++) {
+    const a = CONJUNCTION_BODIES[i];
+    if (a === undefined) continue;
+    for (let j = i + 1; j < CONJUNCTION_BODIES.length; j++) {
+      const b = CONJUNCTION_BODIES[j];
+      if (b === undefined) continue;
+
+      // Precompute the separation series.
+      const samples: { t: number; sep: number }[] = [];
+      for (let t = startMs; t <= endMs; t += stepMs) {
+        samples.push({ t, sep: angularSeparationDeg(a.body, b.body, new Date(t)) });
+      }
+
+      // Detect strict local minima that dip under the threshold.
+      for (let k = 1; k < samples.length - 1; k++) {
+        const prev = samples[k - 1];
+        const cur = samples[k];
+        const next = samples[k + 1];
+        if (prev === undefined || cur === undefined || next === undefined) continue;
+        if (cur.sep > CONJUNCTION_THRESHOLD_DEG) continue;
+        if (cur.sep >= prev.sep || cur.sep >= next.sep) continue;
+
+        // Refine within [prev.t, next.t] to pinpoint the minimum.
+        const refined = refineMinimum(a.body, b.body, prev.t, next.t);
+        events.push({
+          kind: "conjunction",
+          when: new Date(refined.t),
+          title: `${a.id} – ${b.id} conjunction`,
+          description: `${a.id} and ${b.id} appear within ${refined.sep.toFixed(1)}° of each other.`,
+          body1: a.id,
+          body2: b.id,
+          separationDeg: refined.sep,
+        });
+      }
+    }
+  }
+
+  events.sort((x, y) => x.when.getTime() - y.when.getTime());
+  return events;
+}
+
+/** Iterative parabolic / bisection refinement for the minimum separation in [lo, hi]. */
+function refineMinimum(b1: Body, b2: Body, loMs: number, hiMs: number): { t: number; sep: number } {
+  let lo = loMs;
+  let hi = hiMs;
+  // 20 iterations of ternary narrowing — cuts interval by ~2/3 each iter; plenty of precision.
+  for (let iter = 0; iter < 20; iter++) {
+    const third = (hi - lo) / 3;
+    const m1 = lo + third;
+    const m2 = hi - third;
+    const s1 = angularSeparationDeg(b1, b2, new Date(m1));
+    const s2 = angularSeparationDeg(b1, b2, new Date(m2));
+    if (s1 < s2) {
+      hi = m2;
+    } else {
+      lo = m1;
+    }
+  }
+  const t = (lo + hi) / 2;
+  const sep = angularSeparationDeg(b1, b2, new Date(t));
+  return { t, sep };
+}
+
+// ---------- Composition ----------
+
+export type ObserverInput = { readonly lat: number; readonly lon: number };
+
+const DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS = 30;
+const DEFAULT_LOOKAHEAD_ECLIPSE_DAYS = 365;
+const DEFAULT_LOOKAHEAD_SHOWER_DAYS = 365;
+
+/**
+ * Compose the upcoming events list for display.
+ *
+ * Computes conjunctions (30-day horizon), lunar eclipses (1-year horizon), and
+ * meteor-shower peaks (1-year horizon), then merges and sorts them.
+ *
+ * `observer` is accepted for future per-site filtering (e.g. which eclipses are visible
+ * from the observer's location) but isn't used in the current shipping subset.
+ */
+export function computeUpcomingEvents(
+  now: Date,
+  _observer?: ObserverInput,
+): Result<CelestialEvent[], EventsError> {
+  const conjunctions = computeConjunctions(now, DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS);
+  const eclipses = computeLunarEclipses(now, DEFAULT_LOOKAHEAD_ECLIPSE_DAYS);
+  const showers = computeMeteorShowerPeaks(now, DEFAULT_LOOKAHEAD_SHOWER_DAYS);
+
+  const merged: CelestialEvent[] = [...conjunctions, ...eclipses, ...showers];
+  merged.sort((a, b) => a.when.getTime() - b.when.getTime());
+  return ok(merged);
+}

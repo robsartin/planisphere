@@ -65,7 +65,10 @@ import {
   createPlanetInfo,
   createSearch,
   createFovControls,
+  createEventsPanel,
 } from "./ui";
+import { computeUpcomingEvents } from "./astro/events";
+import type { CelestialEvent } from "./astro/events";
 import type { UIIntent } from "./ui";
 import { buildSearchIndex, searchObjects } from "./astro/search";
 import type { SearchIndex } from "./astro/search";
@@ -503,6 +506,20 @@ export async function bootstrap(
   // Planet info wrapper — holds the current planet-info section, refreshed on time/observer changes
   const planetInfoWrapper = document.createElement("div");
 
+  // Events panel wrapper — celestial event alerts (conjunctions / lunar eclipses / meteor showers).
+  // Cached: only recomputed on observer / time changes (events shift forward as `now` advances).
+  const eventsWrapper = document.createElement("div");
+  let cachedEvents: readonly CelestialEvent[] = [];
+
+  function refreshEvents(s: AppState): void {
+    const result = computeUpcomingEvents(s.timeUtc, {
+      lat: s.observer.lat,
+      lon: s.observer.lon,
+    });
+    cachedEvents = result.ok ? result.value : [];
+    eventsWrapper.replaceChildren(createEventsPanel(cachedEvents, handleIntent));
+  }
+
   function refreshPlanetInfo(s: AppState): void {
     const bodies = computeBodyPositions(s.observer.lat, s.observer.lon, s.timeUtc, false);
     planetInfoWrapper.replaceChildren(
@@ -545,6 +562,7 @@ export async function bootstrap(
         state = { ...state, timeUtc: intent.time };
         scheduleRerender(state);
         refreshPlanetInfo(state);
+        refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
         updateUrl(state);
@@ -555,6 +573,7 @@ export async function bootstrap(
         initCamera(viewer.camera, intent.lat, intent.lon);
         scheduleRerender(state);
         refreshPlanetInfo(state);
+        refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
         updateUrl(state);
@@ -629,6 +648,7 @@ export async function bootstrap(
         state = { ...state, timeUtc: now };
         scheduleRerender(state);
         refreshPlanetInfo(state);
+        refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
         updateUrl(state);
@@ -640,6 +660,7 @@ export async function bootstrap(
               initCamera(viewer.camera, lat, lon);
               scheduleRerender(state);
               refreshPlanetInfo(state);
+              refreshEvents(state);
               rebuildSearchIndex(state);
               rerenderTrail(state);
               updateUrl(state);
@@ -698,6 +719,9 @@ export async function bootstrap(
 
     refreshPlanetInfo(state);
     uiContainer.appendChild(planetInfoWrapper);
+
+    refreshEvents(state);
+    uiContainer.appendChild(eventsWrapper);
 
     panel.setContent(uiContainer);
   }
