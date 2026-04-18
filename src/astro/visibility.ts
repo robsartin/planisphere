@@ -21,9 +21,12 @@ export function filterVisibleStars(
   lat: number,
   lon: number,
   time: Date,
+  magLimit = 6.0,
 ): AltAzStar[] {
   const result: AltAzStar[] = [];
   for (const star of catalog) {
+    // Skip dim stars before the more expensive alt/az computation
+    if (star.mag > magLimit) continue;
     const { alt, az } = fastRaDecToAltAz(star.ra, star.dec, lat, lon, time);
     if (alt <= 0) continue;
     const { size, opacity } = magToVisual(star.mag);

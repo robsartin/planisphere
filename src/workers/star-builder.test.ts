@@ -105,4 +105,22 @@ describe("buildAltAzStars", () => {
     const stars = buildAltAzStars(CATALOG, altAzs, visibleIndices);
     expect(stars).toHaveLength(3);
   });
+
+  it("filters by magLimit when provided — excludes dim stars", () => {
+    // All 3 in visibleIndices; Polaris (2.02) should be excluded with limit=1.5
+    const altAzs = new Float64Array([45, 180, 30, 90, 20, 270]);
+    const visibleIndices = new Uint16Array([0, 1, 2]);
+    const stars = buildAltAzStars(CATALOG, altAzs, visibleIndices, 1.5);
+    // Only Sirius (-1.46) passes; Polaris (2.02) and Achernar (0.46) — Achernar passes but check
+    const polaris = stars.find((s) => s.name === "Polaris");
+    expect(polaris).toBeUndefined();
+  });
+
+  it("includes all stars when magLimit is 6.0 (default)", () => {
+    const altAzs = new Float64Array([10, 1, 20, 2, 30, 3]);
+    const visibleIndices = new Uint16Array([0, 1, 2]);
+    const starsWithDefault = buildAltAzStars(CATALOG, altAzs, visibleIndices, 6.0);
+    const starsWithoutLimit = buildAltAzStars(CATALOG, altAzs, visibleIndices);
+    expect(starsWithDefault.length).toBe(starsWithoutLimit.length);
+  });
 });

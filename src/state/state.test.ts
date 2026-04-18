@@ -206,3 +206,58 @@ describe("NightVision — URL round-trip", () => {
     expect(s2.nightVision).toBe(true);
   });
 });
+
+describe("magLimit — defaults", () => {
+  it("defaults to 6.0 when mag param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.magLimit).toBe(6.0);
+  });
+});
+
+describe("magLimit — parse from URL", () => {
+  it("parses integer mag param", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "4" })));
+    expect(s.magLimit).toBe(4.0);
+  });
+
+  it("parses decimal mag param", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "3.5" })));
+    expect(s.magLimit).toBeCloseTo(3.5);
+  });
+
+  it("clamps mag below minimum to 1.0", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "0" })));
+    expect(s.magLimit).toBe(1.0);
+  });
+
+  it("clamps mag above maximum to 6.0", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "9" })));
+    expect(s.magLimit).toBe(6.0);
+  });
+
+  it("falls back to 6.0 for non-numeric mag", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "bright" })));
+    expect(s.magLimit).toBe(6.0);
+  });
+});
+
+describe("magLimit — serialize round-trip", () => {
+  it("omits mag param when at default (6.0)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("mag")).toBe(false);
+  });
+
+  it("writes mag param when not at default", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "4" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("mag")).toBe("4");
+  });
+
+  it("round-trips a non-default magLimit", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mag: "2.5" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.magLimit).toBeCloseTo(2.5);
+  });
+});
