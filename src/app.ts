@@ -739,6 +739,12 @@ export async function bootstrap(
     timeControls = createTimeControls(state.timeUtc, handleIntent);
     uiContainer.appendChild(timeControls.element);
 
+    // Events panel sits right after time because Go-to jumps the time cursor;
+    // putting it above the location/layer blocks keeps it above the fold for
+    // typical panel heights.
+    refreshEvents(state);
+    uiContainer.appendChild(eventsWrapper);
+
     const locationEl = createLocationControls(state.observer.lat, state.observer.lon, handleIntent);
     uiContainer.appendChild(locationEl);
 
@@ -760,9 +766,6 @@ export async function bootstrap(
 
     refreshPlanetInfo(state);
     uiContainer.appendChild(planetInfoWrapper);
-
-    refreshEvents(state);
-    uiContainer.appendChild(eventsWrapper);
 
     panel.setContent(uiContainer);
   }
