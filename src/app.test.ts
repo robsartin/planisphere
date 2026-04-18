@@ -11,9 +11,22 @@ vi.mock("cesium", () => ({
       backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
       globe: { show: true },
       primitives: { add: vi.fn() },
+      canvas: document.createElement("canvas"),
+      screenSpaceCameraController: {
+        enableRotate: true,
+        enableTranslate: true,
+        enableZoom: true,
+        enableTilt: true,
+        enableLook: true,
+      },
     },
     imageryLayers: { removeAll: vi.fn() },
-    camera: { setView: vi.fn() },
+    camera: {
+      setView: vi.fn(),
+      direction: { x: 0, y: 0, z: 1 },
+      up: { x: 0, y: 1, z: 0 },
+      right: { x: 1, y: 0, z: 0 },
+    },
     destroy: vi.fn(),
   })),
   BillboardCollection: vi.fn().mockImplementation(() => ({
@@ -24,7 +37,11 @@ vi.mock("cesium", () => ({
   })),
   Cartesian3: Object.assign(
     vi.fn().mockImplementation((x: number, y: number, z: number) => ({ x, y, z })),
-    { fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }) },
+    {
+      fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
+      cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
+      normalize: vi.fn((_v: object, result: object) => result),
+    },
   ),
   Color: {
     BLACK: { clone: () => ({ red: 0, green: 0, blue: 0, alpha: 1 }) },
@@ -49,7 +66,15 @@ vi.mock("cesium", () => ({
     setInputAction: vi.fn(),
     destroy: vi.fn(),
   })),
-  ScreenSpaceEventType: { MOUSE_MOVE: 0 },
+  ScreenSpaceEventType: { MOUSE_MOVE: 0, LEFT_DOWN: 1, LEFT_UP: 2 },
+  Matrix3: {
+    fromQuaternion: vi.fn().mockReturnValue({}),
+    multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),
+  },
+  Quaternion: {
+    fromAxisAngle: vi.fn().mockReturnValue({}),
+    multiply: vi.fn().mockReturnValue({}),
+  },
   defined: (v: unknown) => v !== undefined && v !== null,
   PolylineCollection: vi.fn().mockImplementation(() => ({
     add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
