@@ -426,7 +426,9 @@ export async function bootstrap(
   function refreshPlanetInfo(s: AppState): void {
     const bodies = computeBodyPositions(s.observer.lat, s.observer.lon, s.timeUtc, false);
     planetInfoWrapper.replaceChildren(
-      createPlanetInfo(bodies, s.observer.lat, s.observer.lon, s.timeUtc),
+      createPlanetInfo(bodies, s.observer.lat, s.observer.lon, s.timeUtc, (az, alt) => {
+        handleIntent({ type: "set-view", az, alt });
+      }),
     );
   }
 
