@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { applyButton, applyBaseText, GAP } from "./styles";
+import { applyButton, applyBaseText, ACCENT_COLOR, GAP } from "./styles";
 import type { UIIntent } from "./index";
 
 const STEPS: Array<{ label: string; deltaMs: number }> = [
@@ -9,6 +9,13 @@ const STEPS: Array<{ label: string; deltaMs: number }> = [
   { label: "+1m", deltaMs: 60_000 },
   { label: "+1h", deltaMs: 3_600_000 },
   { label: "+1d", deltaMs: 86_400_000 },
+];
+
+const SPEED_OPTIONS: Array<{ label: string; value: number }> = [
+  { label: "1x", value: 1 },
+  { label: "10x", value: 10 },
+  { label: "100x", value: 100 },
+  { label: "1000x", value: 1000 },
 ];
 
 /** Format a Date to a value suitable for <input type="datetime-local"> (local time, no Z). */
@@ -25,6 +32,10 @@ export function createTimeControls(
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
   let current = new Date(initial);
+  let playing = false;
+  let speedFactor = 1;
+  let rafId: number | null = null;
+  let lastFrameTime: number | null = null;
 
   const section = document.createElement("div");
   section.style.marginBottom = GAP;
@@ -90,6 +101,86 @@ export function createTimeControls(
     dispatch({ type: "set-time", time: new Date(now) });
   });
   section.appendChild(nowBtn);
+
+  // Play/pause + speed controls row
+  const animRow = document.createElement("div");
+  animRow.style.display = "flex";
+  animRow.style.gap = "4px";
+  animRow.style.alignItems = "center";
+  animRow.style.marginTop = GAP;
+
+  const playBtn = document.createElement("button");
+  playBtn.textContent = "▶";
+  applyButton(playBtn);
+  playBtn.style.flexShrink = "0";
+
+  const speedSelect = document.createElement("select");
+  speedSelect.dataset.speed = "";
+  speedSelect.style.background = "rgba(255,255,255,0.1)";
+  speedSelect.style.border = "1px solid rgba(255,255,255,0.3)";
+  speedSelect.style.borderRadius = "4px";
+  speedSelect.style.color = "#fff";
+  speedSelect.style.fontSize = "12px";
+  speedSelect.style.padding = "2px 4px";
+  speedSelect.style.cursor = "pointer";
+
+  for (const opt of SPEED_OPTIONS) {
+    const option = document.createElement("option");
+    option.value = String(opt.value);
+    option.textContent = opt.label;
+    speedSelect.appendChild(option);
+  }
+
+  speedSelect.addEventListener("change", () => {
+    speedFactor = Number(speedSelect.value);
+  });
+
+  function tick(timestamp: number): void {
+    if (!playing) return;
+    if (lastFrameTime === null) {
+      // First frame: record time and schedule next without advancing
+      lastFrameTime = timestamp;
+      rafId = requestAnimationFrame(tick);
+      return;
+    }
+    const elapsedReal = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+    const elapsedSim = elapsedReal * speedFactor;
+    current = new Date(current.getTime() + elapsedSim);
+    input.value = toDatetimeLocal(current);
+    dispatch({ type: "set-time", time: new Date(current) });
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startPlaying(): void {
+    playing = true;
+    lastFrameTime = null;
+    playBtn.textContent = "⏸";
+    playBtn.style.color = ACCENT_COLOR;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopPlaying(): void {
+    playing = false;
+    playBtn.textContent = "▶";
+    playBtn.style.color = "";
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  playBtn.addEventListener("click", () => {
+    if (playing) {
+      stopPlaying();
+    } else {
+      startPlaying();
+    }
+  });
+
+  animRow.appendChild(playBtn);
+  animRow.appendChild(speedSelect);
+  section.appendChild(animRow);
 
   return section;
 }
