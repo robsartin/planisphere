@@ -7,6 +7,7 @@ export type StarRecord = {
   readonly dec: number;
   readonly mag: number;
   readonly name?: string;
+  readonly ci?: number;
 };
 
 export type CatalogLoadError = { kind: "catalog-load-failed"; message: string };
@@ -30,7 +31,16 @@ export function parseCatalog(raw: unknown): Result<StarRecord[], CatalogLoadErro
     if (!Number.isFinite(hip) || hip <= 0) continue;
     if (!Number.isFinite(ra) || !Number.isFinite(dec) || !Number.isFinite(mag)) continue;
     const name = typeof e.name === "string" && e.name.length > 0 ? e.name : undefined;
-    stars.push({ hip, ra, dec, mag, ...(name !== undefined ? { name } : {}) });
+    const ciRaw = Number(e.ci);
+    const ci = Number.isFinite(ciRaw) ? ciRaw : undefined;
+    stars.push({
+      hip,
+      ra,
+      dec,
+      mag,
+      ...(name !== undefined ? { name } : {}),
+      ...(ci !== undefined ? { ci } : {}),
+    });
   }
 
   if (stars.length === 0) {
