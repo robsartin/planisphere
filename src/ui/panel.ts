@@ -8,14 +8,19 @@ import {
   TEXT_COLOR,
   applyButton,
 } from "./styles";
+import type { UIIntent } from "./index";
 
 export type Panel = {
   element: HTMLElement;
   setContent: (child: HTMLElement) => void;
   setCollapsed: (collapsed: boolean) => void;
+  setNightVision: (on: boolean) => void;
 };
 
-export function createPanel(container: HTMLElement): Panel {
+export function createPanel(
+  container: HTMLElement,
+  dispatch: (intent: UIIntent) => void = () => {},
+): Panel {
   const panel = document.createElement("div");
   panel.style.position = "fixed";
   panel.style.top = "16px";
@@ -50,6 +55,12 @@ export function createPanel(container: HTMLElement): Panel {
   btnGroup.style.gap = "4px";
   btnGroup.style.alignItems = "center";
 
+  const nightVisionBtn = document.createElement("button");
+  nightVisionBtn.dataset.testid = "panel-night-vision";
+  nightVisionBtn.textContent = "🔴";
+  nightVisionBtn.title = "Toggle night vision";
+  applyButton(nightVisionBtn);
+
   const copyLinkBtn = document.createElement("button");
   copyLinkBtn.dataset.testid = "panel-copy-link";
   copyLinkBtn.textContent = "🔗";
@@ -62,6 +73,7 @@ export function createPanel(container: HTMLElement): Panel {
   toggleBtn.title = "Toggle panel";
   applyButton(toggleBtn);
 
+  btnGroup.appendChild(nightVisionBtn);
   btnGroup.appendChild(copyLinkBtn);
   btnGroup.appendChild(toggleBtn);
 
@@ -78,6 +90,10 @@ export function createPanel(container: HTMLElement): Panel {
   container.appendChild(panel);
 
   let collapsed = false;
+
+  nightVisionBtn.addEventListener("click", () => {
+    dispatch({ type: "toggle-night-vision" });
+  });
 
   copyLinkBtn.addEventListener("click", () => {
     const url = window.location.href;
@@ -119,5 +135,15 @@ export function createPanel(container: HTMLElement): Panel {
     body.replaceChildren(child);
   }
 
-  return { element: panel, setContent, setCollapsed };
+  function setNightVision(on: boolean): void {
+    if (on) {
+      nightVisionBtn.style.boxShadow = "0 0 6px 2px red";
+      nightVisionBtn.style.borderColor = "red";
+    } else {
+      nightVisionBtn.style.boxShadow = "";
+      nightVisionBtn.style.borderColor = "";
+    }
+  }
+
+  return { element: panel, setContent, setCollapsed, setNightVision };
 }

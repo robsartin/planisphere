@@ -15,4 +15,5 @@ export type UIIntent =
   | { type: "set-observer"; lat: number; lon: number }
   | { type: "toggle-layer"; layer: keyof LayerVisibility }
   | { type: "set-opacity"; layer: keyof LayerOpacity; value: number }
-  | { type: "set-view"; az: number; alt: number };
+  | { type: "set-view"; az: number; alt: number }
+  | { type: "toggle-night-vision" };

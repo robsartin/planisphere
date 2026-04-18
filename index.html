@@ -26,6 +26,12 @@
         font-family: monospace;
         padding: 2rem;
       }
+      .night-vision {
+        filter: sepia(1) saturate(3) brightness(0.7) hue-rotate(-30deg);
+      }
+      .night-vision .cesium-widget canvas {
+        filter: sepia(1) saturate(5) brightness(0.6) hue-rotate(-30deg);
+      }
     </style>
   </head>
   <body>
