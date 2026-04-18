@@ -20,6 +20,7 @@ import {
   createCompassLayer,
   createSatelliteLayer,
   createBoundaryLayer,
+  setCameraView,
 } from "./scene";
 import type {
   StarLayer,
@@ -30,7 +31,13 @@ import type {
   CompassLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
-import { createPanel, createTimeControls, createLocationControls, createLayerControls } from "./ui";
+import {
+  createPanel,
+  createTimeControls,
+  createLocationControls,
+  createLayerControls,
+  createViewControls,
+} from "./ui";
 import type { UIIntent } from "./ui";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
@@ -207,6 +214,10 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "set-view": {
+        setCameraView(viewer.camera, state.observer.lat, state.observer.lon, intent.az, intent.alt);
+        break;
+      }
     }
   }
 
@@ -222,6 +233,9 @@ export async function bootstrap(
 
     const locationEl = createLocationControls(state.observer.lat, state.observer.lon, handleIntent);
     uiContainer.appendChild(locationEl);
+
+    const viewEl = createViewControls(0, 89.9, handleIntent);
+    uiContainer.appendChild(viewEl);
 
     const layerEl = createLayerControls(state.layers, state.opacity, handleIntent);
     uiContainer.appendChild(layerEl);

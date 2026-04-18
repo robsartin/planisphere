@@ -108,6 +108,7 @@ vi.mock("./ui", () => ({
   }),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
   createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
+  createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
 }));
 
 // Mock the TLE bundled data
@@ -284,6 +285,15 @@ describe("handleIntent routing", () => {
     expect(() =>
       capturedDispatch!({ type: "set-opacity", layer: "constellationLines", value: 0.5 }),
     ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-view intent changes camera direction without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "set-view", az: 180, alt: 30 })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
