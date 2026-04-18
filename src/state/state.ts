@@ -17,6 +17,7 @@ export type LayerOpacity = {
   readonly satelliteTrails: number; // 0–1
   readonly raDecGrid: number; // 0–1
   readonly ecliptic: number; // 0–1
+  readonly milkyWay: number; // 0–1
 };
 
 export type ViewDirection = {
@@ -61,6 +62,7 @@ export const DEFAULT_OPACITY: LayerOpacity = {
   satelliteTrails: 1.0,
   raDecGrid: 0.2,
   ecliptic: 0.4,
+  milkyWay: 0.3,
 };
 
 export const DEFAULT_VIEW: ViewDirection = { az: 0, alt: 89.9 };
@@ -151,6 +153,7 @@ export function parseStateFromSearchParams(
     satelliteTrails: parseOpacity(params.get("op_st"), DEFAULT_OPACITY.satelliteTrails),
     raDecGrid: parseOpacity(params.get("op_grid"), DEFAULT_OPACITY.raDecGrid),
     ecliptic: parseOpacity(params.get("op_ecl"), DEFAULT_OPACITY.ecliptic),
+    milkyWay: parseOpacity(params.get("op_mw"), DEFAULT_OPACITY.milkyWay),
   };
 
   const rawVaz = params.get("vaz");
@@ -195,6 +198,9 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
   }
   if (state.opacity.ecliptic !== DEFAULT_OPACITY.ecliptic) {
     params.set("op_ecl", String(Math.round(state.opacity.ecliptic * 100)));
+  }
+  if (state.opacity.milkyWay !== DEFAULT_OPACITY.milkyWay) {
+    params.set("op_mw", String(Math.round(state.opacity.milkyWay * 100)));
   }
 
   if (state.view.az !== DEFAULT_VIEW.az || state.view.alt !== DEFAULT_VIEW.alt) {

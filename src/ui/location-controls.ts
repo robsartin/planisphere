@@ -16,6 +16,10 @@ const PRESET_CITIES: City[] = [
   { name: "Austin", lat: 30.27, lon: -97.74 },
   { name: "Peoria", lat: 40.69, lon: -89.59 },
   { name: "Madison", lat: 43.07, lon: -89.4 },
+  { name: "Seattle", lat: 47.61, lon: -122.33 },
+  { name: "Boston", lat: 42.36, lon: -71.06 },
+  { name: "Raleigh", lat: 35.78, lon: -78.64 },
+  { name: "Deerfield", lat: 42.54, lon: -72.61 },
 ];
 
 export function createLocationControls(
