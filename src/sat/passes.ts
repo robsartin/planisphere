@@ -145,9 +145,7 @@ export function computeUpcomingPasses(
   }
 
   // Filter: require it to be dark enough at peak.
-  const darkPasses = passes.filter(
-    (p) => sunAltDeg(lat, lon, p.peak.time) < SUN_BELOW_HORIZON_DEG,
-  );
+  const darkPasses = passes.filter((p) => sunAltDeg(lat, lon, p.peak.time) < SUN_BELOW_HORIZON_DEG);
 
   darkPasses.sort((a, b) => a.rise.getTime() - b.rise.getTime());
   return darkPasses;
