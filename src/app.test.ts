@@ -127,6 +127,22 @@ vi.mock("../data/constellations.json", () => ({
   default: [{ id: "Ori", name: "Orion", lines: [[27366, 26311]] }],
 }));
 
+vi.mock("../data/asterisms/western.json", () => ({
+  default: {
+    id: "western",
+    name: "Western (IAU)",
+    constellations: [{ id: "Ori", name: "Orion", lines: [[27366, 26311]] }],
+  },
+}));
+
+vi.mock("../data/asterisms/chinese.json", () => ({
+  default: {
+    id: "chinese",
+    name: "Chinese (Xingguan)",
+    constellations: [{ id: "CON chinese 003", name: "参宿", lines: [[27989, 26727, 27366]] }],
+  },
+}));
+
 vi.mock("../data/boundaries.json", () => ({
   default: [
     {
@@ -501,6 +517,20 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
   });
 
+  it("set-language resets a non-western skyculture back to western", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ sky: "chinese" }));
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    capturedDispatch!({ type: "set-language", language: "en" });
+    // URL should no longer carry a non-default sky param
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).not.toContain("sky=chinese");
+    spy.mockRestore();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
   it("now intent handles missing geolocation API gracefully", async () => {
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
@@ -557,5 +587,39 @@ describe("handleIntent routing", () => {
     expect(() => capturedDispatch!({ type: "set-fov", preset: "off" })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  it("set-skyculture intent updates URL with sky param", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    await bootstrap(root);
+    spy.mockClear();
+    capturedDispatch!({ type: "set-skyculture", id: "chinese" });
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).toContain("sky=chinese");
+    spy.mockRestore();
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
+  });
+
+  it("set-skyculture back to 'western' removes sky param from URL", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ sky: "chinese" }));
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    capturedDispatch!({ type: "set-skyculture", id: "western" });
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).not.toContain("sky=");
+    spy.mockRestore();
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
   });
 });

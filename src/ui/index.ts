@@ -14,6 +14,7 @@ export { createEventsPanel } from "./events-panel";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import type { Language } from "../astro/constellation-names";
 import type { FovPresetId } from "../astro/fov-presets";
+import type { SkycultureId } from "../astro/skycultures";
 
 export type UIIntent =
   | { type: "set-time"; time: Date }
@@ -26,5 +27,6 @@ export type UIIntent =
   | { type: "show-trail"; objectKind: "body"; id: string }
   | { type: "hide-trail" }
   | { type: "set-language"; language: Language }
+  | { type: "set-skyculture"; id: SkycultureId }
   | { type: "set-fov"; preset: FovPresetId }
   | { type: "now" };

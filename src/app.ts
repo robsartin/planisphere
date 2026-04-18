@@ -16,8 +16,16 @@ import {
   computeMilkyWayPoints,
   computeBodyTrail,
   parseConstellationNames,
+  parseAsterismSet,
+  filterVisibleAsterisms,
 } from "./astro";
-import type { StarRecord, Language, ConstellationNameMap } from "./astro";
+import type {
+  StarRecord,
+  Language,
+  ConstellationNameMap,
+  SkycultureId,
+  AsterismSet,
+} from "./astro";
 import { AstroWorkerClient } from "./workers/astro-worker-client";
 import { buildRaDecArray, buildAltAzStars } from "./workers/star-builder";
 import {
@@ -81,6 +89,8 @@ import rawNamesEn from "../data/constellation-names/en.json";
 import rawNamesZh from "../data/constellation-names/zh.json";
 import rawNamesAr from "../data/constellation-names/ar.json";
 import rawNamesEl from "../data/constellation-names/el.json";
+import rawAsterismsWestern from "../data/asterisms/western.json";
+import rawAsterismsChinese from "../data/asterisms/chinese.json";
 
 const CONSTELLATION_NAMES_RAW: Partial<Record<Language, unknown>> = {
   en: rawNamesEn,
@@ -96,6 +106,20 @@ function loadNameOverridesForLanguage(lang: Language): ConstellationNameMap | nu
   const parsed = parseConstellationNames(raw);
   if (!parsed.ok) {
     console.warn(`Constellation names for '${lang}' invalid: ${parsed.error.kind}`);
+    return null;
+  }
+  return parsed.value;
+}
+
+const ASTERISM_SETS_RAW: Record<SkycultureId, unknown> = {
+  western: rawAsterismsWestern,
+  chinese: rawAsterismsChinese,
+};
+
+function loadAsterismSet(id: SkycultureId): AsterismSet | null {
+  const parsed = parseAsterismSet(ASTERISM_SETS_RAW[id]);
+  if (!parsed.ok) {
+    console.warn(`Asterism set '${id}' invalid: ${parsed.error.kind}`);
     return null;
   }
   return parsed.value;
@@ -133,6 +157,7 @@ type ParsedData = {
   boundaries: ReturnType<typeof parseBoundaries>;
   messierObjects: ReturnType<typeof parseMessier>;
   satelliteRecords: Result<SatelliteRecord[], TleParseError> | null;
+  activeAsterisms: AsterismSet | null;
 };
 
 let rerenderTimer: ReturnType<typeof setTimeout> | null = null;
@@ -161,6 +186,24 @@ function rerenderSatellites(
   layers.satellite.update(visibleSats, lat, lon);
 }
 
+function updateConstellationLayer(
+  layers: Layers,
+  data: ParsedData,
+  visibleStars: ReturnType<typeof filterVisibleStars>,
+  lat: number,
+  lon: number,
+): void {
+  if (data.activeAsterisms !== null) {
+    const visible = filterVisibleAsterisms(data.activeAsterisms, visibleStars);
+    layers.constellation.update(visible, lat, lon);
+    return;
+  }
+  if (data.constellations.ok) {
+    const visible = filterVisibleConstellations(data.constellations.value, visibleStars);
+    layers.constellation.update(visible, lat, lon);
+  }
+}
+
 function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   if (!data.stars.ok) return;
   const { observer, timeUtc } = state;
@@ -177,13 +220,7 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
   layers.body.update(bodies, observer.lat, observer.lon);
 
-  if (data.constellations.ok) {
-    const visibleConstellations = filterVisibleConstellations(
-      data.constellations.value,
-      visibleStars,
-    );
-    layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
-  }
+  updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
 
   if (data.boundaries.ok) {
     const visibleBoundaries = filterVisibleBoundaries(
@@ -302,14 +339,7 @@ async function doRerenderWithWorker(
     if (capturedState !== state) return;
     const visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices, capturedState.magLimit);
     layers.star.update(visibleStars, observer.lat, observer.lon);
-
-    if (data.constellations.ok) {
-      const visibleConstellations = filterVisibleConstellations(
-        data.constellations.value,
-        visibleStars,
-      );
-      layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
-    }
+    updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
   } catch {
     // Worker failed — fall back to synchronous star computation
     const visibleStars = filterVisibleStars(
@@ -320,13 +350,7 @@ async function doRerenderWithWorker(
       capturedState.magLimit,
     );
     layers.star.update(visibleStars, observer.lat, observer.lon);
-    if (data.constellations.ok) {
-      const visibleConstellations = filterVisibleConstellations(
-        data.constellations.value,
-        visibleStars,
-      );
-      layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
-    }
+    updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
   }
 }
 
@@ -434,6 +458,7 @@ export async function bootstrap(
     boundaries: boundaryResult,
     messierObjects: messierResult,
     satelliteRecords: null,
+    activeAsterisms: state.skyculture === "western" ? null : loadAsterismSet(state.skyculture),
   };
 
   // Apply initial constellation name overrides based on language
@@ -634,9 +659,19 @@ export async function bootstrap(
         break;
       }
       case "set-language": {
-        state = { ...state, language: intent.language };
+        // Name overrides are only defined for the Western (IAU) asterism set, so a
+        // language change implies Western skyculture — otherwise the labels stay in
+        // the non-Western culture's native names and the user's choice is ignored.
+        state = { ...state, language: intent.language, skyculture: "western" };
+        data.activeAsterisms = null;
         layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
-        // Only constellation labels need updating, but we rebuild to pick up new text
+        scheduleRerender(state);
+        updateUrl(state);
+        break;
+      }
+      case "set-skyculture": {
+        state = { ...state, skyculture: intent.id };
+        data.activeAsterisms = intent.id === "western" ? null : loadAsterismSet(intent.id);
         scheduleRerender(state);
         updateUrl(state);
         break;
@@ -719,6 +754,7 @@ export async function bootstrap(
       handleIntent,
       state.magLimit,
       state.language,
+      state.skyculture,
     );
     uiContainer.appendChild(layerEl);
 

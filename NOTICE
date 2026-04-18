@@ -48,3 +48,19 @@ are standard nomenclature in the public domain; translations were compiled
 from standard references (interlanguage Wikipedia entries and the
 corresponding national-language astronomical literature) and are released
 as part of this project under the Apache 2.0 license.
+
+---
+Alternate-skyculture asterism data (data/asterisms/chinese.json) is derived
+from the Stellarium project's "chinese" skyculture
+(https://github.com/Stellarium/stellarium/tree/master/skycultures/chinese),
+licensed under Creative Commons Attribution-ShareAlike 4.0 International
+(CC-BY-SA 4.0). Original authors: Karrie Berglund (Digitalis Education
+Solutions), Sun Shuwei. Source references include Yi Shitong, "Chinese
+and Western Contrast Star Chart and Catalogue 1950.0" (Beijing: Science
+Press, 1981) and the imperial-era "Complete Studies of Astronomical"
+(儀象考成, 1756).
+
+The Western asterism set (data/asterisms/western.json) mirrors the
+stick-figure lines from data/constellations.json (Stellarium modern_st,
+public domain) and is provided as a selectable skyculture in the same
+bundled format as the Chinese set.

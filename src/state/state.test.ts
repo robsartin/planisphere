@@ -363,6 +363,55 @@ describe("fov preset — parse from URL", () => {
   });
 });
 
+describe("skyculture — defaults", () => {
+  it("defaults to 'western' when sky param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.skyculture).toBe("western");
+  });
+
+  it("DEFAULT_STATE.skyculture is 'western'", () => {
+    expect(DEFAULT_STATE.skyculture).toBe("western");
+  });
+});
+
+describe("skyculture — parse from URL", () => {
+  it("parses sky=chinese as Chinese", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ sky: "chinese" })));
+    expect(s.skyculture).toBe("chinese");
+  });
+
+  it("parses sky=western", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ sky: "western" })));
+    expect(s.skyculture).toBe("western");
+  });
+
+  it("falls back to 'western' for unknown skyculture id", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ sky: "mayan" })));
+    expect(s.skyculture).toBe("western");
+  });
+});
+
+describe("skyculture — serialize round-trip", () => {
+  it("omits sky param when at default ('western')", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("sky")).toBe(false);
+  });
+
+  it("writes sky param when not at default", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ sky: "chinese" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("sky")).toBe("chinese");
+  });
+
+  it("round-trips a non-default skyculture", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ sky: "chinese" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.skyculture).toBe("chinese");
+  });
+});
+
 describe("fov preset — serialize round-trip", () => {
   it("omits fov param when at default (off)", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
