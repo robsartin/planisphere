@@ -20,10 +20,15 @@ function toDatetimeLocal(d: Date): string {
   );
 }
 
+export type TimeControls = {
+  readonly element: HTMLElement;
+  setTime(d: Date): void;
+};
+
 export function createTimeControls(
   initial: Date,
   dispatch: (intent: UIIntent) => void,
-): HTMLElement {
+): TimeControls {
   let current = new Date(initial);
 
   const section = document.createElement("div");
@@ -124,5 +129,11 @@ export function createTimeControls(
 
   section.appendChild(nowRow);
 
-  return section;
+  return {
+    element: section,
+    setTime(d: Date): void {
+      current = new Date(d);
+      input.value = toDatetimeLocal(current);
+    },
+  };
 }

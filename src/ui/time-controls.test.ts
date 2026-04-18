@@ -8,10 +8,12 @@ const BASE_TIME = new Date("2026-04-15T12:00:00Z");
 describe("createTimeControls", () => {
   let dispatch: ReturnType<typeof vi.fn>;
   let el: HTMLElement;
+  let controls: { element: HTMLElement; setTime: (d: Date) => void };
 
   beforeEach(() => {
     dispatch = vi.fn();
-    el = createTimeControls(BASE_TIME, dispatch);
+    controls = createTimeControls(BASE_TIME, dispatch);
+    el = controls.element;
   });
 
   it("returns an HTMLElement", () => {
@@ -102,6 +104,34 @@ describe("createTimeControls", () => {
     if (intent.type === "set-time") {
       expect(intent.time.getTime()).toBe(BASE_TIME.getTime() - 60_000);
     }
+  });
+
+  describe("setTime (external updates)", () => {
+    it("updates the datetime-local input value when setTime is called", () => {
+      const input = el.querySelector<HTMLInputElement>("input[type='datetime-local']")!;
+      const newTime = new Date("2030-07-04T09:30:00Z");
+      controls.setTime(newTime);
+      // Value format is local time, so check it reflects the new date rather than the base
+      expect(input.value).not.toBe("");
+      expect(input.value.startsWith("2030-07-04")).toBe(true);
+    });
+
+    it("step buttons apply deltas from the new time after setTime", () => {
+      const newTime = new Date("2030-07-04T09:30:00Z");
+      controls.setTime(newTime);
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("+1h"))!;
+      btn.click();
+      const intent = dispatch.mock.calls[0]![0] as UIIntent;
+      expect(intent.type).toBe("set-time");
+      if (intent.type === "set-time") {
+        expect(intent.time.getTime()).toBe(newTime.getTime() + 3_600_000);
+      }
+    });
+
+    it("setTime does not itself dispatch a set-time intent", () => {
+      controls.setTime(new Date("2030-07-04T09:30:00Z"));
+      expect(dispatch).not.toHaveBeenCalled();
+    });
   });
 
   describe("📍 Now button (geolocation)", () => {

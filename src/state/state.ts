@@ -150,7 +150,9 @@ export function parseStateFromSearchParams(
 ): Result<AppState, StateParseError> {
   let lat = DEFAULT_STATE.observer.lat;
   let lon = DEFAULT_STATE.observer.lon;
-  let timeUtc = DEFAULT_STATE.timeUtc;
+  // Default to real "now" rather than the frozen DEFAULT_STATE.timeUtc so events
+  // and the sky open on the current moment when no ?t param is supplied.
+  let timeUtc = new Date();
 
   const rawLat = params.get("lat");
   if (rawLat !== null) {

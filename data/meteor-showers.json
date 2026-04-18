@@ -1,0 +1,9 @@
+[
+  { "id": "quadrantids", "name": "Quadrantids", "peakMonth": 1, "peakDay": 3, "zhr": 120 },
+  { "id": "lyrids", "name": "Lyrids", "peakMonth": 4, "peakDay": 22, "zhr": 18 },
+  { "id": "eta-aquariids", "name": "Eta Aquariids", "peakMonth": 5, "peakDay": 6, "zhr": 50 },
+  { "id": "perseids", "name": "Perseids", "peakMonth": 8, "peakDay": 12, "zhr": 100 },
+  { "id": "orionids", "name": "Orionids", "peakMonth": 10, "peakDay": 21, "zhr": 20 },
+  { "id": "leonids", "name": "Leonids", "peakMonth": 11, "peakDay": 17, "zhr": 15 },
+  { "id": "geminids", "name": "Geminids", "peakMonth": 12, "peakDay": 14, "zhr": 120 }
+]
