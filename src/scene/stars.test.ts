@@ -34,6 +34,13 @@ vi.mock("cesium", () => {
     Cartesian3: MockCartesian3,
     Color: {
       WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },
+      fromCssColorString: (css: string) => ({
+        red: 1,
+        green: 1,
+        blue: 1,
+        _css: css,
+        withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }),
+      }),
     },
     HorizontalOrigin: { CENTER: 0 },
     VerticalOrigin: { CENTER: 0 },

@@ -11,6 +11,7 @@ import {
 } from "cesium";
 import type { Scene } from "cesium";
 import type { AltAzStar } from "../astro";
+import { bvToRgb } from "../astro/star-color";
 
 const SKY_RADIUS = 1e5;
 
@@ -75,7 +76,7 @@ export function createStarLayer(scene: Scene): StarLayer {
         position: altAzToCartesian(star.alt, star.az, lat, lon),
         image: spriteImage,
         scale: star.size / 16,
-        color: Color.WHITE.withAlpha(star.opacity),
+        color: Color.fromCssColorString(bvToRgb(star.ci)).withAlpha(star.opacity),
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,

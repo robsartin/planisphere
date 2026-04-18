@@ -11,6 +11,7 @@ export type AltAzStar = {
   readonly az: number;
   readonly mag: number;
   readonly name?: string;
+  readonly ci?: number;
   readonly size: number;
   readonly opacity: number;
 };
@@ -34,6 +35,7 @@ export function filterVisibleStars(
       az,
       mag: star.mag,
       ...(star.name !== undefined ? { name: star.name } : {}),
+      ...(star.ci !== undefined ? { ci: star.ci } : {}),
       size,
       opacity,
     });
