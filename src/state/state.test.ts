@@ -21,6 +21,14 @@ describe("AppState — parse from URLSearchParams", () => {
     expect(s.observer.lon).toBe(DEFAULT_STATE.observer.lon);
   });
 
+  it("defaults timeUtc to real 'now' when no t param is given", () => {
+    const before = Date.now();
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const after = Date.now();
+    expect(s.timeUtc.getTime()).toBeGreaterThanOrEqual(before);
+    expect(s.timeUtc.getTime()).toBeLessThanOrEqual(after);
+  });
+
   it("parses valid lat/lon/t", () => {
     const params = new URLSearchParams({
       lat: "37.7749",
