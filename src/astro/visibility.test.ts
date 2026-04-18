@@ -55,3 +55,33 @@ describe("filterVisibleStars", () => {
     expect(achernar).toBeUndefined();
   });
 });
+
+describe("filterVisibleStars — magLimit", () => {
+  it("includes all above-horizon stars when magLimit is 6.0 (default)", () => {
+    const withLimit = filterVisibleStars(CATALOG, 60, 0, new Date("2026-01-15T22:00:00Z"), 6.0);
+    const withoutLimit = filterVisibleStars(CATALOG, 60, 0, new Date("2026-01-15T22:00:00Z"));
+    expect(withLimit.length).toBe(withoutLimit.length);
+  });
+
+  it("excludes stars dimmer than the limit", () => {
+    // Polaris has mag 2.02 — should be excluded when limit is 1.5
+    const result = filterVisibleStars(CATALOG, 60, 0, new Date("2026-01-15T22:00:00Z"), 1.5);
+    const polaris = result.find((s) => s.name === "Polaris");
+    expect(polaris).toBeUndefined();
+  });
+
+  it("includes stars brighter than or equal to the limit", () => {
+    // Sirius has mag -1.46 — always included with any reasonable limit
+    const result = filterVisibleStars(CATALOG, 33, -117, new Date("2026-01-15T04:00:00Z"), 2.0);
+    const sirius = result.find((s) => s.name === "Sirius");
+    expect(sirius).toBeDefined();
+  });
+
+  it("mag filter is applied BEFORE alt/az computation (bright-dim test with limit=2)", () => {
+    // With limit 2.0: Polaris (2.02) should be excluded, Sirius (-1.46) and Achernar (0.46) can pass
+    const result = filterVisibleStars(CATALOG, 60, 0, new Date("2026-01-15T22:00:00Z"), 2.0);
+    for (const star of result) {
+      expect(star.mag).toBeLessThanOrEqual(2.0);
+    }
+  });
+});

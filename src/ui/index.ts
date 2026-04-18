@@ -16,4 +16,5 @@ export type UIIntent =
   | { type: "toggle-layer"; layer: keyof LayerVisibility }
   | { type: "set-opacity"; layer: keyof LayerOpacity; value: number }
   | { type: "set-view"; az: number; alt: number }
-  | { type: "toggle-night-vision" };
+  | { type: "toggle-night-vision" }
+  | { type: "set-mag-limit"; value: number };

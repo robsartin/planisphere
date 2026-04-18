@@ -56,9 +56,9 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("renders opacity sliders for all 6 line layers", () => {
+  it("renders opacity sliders for all 6 line layers plus the mag slider", () => {
     const sliders = el.querySelectorAll("input[type='range']");
-    expect(sliders.length).toBe(6);
+    expect(sliders.length).toBe(7);
   });
 
   it("has opacity slider for constellationLines", () => {
@@ -143,5 +143,63 @@ describe("createLayerControls", () => {
     const cbCheckbox = el.querySelector("input[data-layer='constellationBoundaries']");
     expect(clCheckbox).toBeNull();
     expect(cbCheckbox).toBeNull();
+  });
+});
+
+describe("createLayerControls — magnitude slider", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0);
+  });
+
+  it("renders a magnitude limit slider with data-mag attribute", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-mag='limit']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("magnitude slider range is 1 to 6", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
+    expect(slider.min).toBe("1");
+    expect(slider.max).toBe("6");
+  });
+
+  it("magnitude slider step is 0.5", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
+    expect(slider.step).toBe("0.5");
+  });
+
+  it("magnitude slider initialises to the given magLimit", () => {
+    const elWith4 = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 4.0);
+    const slider = elWith4.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
+    expect(Number(slider.value)).toBeCloseTo(4.0);
+  });
+
+  it("label shows current value formatted as 'Mag \u2264 X.X'", () => {
+    const label = el.querySelector<HTMLElement>("[data-mag-label]");
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toContain("6.0");
+  });
+
+  it("moving the magnitude slider dispatches set-mag-limit intent", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
+    slider.value = "4";
+    slider.dispatchEvent(new Event("input"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-mag-limit");
+    if (intent.type === "set-mag-limit") {
+      expect(intent.value).toBeCloseTo(4.0);
+    }
+  });
+
+  it("label updates when slider changes", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
+    const label = el.querySelector<HTMLElement>("[data-mag-label]")!;
+    slider.value = "3.5";
+    slider.dispatchEvent(new Event("input"));
+    expect(label.textContent).toContain("3.5");
   });
 });

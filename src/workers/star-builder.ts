@@ -34,11 +34,14 @@ export function buildAltAzStars(
   catalog: StarRecord[],
   altAzs: Float64Array,
   visibleIndices: Uint16Array,
+  magLimit = 6.0,
 ): AltAzStar[] {
   const result: AltAzStar[] = [];
   for (const i of visibleIndices) {
     const star = catalog[i];
     if (!star) continue;
+    // Apply magnitude filter (catalog may contain stars dimmer than the current limit)
+    if (star.mag > magLimit) continue;
     const alt = altAzs[i * 2];
     const az = altAzs[i * 2 + 1];
     if (alt === undefined || az === undefined) continue;

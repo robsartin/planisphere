@@ -35,6 +35,7 @@ export function createLayerControls(
   initialVisibility: LayerVisibility,
   initialOpacity: LayerOpacity,
   dispatch: (intent: UIIntent) => void,
+  initialMagLimit = 6.0,
 ): HTMLElement {
   const visibility = { ...initialVisibility };
 
@@ -125,6 +126,45 @@ export function createLayerControls(
     row.appendChild(slider);
     section.appendChild(row);
   }
+
+  // Magnitude limit slider
+  const magHeading = document.createElement("div");
+  magHeading.textContent = "Star Filter";
+  magHeading.style.fontWeight = "bold";
+  magHeading.style.marginTop = "8px";
+  magHeading.style.marginBottom = GAP;
+  applyBaseText(magHeading);
+  section.appendChild(magHeading);
+
+  const magRow = document.createElement("div");
+  magRow.style.marginBottom = "6px";
+
+  const magLabel = document.createElement("div");
+  magLabel.dataset.magLabel = "";
+  magLabel.textContent = `Mag \u2264 ${initialMagLimit.toFixed(1)}`;
+  applyBaseText(magLabel);
+  magLabel.style.fontSize = "12px";
+  magLabel.style.marginBottom = "2px";
+
+  const magSlider = document.createElement("input");
+  magSlider.type = "range";
+  magSlider.dataset.mag = "limit";
+  magSlider.min = "1";
+  magSlider.max = "6";
+  magSlider.step = "0.5";
+  magSlider.value = String(initialMagLimit);
+  magSlider.style.width = "100%";
+  magSlider.style.accentColor = ACCENT_COLOR;
+
+  magSlider.addEventListener("input", () => {
+    const value = Number(magSlider.value);
+    magLabel.textContent = `Mag \u2264 ${value.toFixed(1)}`;
+    dispatch({ type: "set-mag-limit", value });
+  });
+
+  magRow.appendChild(magLabel);
+  magRow.appendChild(magSlider);
+  section.appendChild(magRow);
 
   return section;
 }

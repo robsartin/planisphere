@@ -126,7 +126,13 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   if (!data.stars.ok) return;
   const { observer, timeUtc } = state;
 
-  const visibleStars = filterVisibleStars(data.stars.value, observer.lat, observer.lon, timeUtc);
+  const visibleStars = filterVisibleStars(
+    data.stars.value,
+    observer.lat,
+    observer.lon,
+    timeUtc,
+    state.magLimit,
+  );
   layers.star.update(visibleStars, observer.lat, observer.lon);
 
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
@@ -255,7 +261,7 @@ async function doRerenderWithWorker(
     const { altAzs, visibleIndices } = await workerPromise;
     // Check that state hasn't changed since we started (avoid stale updates)
     if (capturedState !== state) return;
-    const visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices);
+    const visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices, capturedState.magLimit);
     layers.star.update(visibleStars, observer.lat, observer.lon);
 
     if (data.constellations.ok) {
@@ -267,7 +273,13 @@ async function doRerenderWithWorker(
     }
   } catch {
     // Worker failed — fall back to synchronous star computation
-    const visibleStars = filterVisibleStars(catalog, observer.lat, observer.lon, timeUtc);
+    const visibleStars = filterVisibleStars(
+      catalog,
+      observer.lat,
+      observer.lon,
+      timeUtc,
+      capturedState.magLimit,
+    );
     layers.star.update(visibleStars, observer.lat, observer.lon);
     if (data.constellations.ok) {
       const visibleConstellations = filterVisibleConstellations(
@@ -496,6 +508,12 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "set-mag-limit": {
+        state = { ...state, magLimit: intent.value };
+        scheduleRerender(state);
+        updateUrl(state);
+        break;
+      }
     }
   }
 
@@ -529,7 +547,7 @@ export async function bootstrap(
     const viewEl = createViewControls(0, 89.9, handleIntent);
     uiContainer.appendChild(viewEl);
 
-    const layerEl = createLayerControls(state.layers, state.opacity, handleIntent);
+    const layerEl = createLayerControls(state.layers, state.opacity, handleIntent, state.magLimit);
     uiContainer.appendChild(layerEl);
 
     refreshPlanetInfo(state);

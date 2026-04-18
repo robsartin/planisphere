@@ -368,4 +368,16 @@ describe("handleIntent routing", () => {
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
+
+  it("set-mag-limit intent schedules rerender and updates URL without throwing", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "set-mag-limit", value: 4.0 })).not.toThrow();
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
+  });
 });

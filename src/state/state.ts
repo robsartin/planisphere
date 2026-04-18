@@ -32,6 +32,7 @@ export type AppState = {
   readonly opacity: LayerOpacity;
   readonly view: ViewDirection;
   readonly nightVision: boolean;
+  readonly magLimit: number; // 1.0–6.0, default 6.0
 };
 
 export type StateParseError =
@@ -68,6 +69,8 @@ export const DEFAULT_OPACITY: LayerOpacity = {
 
 export const DEFAULT_VIEW: ViewDirection = { az: 0, alt: 89.9 };
 
+export const DEFAULT_MAG_LIMIT = 6.0;
+
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
   timeUtc: new Date("2026-04-15T00:00:00.000Z"),
@@ -75,6 +78,7 @@ export const DEFAULT_STATE: AppState = {
   opacity: DEFAULT_OPACITY,
   view: DEFAULT_VIEW,
   nightVision: false,
+  magLimit: DEFAULT_MAG_LIMIT,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -114,6 +118,13 @@ function parseOpacity(raw: string | null, defaultValue: number): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return defaultValue;
   return Math.min(1, Math.max(0, n / 100));
+}
+
+function parseMagLimit(raw: string | null): number {
+  if (raw === null) return DEFAULT_MAG_LIMIT;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_MAG_LIMIT;
+  return Math.min(6.0, Math.max(1.0, n));
 }
 
 export function parseStateFromSearchParams(
@@ -166,6 +177,8 @@ export function parseStateFromSearchParams(
     rawValt !== null && Number.isFinite(Number(rawValt)) ? Number(rawValt) : DEFAULT_VIEW.alt;
 
   const nightVision = params.get("nv") === "1";
+  const rawMag = params.get("mag");
+  const magLimit = parseMagLimit(rawMag);
 
   return ok({
     observer: { lat, lon },
@@ -174,6 +187,7 @@ export function parseStateFromSearchParams(
     opacity,
     view: { az: viewAz, alt: viewAlt },
     nightVision,
+    magLimit,
   });
 }
 
@@ -215,6 +229,14 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.nightVision) {
     params.set("nv", "1");
+  }
+
+  if (state.magLimit !== DEFAULT_MAG_LIMIT) {
+    // Serialize with one decimal place to keep URLs clean (e.g. "4" or "3.5")
+    const formatted = Number.isInteger(state.magLimit)
+      ? String(state.magLimit)
+      : String(state.magLimit);
+    params.set("mag", formatted);
   }
 
   return params;
