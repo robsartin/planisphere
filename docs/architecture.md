@@ -156,3 +156,91 @@ flowchart TD
 ```
 
 `fetchTle` always returns `Result<string, never>` (it never propagates errors to the caller — network failures silently fall back). The `TleFetchError` type exists for future use if callers need to distinguish the source.
+
+## Running in development
+
+Prerequisites: Node 20.11.1 (pinned in `.nvmrc`; use `nvm use`), pnpm ≥ 9.12.0 (via Corepack or `brew install corepack`).
+
+```bash
+pnpm install          # install dependencies
+pnpm dev              # start Vite dev server on http://localhost:5173
+```
+
+Open `http://localhost:5173/?lat=30.27&lon=-97.74&t=2026-04-17T04:00:00Z` (Austin, pre-dawn — good for satellites).
+
+The dev server uses Vite with hot module replacement. Changes to `src/` files reload instantly. CesiumJS static assets (workers, imagery) are served by `vite-plugin-cesium`. satellite.js is excluded from Vite's dependency optimizer (`optimizeDeps.exclude`) because its WASM pthreads build uses top-level await that esbuild rejects; a custom Vite plugin (`stubSatelliteJsWasm`) stubs the unused WASM module for production builds.
+
+### Quality gates (run before every commit)
+
+```bash
+pnpm typecheck        # tsc --noEmit (strict mode)
+pnpm lint             # ESLint (zero warnings) + SPDX header check
+pnpm format:check     # Prettier conformance
+pnpm test:cov         # Vitest with v8 coverage thresholds
+pnpm build            # production build to dist/
+```
+
+All five must pass. Claude Code hooks enforce `typecheck + format:check + lint + test:cov` before every `git commit`, and the full gate (including `build`) before `git push` and `gh pr create`.
+
+Coverage thresholds (enforced in `vitest.config.ts`):
+
+| Module                                                        | Lines | Branches |
+| ------------------------------------------------------------- | ----- | -------- |
+| `src/result/**`, `src/state/**`, `src/astro/**`, `src/sat/**` | ≥ 90% | ≥ 85%    |
+| `src/scene/**`, `src/ui/**`, `src/app.ts`                     | ≥ 80% | ≥ 70%    |
+| Project floor                                                 | ≥ 85% | ≥ 80%    |
+
+### Regenerating data files
+
+The three data files in `data/` are pre-built from external sources. To refresh them:
+
+```bash
+node scripts/build-star-catalog.mjs     # Hipparcos mag≤6 from HYG database → data/stars.json
+node scripts/build-constellations.mjs   # Stellarium stick figures → data/constellations.json
+node scripts/build-tle.mjs              # CelesTrak visual satellites → data/tle/visual.txt
+node scripts/build-boundaries.mjs       # IAU boundaries from d3-celestial → data/boundaries.json
+```
+
+Each script fetches from an external URL and writes a committed data file. Internet access required. TLE data goes stale in days; star/constellation/boundary data is effectively permanent.
+
+## Deployment
+
+The app deploys to **Cloudflare Pages** via the Cloudflare Git integration (not a GitHub Actions workflow).
+
+### How it works
+
+1. Cloudflare Pages is connected to the `robsartin/planisphere` GitHub repo.
+2. On every push to `main` or PR branch, Cloudflare runs the build:
+   - Build command: `pnpm build` (inferred from `package.json`)
+   - Output directory: `dist/` (configured in `wrangler.jsonc`)
+   - Node version: reads `.nvmrc` (20.11.1)
+3. `main` pushes → production deploy.
+4. PR pushes → preview deploy (URL posted as the "Workers Builds" check on the PR).
+
+### Configuration files
+
+- `wrangler.jsonc` — tells Cloudflare to serve `./dist` as the asset directory.
+- `.nvmrc` — pins Node 20.11.1 for both local dev and Cloudflare builds.
+- No `deploy.yml` workflow — Cloudflare's native Git integration handles everything.
+
+### CI (GitHub Actions)
+
+`.github/workflows/ci.yml` runs four parallel jobs on every push to `main` and every PR:
+
+| Job         | What it runs                                   |
+| ----------- | ---------------------------------------------- |
+| `typecheck` | `pnpm typecheck`                               |
+| `lint`      | `pnpm lint` + `pnpm format:check`              |
+| `test`      | `pnpm test:cov` (coverage thresholds enforced) |
+| `build`     | `pnpm build` (uploads `dist/` as artifact)     |
+
+Branch protection on `main` requires all four CI jobs to pass before merge. Reviews are not required (single-developer project).
+
+### Required secrets
+
+| Secret                  | Where               | Purpose                       |
+| ----------------------- | ------------------- | ----------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | GitHub repo secrets | Cloudflare Pages API access   |
+| `CLOUDFLARE_ACCOUNT_ID` | GitHub repo secrets | Cloudflare account identifier |
+
+These are used by the Cloudflare Git integration, not by a GitHub Actions workflow.
