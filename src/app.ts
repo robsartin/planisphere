@@ -54,8 +54,11 @@ import {
   createLayerControls,
   createViewControls,
   createPlanetInfo,
+  createSearch,
 } from "./ui";
 import type { UIIntent } from "./ui";
+import { buildSearchIndex, searchObjects } from "./astro/search";
+import type { SearchIndex } from "./astro/search";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
 import rawBoundaries from "../data/boundaries.json";
@@ -362,10 +365,12 @@ export async function bootstrap(
   }
 
   // Satellite layer (async)
+  let satelliteRecords: SatelliteRecord[] = [];
   const tleResult = await fetchTle();
   if (tleResult.ok) {
     const satResult = parseTle(tleResult.value);
     if (satResult.ok) {
+      satelliteRecords = satResult.value;
       data.satelliteRecords = satResult;
       const satLayer = createSatelliteLayer(viewer.scene);
       layers.satellite = satLayer;
@@ -384,6 +389,18 @@ export async function bootstrap(
     }
   }
 
+  // Build search index after all data (including satellites) is loaded
+  const BODY_NAMES = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
+  let searchIndex: SearchIndex = buildSearchIndex(
+    catalog,
+    constellationResult.ok ? constellationResult.value : [],
+    BODY_NAMES,
+    satelliteRecords,
+    state.observer.lat,
+    state.observer.lon,
+    state.timeUtc,
+  );
+
   // Tooltip
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
@@ -400,6 +417,18 @@ export async function bootstrap(
     );
   }
 
+  function rebuildSearchIndex(s: AppState): void {
+    searchIndex = buildSearchIndex(
+      catalog,
+      constellationResult.ok ? constellationResult.value : [],
+      BODY_NAMES,
+      satelliteRecords,
+      s.observer.lat,
+      s.observer.lon,
+      s.timeUtc,
+    );
+  }
+
   // Intent handler
   function handleIntent(intent: UIIntent): void {
     switch (intent.type) {
@@ -407,6 +436,7 @@ export async function bootstrap(
         state = { ...state, timeUtc: intent.time };
         scheduleRerender(state);
         refreshPlanetInfo(state);
+        rebuildSearchIndex(state);
         updateUrl(state);
         break;
       }
@@ -415,6 +445,7 @@ export async function bootstrap(
         initCamera(viewer.camera, intent.lat, intent.lon);
         scheduleRerender(state);
         refreshPlanetInfo(state);
+        rebuildSearchIndex(state);
         updateUrl(state);
         break;
       }
@@ -451,6 +482,10 @@ export async function bootstrap(
     const panel = createPanel(panelRoot);
 
     const uiContainer = document.createElement("div");
+
+    // Search box — at the top of the panel
+    const searchEl = createSearch((query) => searchObjects(searchIndex, query), handleIntent);
+    uiContainer.appendChild(searchEl);
 
     const timeEl = createTimeControls(state.timeUtc, handleIntent);
     uiContainer.appendChild(timeEl);
