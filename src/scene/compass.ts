@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { LabelCollection, Color, HorizontalOrigin, VerticalOrigin, LabelStyle } from "cesium";
+import { BillboardCollection, HorizontalOrigin, VerticalOrigin } from "cesium";
 import type { Scene } from "cesium";
 import { altAzToCartesian } from "./stars";
 
@@ -33,27 +33,41 @@ const DIRECTIONS: DirectionLabel[] = [
   { text: "NNW", az: 337.5, rank: "secondary" },
 ];
 
+function renderTextToCanvas(
+  text: string,
+  fontSize: number,
+  bold: boolean,
+  alpha: number,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 32;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.clearRect(0, 0, 64, 32);
+  ctx.font = `${bold ? "bold " : ""}${String(fontSize)}px sans-serif`;
+  ctx.fillStyle = `rgba(255, 255, 255, ${String(alpha)})`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 32, 16);
+  return canvas;
+}
+
 export function createCompassLayer(scene: Scene): CompassLayer {
-  const labels = new LabelCollection({ scene });
-  scene.primitives.add(labels);
+  const billboards = new BillboardCollection({ scene });
+  scene.primitives.add(billboards);
 
   function update(lat: number, lon: number): void {
-    labels.removeAll();
+    billboards.removeAll();
     for (const dir of DIRECTIONS) {
-      const position = altAzToCartesian(2, dir.az, lat, lon);
-      labels.add({
+      const position = altAzToCartesian(5, dir.az, lat, lon);
+      const fontSize = dir.rank === "cardinal" ? 16 : dir.rank === "intercardinal" ? 14 : 12;
+      const bold = dir.rank === "cardinal";
+      const alpha = dir.rank === "cardinal" ? 0.85 : dir.rank === "intercardinal" ? 0.6 : 0.4;
+      billboards.add({
         position,
-        text: dir.text,
-        font:
-          dir.rank === "cardinal"
-            ? "bold 16px sans-serif"
-            : dir.rank === "intercardinal"
-              ? "14px sans-serif"
-              : "12px sans-serif",
-        fillColor: Color.WHITE.withAlpha(
-          dir.rank === "cardinal" ? 0.85 : dir.rank === "intercardinal" ? 0.6 : 0.4,
-        ),
-        style: LabelStyle.FILL,
+        image: renderTextToCanvas(dir.text, fontSize, bold, alpha),
+        scale: 1,
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -62,9 +76,9 @@ export function createCompassLayer(scene: Scene): CompassLayer {
   }
 
   function setVisible(visible: boolean): void {
-    for (let i = 0; i < labels.length; i++) {
-      const label = labels.get(i);
-      label.show = visible;
+    for (let i = 0; i < billboards.length; i++) {
+      const bb = billboards.get(i);
+      bb.show = visible;
     }
   }
 

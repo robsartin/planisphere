@@ -1,8 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCompassLayer } from "./compass";
 
-const mockAdd = vi.fn();
+const mockGetContext = vi.fn().mockReturnValue(null);
+beforeAll(() => {
+  HTMLCanvasElement.prototype.getContext =
+    mockGetContext as typeof HTMLCanvasElement.prototype.getContext;
+});
+
+const mockAdd = vi.fn().mockReturnValue({ show: true });
 const mockRemoveAll = vi.fn();
 
 vi.mock("cesium", () => {
@@ -16,17 +22,15 @@ vi.mock("cesium", () => {
     .mockReturnValue({ x: 1, y: 2, z: 3 });
 
   return {
-    LabelCollection: vi.fn().mockImplementation(() => ({
+    BillboardCollection: vi.fn().mockImplementation(() => ({
       add: mockAdd,
       removeAll: mockRemoveAll,
+      length: 0,
+      get: vi.fn().mockReturnValue({ show: true }),
     })),
     Cartesian3: MockCartesian3,
-    Color: {
-      WHITE: { withAlpha: (a: number) => ({ alpha: a }) },
-    },
     HorizontalOrigin: { CENTER: 0 },
     VerticalOrigin: { CENTER: 0 },
-    LabelStyle: { FILL: 0 },
     Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
     Transforms: {
       eastNorthUpToFixedFrame: vi
@@ -49,12 +53,13 @@ beforeEach(() => {
 });
 
 describe("createCompassLayer", () => {
-  it("returns an object with an update method", () => {
+  it("returns an object with update and setVisible methods", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     expect(layer).toHaveProperty("update");
+    expect(layer).toHaveProperty("setVisible");
   });
 
-  it("registers a LabelCollection with scene.primitives", () => {
+  it("registers a BillboardCollection with scene.primitives", () => {
     const scene = makeMockScene();
     createCompassLayer(scene as never);
     expect(scene.primitives.add).toHaveBeenCalledOnce();
@@ -62,38 +67,14 @@ describe("createCompassLayer", () => {
 });
 
 describe("CompassLayer.update", () => {
-  it("adds 8 direction labels", () => {
+  it("adds 16 direction billboards", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     layer.update(33, -117);
     expect(mockRemoveAll).toHaveBeenCalledOnce();
     expect(mockAdd).toHaveBeenCalledTimes(16);
   });
 
-  it("cardinal directions use bold font", () => {
-    const layer = createCompassLayer(makeMockScene() as never);
-    layer.update(33, -117);
-    const nCall = mockAdd.mock.calls[0]![0] as { text: string; font: string };
-    expect(nCall.text).toBe("N");
-    expect(nCall.font).toContain("bold");
-  });
-
-  it("secondary intercardinal directions use smallest font", () => {
-    const layer = createCompassLayer(makeMockScene() as never);
-    layer.update(33, -117);
-    const nneCall = mockAdd.mock.calls[1]![0] as { text: string; font: string };
-    expect(nneCall.text).toBe("NNE");
-    expect(nneCall.font).toContain("12px");
-  });
-
-  it("intercardinal directions use regular font", () => {
-    const layer = createCompassLayer(makeMockScene() as never);
-    layer.update(33, -117);
-    const neCall = mockAdd.mock.calls[2]![0] as { text: string; font: string };
-    expect(neCall.text).toBe("NE");
-    expect(neCall.font).toContain("14px");
-  });
-
-  it("clears previous labels before adding", () => {
+  it("clears previous billboards before adding", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     layer.update(33, -117);
     mockAdd.mockClear();
@@ -105,13 +86,7 @@ describe("CompassLayer.update", () => {
 });
 
 describe("CompassLayer.setVisible", () => {
-  it("has a setVisible method", () => {
-    const layer = createCompassLayer(makeMockScene() as never);
-    expect(layer).toHaveProperty("setVisible");
-    expect(typeof layer.setVisible).toBe("function");
-  });
-
-  it("does not throw when called with true or false", () => {
+  it("does not throw when called", () => {
     const layer = createCompassLayer(makeMockScene() as never);
     expect(() => layer.setVisible(false)).not.toThrow();
     expect(() => layer.setVisible(true)).not.toThrow();
