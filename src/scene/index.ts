@@ -12,3 +12,4 @@ export { type GridLayer, createGridLayer } from "./grid";
 export { type EclipticLayer, createEclipticLayer } from "./ecliptic";
 export { type MessierLayer, createMessierLayer } from "./messier";
 export { type MilkyWayLayer, createMilkyWayLayer } from "./milkyway";
+export { type TrailLayer, createTrailLayer } from "./trail-layer";

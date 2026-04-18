@@ -203,4 +203,51 @@ describe("createPlanetInfo", () => {
       expect(onSelect).not.toHaveBeenCalled();
     });
   });
+
+  describe("show-trail button (onShowTrail)", () => {
+    it("renders a 'Show path' button for above-horizon bodies when onShowTrail is provided", () => {
+      const onShowTrail = vi.fn();
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME, undefined, onShowTrail, null);
+      const buttons = el.querySelectorAll("[data-testid='planet-show-trail']");
+      expect(buttons.length).toBe(BODIES_ABOVE.length);
+    });
+
+    it("does not render a 'Show path' button for below-horizon bodies", () => {
+      const onShowTrail = vi.fn();
+      const el = createPlanetInfo(BODIES_MIXED, LAT, LON, TIME, undefined, onShowTrail, null);
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const venusRow = [...rows].find(
+        (r) => r.querySelector("[data-testid='planet-name']")?.textContent === "Venus",
+      )!;
+      expect(venusRow.querySelector("[data-testid='planet-show-trail']")).toBeNull();
+    });
+
+    it("clicking 'Show path' calls onShowTrail with the body id", () => {
+      const onShowTrail = vi.fn();
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME, undefined, onShowTrail, null);
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const marsRow = [...rows].find(
+        (r) => r.querySelector("[data-testid='planet-name']")?.textContent === "Mars",
+      )!;
+      const btn = marsRow.querySelector<HTMLButtonElement>("[data-testid='planet-show-trail']")!;
+      btn.click();
+      expect(onShowTrail).toHaveBeenCalledWith("Mars");
+    });
+
+    it("when trailBodyId matches, button text becomes 'Hide path'", () => {
+      const onShowTrail = vi.fn();
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME, undefined, onShowTrail, "Mars");
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const marsRow = [...rows].find(
+        (r) => r.querySelector("[data-testid='planet-name']")?.textContent === "Mars",
+      )!;
+      const btn = marsRow.querySelector<HTMLButtonElement>("[data-testid='planet-show-trail']")!;
+      expect(btn.textContent?.toLowerCase()).toContain("hide");
+    });
+
+    it("does not render the button when onShowTrail is undefined", () => {
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME);
+      expect(el.querySelectorAll("[data-testid='planet-show-trail']").length).toBe(0);
+    });
+  });
 });

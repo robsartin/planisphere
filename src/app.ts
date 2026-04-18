@@ -14,6 +14,7 @@ import {
   parseMessier,
   filterVisibleMessier,
   computeMilkyWayPoints,
+  computeBodyTrail,
 } from "./astro";
 import type { StarRecord } from "./astro";
 import { AstroWorkerClient } from "./workers/astro-worker-client";
@@ -33,6 +34,7 @@ import {
   createEclipticLayer,
   createMessierLayer,
   createMilkyWayLayer,
+  createTrailLayer,
   setCameraView,
 } from "./scene";
 import type {
@@ -46,6 +48,7 @@ import type {
   EclipticLayer,
   MessierLayer,
   MilkyWayLayer,
+  TrailLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import type { SatelliteRecord, TleParseError } from "./sat";
@@ -78,7 +81,11 @@ type Layers = {
   ecliptic: EclipticLayer;
   messier: MessierLayer;
   milkyWay: MilkyWayLayer;
+  trail: TrailLayer;
 };
+
+const TRAIL_DURATION_HOURS = 4;
+const TRAIL_STEP_MINUTES = 5;
 
 function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void {
   layers.star.setVisible(visibility.stars);
@@ -346,7 +353,32 @@ export async function bootstrap(
     ecliptic: createEclipticLayer(viewer.scene),
     messier: createMessierLayer(viewer.scene),
     milkyWay: createMilkyWayLayer(viewer.scene),
+    trail: createTrailLayer(viewer.scene),
   };
+
+  // Current trail selection (ephemeral — not URL-persisted)
+  let trailBodyId: string | null = null;
+
+  function rerenderTrail(s: AppState): void {
+    if (trailBodyId === null) {
+      layers.trail.hide();
+      return;
+    }
+    const result = computeBodyTrail(
+      trailBodyId,
+      s.observer.lat,
+      s.observer.lon,
+      s.timeUtc,
+      TRAIL_DURATION_HOURS,
+      TRAIL_STEP_MINUTES,
+    );
+    if (!result.ok) {
+      layers.trail.hide();
+      return;
+    }
+    layers.trail.setPoints(result.value, s.observer.lat, s.observer.lon);
+    layers.trail.show();
+  }
 
   // Parse static data once
   const constellationResult = parseConstellations(rawConstellations);
@@ -438,9 +470,23 @@ export async function bootstrap(
   function refreshPlanetInfo(s: AppState): void {
     const bodies = computeBodyPositions(s.observer.lat, s.observer.lon, s.timeUtc, false);
     planetInfoWrapper.replaceChildren(
-      createPlanetInfo(bodies, s.observer.lat, s.observer.lon, s.timeUtc, (az, alt) => {
-        handleIntent({ type: "set-view", az, alt });
-      }),
+      createPlanetInfo(
+        bodies,
+        s.observer.lat,
+        s.observer.lon,
+        s.timeUtc,
+        (az, alt) => {
+          handleIntent({ type: "set-view", az, alt });
+        },
+        (id) => {
+          if (trailBodyId === id) {
+            handleIntent({ type: "hide-trail" });
+          } else {
+            handleIntent({ type: "show-trail", objectKind: "body", id });
+          }
+        },
+        trailBodyId,
+      ),
     );
   }
 
@@ -464,6 +510,7 @@ export async function bootstrap(
         scheduleRerender(state);
         refreshPlanetInfo(state);
         rebuildSearchIndex(state);
+        rerenderTrail(state);
         updateUrl(state);
         break;
       }
@@ -473,6 +520,7 @@ export async function bootstrap(
         scheduleRerender(state);
         refreshPlanetInfo(state);
         rebuildSearchIndex(state);
+        rerenderTrail(state);
         updateUrl(state);
         break;
       }
@@ -514,12 +562,25 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "show-trail": {
+        trailBodyId = intent.id;
+        rerenderTrail(state);
+        refreshPlanetInfo(state);
+        break;
+      }
+      case "hide-trail": {
+        trailBodyId = null;
+        layers.trail.hide();
+        refreshPlanetInfo(state);
+        break;
+      }
       case "now": {
         const now = new Date();
         state = { ...state, timeUtc: now };
         scheduleRerender(state);
         refreshPlanetInfo(state);
         rebuildSearchIndex(state);
+        rerenderTrail(state);
         updateUrl(state);
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -530,6 +591,7 @@ export async function bootstrap(
               scheduleRerender(state);
               refreshPlanetInfo(state);
               rebuildSearchIndex(state);
+              rerenderTrail(state);
               updateUrl(state);
             },
             () => {

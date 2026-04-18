@@ -23,6 +23,8 @@ function formatAltAz(alt: number, az: number): string {
  * Bodies below the horizon are shown with a "below horizon" indicator.
  * When onSelect is provided, above-horizon body names are clickable and call
  * onSelect(az, alt) to point the view at that body.
+ * When onShowTrail is provided, above-horizon bodies get a "Show path" button.
+ * The button flips to "Hide path" when trailBodyId equals that body's id.
  */
 export function createPlanetInfo(
   bodies: CelestialBody[],
@@ -30,6 +32,8 @@ export function createPlanetInfo(
   lon: number,
   time: Date,
   onSelect?: (az: number, alt: number) => void,
+  onShowTrail?: (id: string) => void,
+  trailBodyId?: string | null,
 ): HTMLElement {
   const section = document.createElement("div");
   section.style.marginBottom = GAP;
@@ -152,6 +156,27 @@ export function createPlanetInfo(
     riseSetRow.appendChild(setEl);
 
     row.appendChild(riseSetRow);
+
+    if (celestialBody.alt > 0 && onShowTrail) {
+      const trailBtn = document.createElement("button");
+      trailBtn.dataset.testid = "planet-show-trail";
+      const active = trailBodyId === celestialBody.id;
+      trailBtn.textContent = active ? "Hide path" : "Show path";
+      trailBtn.style.marginTop = "4px";
+      trailBtn.style.padding = "2px 6px";
+      trailBtn.style.fontSize = "11px";
+      trailBtn.style.fontFamily = "sans-serif";
+      trailBtn.style.background = active ? "rgba(100,160,255,0.25)" : "rgba(255,255,255,0.08)";
+      trailBtn.style.color = TEXT_COLOR;
+      trailBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+      trailBtn.style.borderRadius = "3px";
+      trailBtn.style.cursor = "pointer";
+      trailBtn.addEventListener("click", () => {
+        onShowTrail(celestialBody.id);
+      });
+      row.appendChild(trailBtn);
+    }
+
     body.appendChild(row);
   }
 

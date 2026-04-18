@@ -458,4 +458,36 @@ describe("handleIntent routing", () => {
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
+
+  it("show-trail intent with a valid body id does not throw", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Mars" }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("show-trail intent with an unknown id does not throw", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({ type: "show-trail", objectKind: "body", id: "NotAPlanet" }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("hide-trail intent after show-trail does not throw", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Sun" });
+    expect(() => capturedDispatch!({ type: "hide-trail" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
 });
