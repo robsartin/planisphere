@@ -20,8 +20,8 @@ The Stellarium project maintains dozens of per-culture `skycultures/<name>/index
 files. Each file bundles asterism polylines (HIP ids) plus native names. The
 Chinese skyculture in particular is licensed as CC-BY-SA 4.0 and is based on
 two well-known Chinese astronomical references
-(*儀象考成*, 1756 and Yi Shitong's *Chinese and Western Contrast Star Chart and
-Catalogue 1950.0*, 1981).
+(_儀象考成_, 1756 and Yi Shitong's _Chinese and Western Contrast Star Chart and
+Catalogue 1950.0_, 1981).
 
 ## Decision
 

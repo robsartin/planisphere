@@ -61,7 +61,14 @@ describe("parseAsterismSet", () => {
       name: "Chinese (Xingguan)",
       constellations: [
         { id: "CON chinese 001", name: "Net", lines: [[20889, 20648, 20455]] },
-        { id: "CON chinese 003", name: "Three Stars", lines: [[27989, 26727], [26727, 27366]] },
+        {
+          id: "CON chinese 003",
+          name: "Three Stars",
+          lines: [
+            [27989, 26727],
+            [26727, 27366],
+          ],
+        },
       ],
     };
     const r = parseAsterismSet(raw);
@@ -130,7 +137,14 @@ describe("parseAsterismSet", () => {
       id: "x",
       name: "X",
       constellations: [
-        { id: "c", name: "c", lines: [[1, "bad", 3], [4, 5]] },
+        {
+          id: "c",
+          name: "c",
+          lines: [
+            [1, "bad", 3],
+            [4, 5],
+          ],
+        },
       ],
     };
     const set = expectOk(parseAsterismSet(raw));
@@ -142,9 +156,7 @@ describe("parseAsterismSet", () => {
     const raw = {
       id: "x",
       name: "X",
-      constellations: [
-        { id: "c", name: "c", lines: [[1], [1, 2]] },
-      ],
+      constellations: [{ id: "c", name: "c", lines: [[1], [1, 2]] }],
     };
     const set = expectOk(parseAsterismSet(raw));
     expect(set.constellations[0]!.lines.length).toBe(1);
@@ -215,7 +227,14 @@ describe("asterismLines", () => {
       name: "Chinese",
       constellations: [
         { id: "A", name: "A", lines: [[1, 2, 3, 4]] }, // 3 segments
-        { id: "B", name: "B", lines: [[10, 11], [20, 21]] }, // 2 segments
+        {
+          id: "B",
+          name: "B",
+          lines: [
+            [10, 11],
+            [20, 21],
+          ],
+        }, // 2 segments
       ],
     };
     const segments = asterismLines(set);

@@ -197,14 +197,7 @@ describe("createLayerControls — skyculture dropdown", () => {
 
   beforeEach(() => {
     dispatch = vi.fn();
-    el = createLayerControls(
-      DEFAULT_VISIBILITY,
-      DEFAULT_OPACITY,
-      dispatch,
-      6.0,
-      "la",
-      "western",
-    );
+    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "la", "western");
   });
 
   it("renders a skyculture select with data-skyculture attribute", () => {

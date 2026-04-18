@@ -69,9 +69,7 @@ async function buildChinese() {
     const lines = [];
     for (const poly of c.lines) {
       if (!Array.isArray(poly)) continue;
-      const clean = poly
-        .map((n) => Number(n))
-        .filter((n) => Number.isFinite(n) && n > 0);
+      const clean = poly.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
       if (clean.length >= 2) lines.push(clean);
     }
     if (lines.length === 0) continue;
