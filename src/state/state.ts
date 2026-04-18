@@ -7,8 +7,6 @@ export type LayerVisibility = {
   readonly stars: boolean;
   readonly planets: boolean;
   readonly satellites: boolean;
-  readonly constellationLines: boolean;
-  readonly constellationBoundaries: boolean;
   readonly compass: boolean;
 };
 
@@ -16,6 +14,8 @@ export type LayerOpacity = {
   readonly constellationLines: number; // 0–1
   readonly constellationBoundaries: number; // 0–1
   readonly satelliteTrails: number; // 0–1
+  readonly raDecGrid: number; // 0–1
+  readonly ecliptic: number; // 0–1
 };
 
 export type AppState = {
@@ -36,8 +36,6 @@ const ALL_LAYER_KEYS: readonly (keyof LayerVisibility)[] = [
   "stars",
   "planets",
   "satellites",
-  "constellationLines",
-  "constellationBoundaries",
   "compass",
 ];
 
@@ -45,8 +43,6 @@ export const DEFAULT_LAYERS: LayerVisibility = {
   stars: true,
   planets: true,
   satellites: true,
-  constellationLines: true,
-  constellationBoundaries: true,
   compass: true,
 };
 
@@ -54,6 +50,8 @@ export const DEFAULT_OPACITY: LayerOpacity = {
   constellationLines: 1.0,
   constellationBoundaries: 1.0,
   satelliteTrails: 1.0,
+  raDecGrid: 0.2,
+  ecliptic: 0.4,
 };
 
 export const DEFAULT_STATE: AppState = {
@@ -90,8 +88,6 @@ function parseLayerVisibility(raw: string | null): LayerVisibility {
     stars: keys.has("stars"),
     planets: keys.has("planets"),
     satellites: keys.has("satellites"),
-    constellationLines: keys.has("constellationLines"),
-    constellationBoundaries: keys.has("constellationBoundaries"),
     compass: keys.has("compass"),
   };
 }
@@ -140,6 +136,8 @@ export function parseStateFromSearchParams(
       DEFAULT_OPACITY.constellationBoundaries,
     ),
     satelliteTrails: parseOpacity(params.get("op_st"), DEFAULT_OPACITY.satelliteTrails),
+    raDecGrid: parseOpacity(params.get("op_grid"), DEFAULT_OPACITY.raDecGrid),
+    ecliptic: parseOpacity(params.get("op_ecl"), DEFAULT_OPACITY.ecliptic),
   };
 
   return ok({ observer: { lat, lon }, timeUtc, layers, opacity });
@@ -165,6 +163,12 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
   }
   if (state.opacity.satelliteTrails !== 1.0) {
     params.set("op_st", String(Math.round(state.opacity.satelliteTrails * 100)));
+  }
+  if (state.opacity.raDecGrid !== DEFAULT_OPACITY.raDecGrid) {
+    params.set("op_grid", String(Math.round(state.opacity.raDecGrid * 100)));
+  }
+  if (state.opacity.ecliptic !== DEFAULT_OPACITY.ecliptic) {
+    params.set("op_ecl", String(Math.round(state.opacity.ecliptic * 100)));
   }
 
   return params;

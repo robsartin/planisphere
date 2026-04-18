@@ -9,6 +9,8 @@ import {
   filterVisibleConstellations,
   parseBoundaries,
   filterVisibleBoundaries,
+  computeRaDecGrid,
+  computeEclipticLine,
 } from "./astro";
 import {
   createViewer,
@@ -20,6 +22,8 @@ import {
   createCompassLayer,
   createSatelliteLayer,
   createBoundaryLayer,
+  createGridLayer,
+  createEclipticLayer,
   setCameraView,
 } from "./scene";
 import type {
@@ -29,6 +33,8 @@ import type {
   BoundaryLayer,
   SatelliteLayer,
   CompassLayer,
+  GridLayer,
+  EclipticLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import {
@@ -50,13 +56,13 @@ type Layers = {
   boundary: BoundaryLayer;
   satellite: SatelliteLayer | null;
   compass: CompassLayer;
+  grid: GridLayer;
+  ecliptic: EclipticLayer;
 };
 
 function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void {
   layers.star.setVisible(visibility.stars);
   layers.body.setVisible(visibility.planets);
-  layers.constellation.setVisible(visibility.constellationLines);
-  layers.boundary.setVisible(visibility.constellationBoundaries);
   layers.compass.setVisible(visibility.compass);
   if (layers.satellite) layers.satellite.setVisible(visibility.satellites);
 }
@@ -97,11 +103,19 @@ function rerender(
     console.warn(`Boundary load warning: ${boundaryResult.error.message}`);
   }
 
+  const gridData = computeRaDecGrid(observer.lat, observer.lon, timeUtc);
+  layers.grid.update(gridData, observer.lat, observer.lon);
+
+  const eclipticPoints = computeEclipticLine(observer.lat, observer.lon, timeUtc);
+  layers.ecliptic.update(eclipticPoints, observer.lat, observer.lon);
+
   layers.compass.update(observer.lat, observer.lon);
 
   applyLayerVisibility(layers, state.layers);
   layers.constellation.setOpacity(state.opacity.constellationLines * 0.25);
   layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
+  layers.grid.setOpacity(state.opacity.raDecGrid);
+  layers.ecliptic.setOpacity(state.opacity.ecliptic);
   if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
 }
 
@@ -149,6 +163,8 @@ export async function bootstrap(
     boundary: createBoundaryLayer(viewer.scene),
     satellite: null,
     compass: createCompassLayer(viewer.scene),
+    grid: createGridLayer(viewer.scene),
+    ecliptic: createEclipticLayer(viewer.scene),
   };
 
   // Initial render
@@ -210,6 +226,8 @@ export async function bootstrap(
         state = { ...state, opacity: newOpacity };
         layers.constellation.setOpacity(state.opacity.constellationLines * 0.25);
         layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
+        layers.grid.setOpacity(state.opacity.raDecGrid);
+        layers.ecliptic.setOpacity(state.opacity.ecliptic);
         if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
         updateUrl(state);
         break;

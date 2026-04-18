@@ -8,33 +8,25 @@ type LayerDef = {
   label: string;
 };
 
-type OpacityDef = {
+type LineDef = {
   key: keyof LayerOpacity;
   label: string;
-  parentLayer: keyof LayerVisibility;
+  defaultPct: number;
 };
 
-const LAYERS: LayerDef[] = [
+const TOGGLE_LAYERS: LayerDef[] = [
   { key: "stars", label: "Stars ☆" },
   { key: "planets", label: "Planets ☾" },
   { key: "satellites", label: "Satellites 🛰" },
-  { key: "constellationLines", label: "Constellation Lines ╱" },
-  { key: "constellationBoundaries", label: "Constellation Boundaries ⬡" },
   { key: "compass", label: "Compass ◎" },
 ];
 
-const OPACITY_CONTROLS: OpacityDef[] = [
-  {
-    key: "constellationLines",
-    label: "Constellation Lines opacity",
-    parentLayer: "constellationLines",
-  },
-  {
-    key: "constellationBoundaries",
-    label: "Constellation Boundaries opacity",
-    parentLayer: "constellationBoundaries",
-  },
-  { key: "satelliteTrails", label: "Satellite Trails opacity", parentLayer: "satellites" },
+const LINE_LAYERS: LineDef[] = [
+  { key: "constellationLines", label: "Constellation Lines", defaultPct: 25 },
+  { key: "constellationBoundaries", label: "Constellation Boundaries", defaultPct: 15 },
+  { key: "satelliteTrails", label: "Satellite Trails", defaultPct: 30 },
+  { key: "raDecGrid", label: "RA/Dec Grid", defaultPct: 20 },
+  { key: "ecliptic", label: "Ecliptic", defaultPct: 40 },
 ];
 
 export function createLayerControls(
@@ -55,11 +47,8 @@ export function createLayerControls(
   applyBaseText(layersHeading);
   section.appendChild(layersHeading);
 
-  // Map from layer key → opacity slider row element, for show/hide
-  const opacityRowMap = new Map<string, HTMLElement>();
-
-  // Build each layer toggle row
-  for (const layer of LAYERS) {
+  // Build each toggle layer row (stars, planets, satellites, compass)
+  for (const layer of TOGGLE_LAYERS) {
     const row = document.createElement("div");
     row.style.display = "flex";
     row.style.alignItems = "center";
@@ -77,7 +66,6 @@ export function createLayerControls(
     checkbox.type = "checkbox";
     checkbox.dataset.layer = layer.key;
     checkbox.checked = visibility[layer.key];
-    // Style as toggle-like accent checkbox
     checkbox.style.accentColor = ACCENT_COLOR;
     checkbox.style.width = "16px";
     checkbox.style.height = "16px";
@@ -91,54 +79,44 @@ export function createLayerControls(
 
     checkbox.addEventListener("change", () => {
       visibility[layer.key] = checkbox.checked;
-      // Show/hide associated opacity row if any
-      for (const od of OPACITY_CONTROLS) {
-        if (od.parentLayer === layer.key) {
-          const opRow = opacityRowMap.get(od.key);
-          if (opRow) opRow.style.display = checkbox.checked ? "" : "none";
-        }
-      }
       dispatch({ type: "toggle-layer", layer: layer.key });
     });
   }
 
-  // Opacity heading
-  const opacityHeading = document.createElement("div");
-  opacityHeading.textContent = "Opacity";
-  opacityHeading.style.fontWeight = "bold";
-  opacityHeading.style.marginTop = "8px";
-  opacityHeading.style.marginBottom = GAP;
-  applyBaseText(opacityHeading);
-  section.appendChild(opacityHeading);
+  // Line Layers heading
+  const lineHeading = document.createElement("div");
+  lineHeading.textContent = "Line Layers";
+  lineHeading.style.fontWeight = "bold";
+  lineHeading.style.marginTop = "8px";
+  lineHeading.style.marginBottom = GAP;
+  applyBaseText(lineHeading);
+  section.appendChild(lineHeading);
 
-  // Build each opacity slider row
-  for (const od of OPACITY_CONTROLS) {
+  // Build each line-layer opacity slider (no toggle, slider to 0 = off)
+  for (const ld of LINE_LAYERS) {
     const row = document.createElement("div");
-    row.dataset.opacityRow = od.key;
+    row.dataset.opacityRow = ld.key;
     row.style.marginBottom = "6px";
-    // Hidden if parent layer is off
-    if (!visibility[od.parentLayer]) row.style.display = "none";
-    opacityRowMap.set(od.key, row);
 
     const lbl = document.createElement("div");
-    lbl.textContent = od.label;
+    lbl.textContent = ld.label;
     applyBaseText(lbl);
     lbl.style.fontSize = "12px";
     lbl.style.marginBottom = "2px";
 
     const slider = document.createElement("input");
     slider.type = "range";
-    slider.dataset.opacity = od.key;
+    slider.dataset.opacity = ld.key;
     slider.min = "0";
     slider.max = "100";
     slider.step = "1";
-    slider.value = String(Math.round(initialOpacity[od.key] * 100));
+    slider.value = String(Math.round(initialOpacity[ld.key] * 100));
     slider.style.width = "100%";
     slider.style.accentColor = ACCENT_COLOR;
 
     slider.addEventListener("input", () => {
       const value = Number(slider.value) / 100;
-      dispatch({ type: "set-opacity", layer: od.key, value });
+      dispatch({ type: "set-opacity", layer: ld.key, value });
     });
 
     row.appendChild(lbl);

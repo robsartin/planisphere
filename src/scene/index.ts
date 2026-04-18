@@ -8,3 +8,5 @@ export { type ConstellationLayer, createConstellationLayer } from "./constellati
 export { type CompassLayer, createCompassLayer } from "./compass";
 export { type SatelliteLayer, createSatelliteLayer } from "./satellites";
 export { type BoundaryLayer, createBoundaryLayer } from "./boundaries";
+export { type GridLayer, createGridLayer } from "./grid";
+export { type EclipticLayer, createEclipticLayer } from "./ecliptic";
