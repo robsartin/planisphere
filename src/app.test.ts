@@ -380,4 +380,82 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
     vi.useRealTimers();
   });
+
+  it("now intent sets time and attempts geolocation without throwing", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+
+    let geoSuccess: PositionCallback | null = null;
+    const geolocationMock = {
+      getCurrentPosition: vi.fn((success: PositionCallback) => {
+        geoSuccess = success;
+      }),
+    };
+    Object.defineProperty(navigator, "geolocation", {
+      value: geolocationMock,
+      configurable: true,
+    });
+
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "now" })).not.toThrow();
+    expect(geolocationMock.getCurrentPosition).toHaveBeenCalled();
+
+    // Simulate successful geolocation response
+    expect(() =>
+      geoSuccess!({
+        coords: { latitude: 48.85, longitude: 2.35, accuracy: 10 },
+      } as GeolocationPosition),
+    ).not.toThrow();
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
+  });
+
+  it("now intent updates time even when geolocation is denied", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+
+    let geoError: PositionErrorCallback | null = null;
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: vi.fn((_success: PositionCallback, error: PositionErrorCallback) => {
+          geoError = error;
+        }),
+      },
+      configurable: true,
+    });
+
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "now" })).not.toThrow();
+
+    // Simulate geolocation failure (e.g. user denied)
+    expect(() =>
+      geoError!({ code: 1, message: "User denied" } as GeolocationPositionError),
+    ).not.toThrow();
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    vi.useRealTimers();
+  });
+
+  it("now intent handles missing geolocation API gracefully", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+
+    Object.defineProperty(navigator, "geolocation", {
+      value: undefined,
+      configurable: true,
+    });
+
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "now" })).not.toThrow();
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
 });

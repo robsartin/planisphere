@@ -103,4 +103,84 @@ describe("createTimeControls", () => {
       expect(intent.time.getTime()).toBe(BASE_TIME.getTime() - 60_000);
     }
   });
+
+  describe("📍 Now button (geolocation)", () => {
+    it("renders a button containing '📍'", () => {
+      const buttons = [...el.querySelectorAll("button")].map((b) => b.textContent ?? "");
+      expect(buttons.some((t) => t.includes("📍"))).toBe(true);
+    });
+
+    it("clicking the 📍 button dispatches the 'now' intent", () => {
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("📍"))!;
+      btn.click();
+      expect(dispatch).toHaveBeenCalledOnce();
+      const intent = dispatch.mock.calls[0]![0] as UIIntent;
+      expect(intent.type).toBe("now");
+    });
+
+    it("shows 'Locating…' feedback while waiting (before geolocation resolves)", () => {
+      // Make getCurrentPosition never call back immediately
+      let capturedSuccess: PositionCallback | null = null;
+      vi.stubGlobal("navigator", {
+        ...navigator,
+        geolocation: {
+          getCurrentPosition: (success: PositionCallback) => {
+            capturedSuccess = success;
+          },
+        },
+      });
+
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("📍"))!;
+      btn.click();
+      expect(btn.textContent).toBe("Locating…");
+      // Restore
+      expect(capturedSuccess).not.toBeNull();
+      vi.unstubAllGlobals();
+    });
+
+    it("restores button text after geolocation resolves", () => {
+      vi.stubGlobal("navigator", {
+        ...navigator,
+        geolocation: {
+          getCurrentPosition: (success: PositionCallback) => {
+            success({
+              coords: { latitude: 51.5, longitude: -0.12, accuracy: 10 },
+            } as GeolocationPosition);
+          },
+        },
+      });
+
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("📍"))!;
+      btn.click();
+      expect(btn.textContent).toContain("📍");
+      vi.unstubAllGlobals();
+    });
+
+    it("restores button text when geolocation fails", () => {
+      vi.stubGlobal("navigator", {
+        ...navigator,
+        geolocation: {
+          getCurrentPosition: (_success: PositionCallback, error: PositionErrorCallback) => {
+            error({ code: 1, message: "denied" } as GeolocationPositionError);
+          },
+        },
+      });
+
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("📍"))!;
+      btn.click();
+      expect(btn.textContent).toContain("📍");
+      vi.unstubAllGlobals();
+    });
+
+    it("dispatches 'now' once even when geolocation is unavailable", () => {
+      vi.stubGlobal("navigator", { ...navigator, geolocation: undefined });
+
+      const btn = [...el.querySelectorAll("button")].find((b) => b.textContent?.includes("📍"))!;
+      btn.click();
+      expect(dispatch).toHaveBeenCalledOnce();
+      const intent = dispatch.mock.calls[0]![0] as UIIntent;
+      expect(intent.type).toBe("now");
+      vi.unstubAllGlobals();
+    });
+  });
 });
