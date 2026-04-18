@@ -21,6 +21,7 @@ const raIdx = col("ra");
 const decIdx = col("dec");
 const magIdx = col("mag");
 const properIdx = col("proper");
+const ciIdx = col("ci");
 
 const stars = [];
 for (let i = 1; i < lines.length; i++) {
@@ -37,8 +38,10 @@ for (let i = 1; i < lines.length; i++) {
   const decRound = Math.round(dec * 10000) / 10000;
   const magRound = Math.round(mag * 100) / 100;
   const proper = c[properIdx]?.trim().replace(/^"|"$/g, "").trim();
+  const ciRaw = parseFloat(c[ciIdx]);
   const entry = { hip, ra, dec: decRound, mag: magRound };
   if (proper) entry.name = proper;
+  if (!isNaN(ciRaw)) entry.ci = Math.round(ciRaw * 1000) / 1000;
   stars.push(entry);
 }
 
