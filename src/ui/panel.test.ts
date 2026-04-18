@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPanel } from "./panel";
 
 describe("createPanel", () => {
@@ -54,5 +54,44 @@ describe("createPanel", () => {
     child.textContent = "hello";
     setContent(child);
     expect(container.querySelector("span")).not.toBeNull();
+  });
+
+  describe("copy-link button", () => {
+    beforeEach(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: vi.fn().mockResolvedValue(undefined) },
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it("renders a copy-link button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-copy-link']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("clicking the copy-link button calls navigator.clipboard.writeText with the current URL", () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        writable: true,
+        configurable: true,
+      });
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-copy-link']")!;
+      btn.click();
+      expect(writeText).toHaveBeenCalledWith(window.location.href);
+    });
+
+    it("shows 'Copied!' feedback after clicking", async () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-copy-link']")!;
+      const originalText = btn.textContent;
+      btn.click();
+      await Promise.resolve(); // flush microtasks
+      expect(btn.textContent).toBe("Copied!");
+      expect(btn.textContent).not.toBe(originalText);
+    });
   });
 });
