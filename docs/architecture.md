@@ -56,8 +56,8 @@ flowchart LR
     URL -->|parseStateFromSearchParams| State
     State -->|observer + timeUtc| Astro
     State -->|observer + timeUtc| Sat
-    Astro -->|AltAzStar[], CelestialBody[]\nVisibleConstellation[]\nVisibleBoundary[]| Scene
-    Sat -->|VisibleSatellite[]| Scene
+    Astro -->|stars, bodies, constellations, boundaries| Scene
+    Sat -->|visible satellites| Scene
     Scene -->|primitives rendered| Browser["Browser / CesiumJS"]
     UI -->|user interaction| Intent
     Intent -->|handleIntent mutates state| State
@@ -137,9 +137,9 @@ flowchart TD
     NetOk{response.ok\n&& body non-empty?}
     UseRemote["use remote TLE text"]
     UseBundled["use bundled TLE snapshot\ndata/tle/visual.txt"]
-    Parse["parseTle → Result&lt;SatelliteRecord[], TleParseError&gt;"]
+    Parse["parseTle → Result of SatelliteRecords"]
     ParseOk{parse ok?}
-    Propagate["propagateSatellites\n→ VisibleSatellite[]"]
+    Propagate["propagateSatellites\n→ visible satellites"]
     CreateLayer["createSatelliteLayer\n→ SatelliteLayer"]
     WarnParse["console.warn TLE parse warning\n(satellite layer stays null)"]
 
