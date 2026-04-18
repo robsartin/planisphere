@@ -45,14 +45,28 @@ export function createPanel(container: HTMLElement): Panel {
   title.style.fontWeight = "bold";
   title.style.fontFamily = "sans-serif";
 
+  const btnGroup = document.createElement("div");
+  btnGroup.style.display = "flex";
+  btnGroup.style.gap = "4px";
+  btnGroup.style.alignItems = "center";
+
+  const copyLinkBtn = document.createElement("button");
+  copyLinkBtn.dataset.testid = "panel-copy-link";
+  copyLinkBtn.textContent = "🔗";
+  copyLinkBtn.title = "Copy link";
+  applyButton(copyLinkBtn);
+
   const toggleBtn = document.createElement("button");
   toggleBtn.dataset.testid = "panel-toggle";
   toggleBtn.textContent = "⚙";
   toggleBtn.title = "Toggle panel";
   applyButton(toggleBtn);
 
+  btnGroup.appendChild(copyLinkBtn);
+  btnGroup.appendChild(toggleBtn);
+
   header.appendChild(title);
-  header.appendChild(toggleBtn);
+  header.appendChild(btnGroup);
 
   // Body
   const body = document.createElement("div");
@@ -64,6 +78,30 @@ export function createPanel(container: HTMLElement): Panel {
   container.appendChild(panel);
 
   let collapsed = false;
+
+  copyLinkBtn.addEventListener("click", () => {
+    const url = window.location.href;
+    const copy = (text: string): void => {
+      if (navigator.clipboard) {
+        void navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+    };
+    copy(url);
+    copyLinkBtn.textContent = "Copied!";
+    setTimeout(() => {
+      copyLinkBtn.textContent = "🔗";
+    }, 2000);
+  });
 
   toggleBtn.addEventListener("click", () => {
     collapsed = !collapsed;
