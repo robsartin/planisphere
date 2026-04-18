@@ -141,6 +141,7 @@ vi.mock("./ui", () => ({
     element: document.createElement("div"),
     setContent: vi.fn(),
     setCollapsed: vi.fn(),
+    setNightVision: vi.fn(),
   }),
   createTimeControls: vi.fn().mockImplementation((_time: unknown, dispatch: unknown) => {
     capturedDispatch = dispatch as (intent: unknown) => void;
@@ -340,6 +341,30 @@ describe("handleIntent routing", () => {
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(() => capturedDispatch!({ type: "set-view", az: 180, alt: 30 })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("toggle-night-vision intent toggles night-vision class on body", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(document.body.classList.contains("night-vision")).toBe(false);
+    capturedDispatch!({ type: "toggle-night-vision" });
+    expect(document.body.classList.contains("night-vision")).toBe(true);
+    capturedDispatch!({ type: "toggle-night-vision" });
+    expect(document.body.classList.contains("night-vision")).toBe(false);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("nv=1 URL param applies night-vision class and button state on init", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ nv: "1" }));
+    expect(document.body.classList.contains("night-vision")).toBe(true);
+    // clean up
+    document.body.classList.remove("night-vision");
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });

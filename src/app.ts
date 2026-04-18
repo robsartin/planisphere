@@ -489,13 +489,30 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "toggle-night-vision": {
+        state = { ...state, nightVision: !state.nightVision };
+        document.body.classList.toggle("night-vision", state.nightVision);
+        nightVisionPanel?.setNightVision(state.nightVision);
+        updateUrl(state);
+        break;
+      }
     }
   }
 
+  // Apply initial night vision state from URL
+  if (state.nightVision) {
+    document.body.classList.add("night-vision");
+  }
+
   // Build UI panel
+  let nightVisionPanel: ReturnType<typeof createPanel> | null = null;
   const panelRoot = document.getElementById("ui-panel-root");
   if (panelRoot) {
-    const panel = createPanel(panelRoot);
+    const panel = createPanel(panelRoot, handleIntent);
+    nightVisionPanel = panel;
+    if (state.nightVision) {
+      panel.setNightVision(true);
+    }
 
     const uiContainer = document.createElement("div");
 

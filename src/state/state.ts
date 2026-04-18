@@ -31,6 +31,7 @@ export type AppState = {
   readonly layers: LayerVisibility;
   readonly opacity: LayerOpacity;
   readonly view: ViewDirection;
+  readonly nightVision: boolean;
 };
 
 export type StateParseError =
@@ -73,6 +74,7 @@ export const DEFAULT_STATE: AppState = {
   layers: DEFAULT_LAYERS,
   opacity: DEFAULT_OPACITY,
   view: DEFAULT_VIEW,
+  nightVision: false,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -163,12 +165,15 @@ export function parseStateFromSearchParams(
   const viewAlt =
     rawValt !== null && Number.isFinite(Number(rawValt)) ? Number(rawValt) : DEFAULT_VIEW.alt;
 
+  const nightVision = params.get("nv") === "1";
+
   return ok({
     observer: { lat, lon },
     timeUtc,
     layers,
     opacity,
     view: { az: viewAz, alt: viewAlt },
+    nightVision,
   });
 }
 
@@ -206,6 +211,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
   if (state.view.az !== DEFAULT_VIEW.az || state.view.alt !== DEFAULT_VIEW.alt) {
     params.set("vaz", String(Math.round(state.view.az * 10) / 10));
     params.set("valt", String(Math.round(state.view.alt * 10) / 10));
+  }
+
+  if (state.nightVision) {
+    params.set("nv", "1");
   }
 
   return params;

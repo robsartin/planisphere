@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPanel } from "./panel";
+import type { UIIntent } from "./index";
 
 describe("createPanel", () => {
   let container: HTMLElement;
@@ -54,6 +55,37 @@ describe("createPanel", () => {
     child.textContent = "hello";
     setContent(child);
     expect(container.querySelector("span")).not.toBeNull();
+  });
+
+  describe("night vision button", () => {
+    it("renders a night-vision button in the header", () => {
+      const { element } = createPanel(container, vi.fn());
+      const btn = element.querySelector("[data-testid='panel-night-vision']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("clicking the night-vision button dispatches toggle-night-vision intent", () => {
+      const dispatch = vi.fn();
+      const { element } = createPanel(container, dispatch);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-night-vision']")!;
+      btn.click();
+      expect(dispatch).toHaveBeenCalledWith({ type: "toggle-night-vision" } satisfies UIIntent);
+    });
+
+    it("button glows red when nightVision is true", () => {
+      const { element, setNightVision } = createPanel(container, vi.fn());
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-night-vision']")!;
+      setNightVision(true);
+      expect(btn.style.boxShadow).toContain("red");
+    });
+
+    it("button reverts style when nightVision is false", () => {
+      const { element, setNightVision } = createPanel(container, vi.fn());
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-night-vision']")!;
+      setNightVision(true);
+      setNightVision(false);
+      expect(btn.style.boxShadow).toBe("");
+    });
   });
 
   describe("copy-link button", () => {

@@ -175,3 +175,34 @@ describe("AppState — serialize round-trip with layer fields", () => {
     expect(out.has("op_ecl")).toBe(false);
   });
 });
+
+describe("NightVision — URL round-trip", () => {
+  it("defaults to false when nv param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.nightVision).toBe(false);
+  });
+
+  it("parses nv=1 as nightVision true", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ nv: "1" })));
+    expect(s.nightVision).toBe(true);
+  });
+
+  it("does not set nv when nightVision is false", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("nv")).toBe(false);
+  });
+
+  it("serializes nv=1 when nightVision is true", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ nv: "1" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("nv")).toBe("1");
+  });
+
+  it("round-trips nightVision=true through serialize/parse", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ nv: "1" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.nightVision).toBe(true);
+  });
+});
