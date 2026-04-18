@@ -31,3 +31,4 @@ export {
   parseMessier,
   filterVisibleMessier,
 } from "./messier";
+export { computeMilkyWayPoints } from "./milkyway";

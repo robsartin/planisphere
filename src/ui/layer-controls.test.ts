@@ -18,6 +18,7 @@ const DEFAULT_OPACITY: LayerOpacity = {
   satelliteTrails: 1.0,
   raDecGrid: 0.2,
   ecliptic: 0.4,
+  milkyWay: 0.3,
 };
 
 describe("createLayerControls", () => {
@@ -55,9 +56,9 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("renders opacity sliders for all 5 line layers", () => {
+  it("renders opacity sliders for all 6 line layers", () => {
     const sliders = el.querySelectorAll("input[type='range']");
-    expect(sliders.length).toBe(5);
+    expect(sliders.length).toBe(6);
   });
 
   it("has opacity slider for constellationLines", () => {
@@ -84,6 +85,11 @@ describe("createLayerControls", () => {
 
   it("has opacity slider for ecliptic", () => {
     const slider = el.querySelector<HTMLInputElement>("input[data-opacity='ecliptic']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("has opacity slider for milkyWay", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='milkyWay']");
     expect(slider).not.toBeNull();
   });
 
