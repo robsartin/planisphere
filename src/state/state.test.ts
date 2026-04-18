@@ -75,13 +75,11 @@ describe("AppState — serialize", () => {
 });
 
 describe("LayerVisibility — defaults", () => {
-  it("all layers visible by default", () => {
+  it("toggle layers visible by default (stars, planets, satellites, compass)", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
     expect(s.layers.stars).toBe(true);
     expect(s.layers.planets).toBe(true);
     expect(s.layers.satellites).toBe(true);
-    expect(s.layers.constellationLines).toBe(true);
-    expect(s.layers.constellationBoundaries).toBe(true);
     expect(s.layers.compass).toBe(true);
   });
 });
@@ -94,8 +92,6 @@ describe("LayerVisibility — parse from URL", () => {
     expect(s.layers.planets).toBe(true);
     expect(s.layers.compass).toBe(true);
     expect(s.layers.satellites).toBe(false);
-    expect(s.layers.constellationLines).toBe(false);
-    expect(s.layers.constellationBoundaries).toBe(false);
   });
 
   it("treats 'layers' param absence as all visible", () => {
@@ -107,11 +103,17 @@ describe("LayerVisibility — parse from URL", () => {
 });
 
 describe("LayerOpacity — defaults", () => {
-  it("all opacities default to 1.0", () => {
+  it("constellation/satellite opacities default to 1.0", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
     expect(s.opacity.constellationLines).toBe(1.0);
     expect(s.opacity.constellationBoundaries).toBe(1.0);
     expect(s.opacity.satelliteTrails).toBe(1.0);
+  });
+
+  it("raDecGrid defaults to 0.2 and ecliptic to 0.4", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.opacity.raDecGrid).toBeCloseTo(0.2);
+    expect(s.opacity.ecliptic).toBeCloseTo(0.4);
   });
 });
 
@@ -122,6 +124,13 @@ describe("LayerOpacity — parse from URL", () => {
     expect(s.opacity.constellationLines).toBeCloseTo(0.5);
     expect(s.opacity.constellationBoundaries).toBeCloseTo(0.25);
     expect(s.opacity.satelliteTrails).toBeCloseTo(0.75);
+  });
+
+  it("parses opacity params op_grid and op_ecl as 0–1 fractions", () => {
+    const params = new URLSearchParams({ op_grid: "30", op_ecl: "60" });
+    const s = expectOk(parseStateFromSearchParams(params));
+    expect(s.opacity.raDecGrid).toBeCloseTo(0.3);
+    expect(s.opacity.ecliptic).toBeCloseTo(0.6);
   });
 
   it("clamps opacity to [0, 1]", () => {
@@ -142,6 +151,8 @@ describe("AppState — serialize round-trip with layer fields", () => {
       op_cl: "60",
       op_cb: "30",
       op_st: "80",
+      op_grid: "50",
+      op_ecl: "70",
     });
     const s = expectOk(parseStateFromSearchParams(params));
     const out = serializeStateToSearchParams(s);
@@ -152,5 +163,15 @@ describe("AppState — serialize round-trip with layer fields", () => {
     expect(s2.opacity.constellationLines).toBeCloseTo(0.6);
     expect(s2.opacity.constellationBoundaries).toBeCloseTo(0.3);
     expect(s2.opacity.satelliteTrails).toBeCloseTo(0.8);
+    expect(s2.opacity.raDecGrid).toBeCloseTo(0.5);
+    expect(s2.opacity.ecliptic).toBeCloseTo(0.7);
+  });
+
+  it("does not write op_grid and op_ecl when at defaults", () => {
+    const params = new URLSearchParams({ lat: "33", lon: "-117", t: "2026-06-01T00:00:00Z" });
+    const s = expectOk(parseStateFromSearchParams(params));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("op_grid")).toBe(false);
+    expect(out.has("op_ecl")).toBe(false);
   });
 });

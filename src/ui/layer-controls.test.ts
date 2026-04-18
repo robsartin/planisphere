@@ -8,8 +8,6 @@ const DEFAULT_VISIBILITY: LayerVisibility = {
   stars: true,
   planets: true,
   satellites: true,
-  constellationLines: true,
-  constellationBoundaries: true,
   compass: true,
 };
 
@@ -17,6 +15,8 @@ const DEFAULT_OPACITY: LayerOpacity = {
   constellationLines: 1.0,
   constellationBoundaries: 1.0,
   satelliteTrails: 1.0,
+  raDecGrid: 0.2,
+  ecliptic: 0.4,
 };
 
 describe("createLayerControls", () => {
@@ -32,12 +32,12 @@ describe("createLayerControls", () => {
     expect(el).toBeInstanceOf(HTMLElement);
   });
 
-  it("renders a toggle for each layer", () => {
+  it("renders a toggle checkbox for each toggle layer (stars, planets, satellites, compass)", () => {
     const toggles = el.querySelectorAll("input[type='checkbox']");
-    expect(toggles.length).toBe(6);
+    expect(toggles.length).toBe(4);
   });
 
-  it("toggles reflect initial visibility state", () => {
+  it("toggle checkboxes reflect initial visibility state (all true)", () => {
     const checkboxes = [...el.querySelectorAll<HTMLInputElement>("input[type='checkbox']")];
     expect(checkboxes.every((cb) => cb.checked)).toBe(true);
   });
@@ -54,14 +54,36 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("renders opacity sliders for dimmable layers", () => {
+  it("renders opacity sliders for all 5 line layers", () => {
     const sliders = el.querySelectorAll("input[type='range']");
-    expect(sliders.length).toBe(3);
+    expect(sliders.length).toBe(5);
   });
 
-  it("opacity sliders reflect initial opacity (100%)", () => {
-    const sliders = [...el.querySelectorAll<HTMLInputElement>("input[type='range']")];
-    expect(sliders.every((s) => Number(s.value) === 100)).toBe(true);
+  it("has opacity slider for constellationLines", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='constellationLines']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("has opacity slider for constellationBoundaries", () => {
+    const slider = el.querySelector<HTMLInputElement>(
+      "input[data-opacity='constellationBoundaries']",
+    );
+    expect(slider).not.toBeNull();
+  });
+
+  it("has opacity slider for satelliteTrails", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='satelliteTrails']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("has opacity slider for raDecGrid", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='raDecGrid']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("has opacity slider for ecliptic", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='ecliptic']");
+    expect(slider).not.toBeNull();
   });
 
   it("moving an opacity slider dispatches set-opacity intent", () => {
@@ -77,23 +99,42 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("opacity slider is hidden when parent layer toggle is off", () => {
-    // Start with constellationLines off
-    const offVisibility: LayerVisibility = { ...DEFAULT_VISIBILITY, constellationLines: false };
-    const el2 = createLayerControls(offVisibility, DEFAULT_OPACITY, vi.fn());
-    const sliderRow = el2.querySelector<HTMLElement>("[data-opacity-row='constellationLines']")!;
-    expect(sliderRow.style.display).toBe("none");
+  it("raDecGrid slider dispatches set-opacity with raDecGrid key", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='raDecGrid']")!;
+    slider.value = "30";
+    slider.dispatchEvent(new Event("input"));
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-opacity");
+    if (intent.type === "set-opacity") {
+      expect(intent.layer).toBe("raDecGrid");
+      expect(intent.value).toBeCloseTo(0.3);
+    }
   });
 
-  it("opacity slider becomes visible when parent layer is toggled on", () => {
-    const toggle = el.querySelector<HTMLInputElement>("input[data-layer='constellationLines']")!;
-    const sliderRow = el.querySelector<HTMLElement>("[data-opacity-row='constellationLines']")!;
-    // Currently visible; toggle off then on
-    toggle.checked = false;
-    toggle.dispatchEvent(new Event("change"));
-    expect(sliderRow.style.display).toBe("none");
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event("change"));
-    expect(sliderRow.style.display).not.toBe("none");
+  it("ecliptic slider dispatches set-opacity with ecliptic key", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='ecliptic']")!;
+    slider.value = "60";
+    slider.dispatchEvent(new Event("input"));
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-opacity");
+    if (intent.type === "set-opacity") {
+      expect(intent.layer).toBe("ecliptic");
+      expect(intent.value).toBeCloseTo(0.6);
+    }
+  });
+
+  it("line layer sliders are always visible (no parent toggle)", () => {
+    // Since line layers have no toggle, their slider rows are always present
+    const rows = el.querySelectorAll<HTMLElement>("[data-opacity-row]");
+    for (const row of rows) {
+      expect(row.style.display).not.toBe("none");
+    }
+  });
+
+  it("does not render checkboxes for constellationLines or constellationBoundaries", () => {
+    const clCheckbox = el.querySelector("input[data-layer='constellationLines']");
+    const cbCheckbox = el.querySelector("input[data-layer='constellationBoundaries']");
+    expect(clCheckbox).toBeNull();
+    expect(cbCheckbox).toBeNull();
   });
 });
