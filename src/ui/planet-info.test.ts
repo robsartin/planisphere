@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPlanetInfo } from "./planet-info";
 import type { CelestialBody } from "../astro/bodies";
 
@@ -158,6 +158,49 @@ describe("createPlanetInfo", () => {
   describe("update", () => {
     it("createPlanetInfo accepts a different body list without throwing", () => {
       expect(() => createPlanetInfo(BODIES_MIXED, LAT, LON, TIME)).not.toThrow();
+    });
+  });
+
+  describe("clickable planet names (onSelect)", () => {
+    it("above-horizon body name has cursor: pointer and textDecoration: underline when onSelect is provided", () => {
+      const onSelect = vi.fn();
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME, onSelect);
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const sunRow = [...rows].find((r) => {
+        return r.querySelector("[data-testid='planet-name']")?.textContent === "Sun";
+      });
+      expect(sunRow).toBeDefined();
+      const nameEl = sunRow!.querySelector<HTMLElement>("[data-testid='planet-name']")!;
+      expect(nameEl.style.cursor).toBe("pointer");
+      expect(nameEl.style.textDecoration).toBe("underline");
+    });
+
+    it("clicking above-horizon name calls onSelect with correct az/alt", () => {
+      const onSelect = vi.fn();
+      const el = createPlanetInfo(BODIES_ABOVE, LAT, LON, TIME, onSelect);
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const sunRow = [...rows].find((r) => {
+        return r.querySelector("[data-testid='planet-name']")?.textContent === "Sun";
+      });
+      const nameEl = sunRow!.querySelector<HTMLElement>("[data-testid='planet-name']")!;
+      nameEl.click();
+      expect(onSelect).toHaveBeenCalledOnce();
+      expect(onSelect).toHaveBeenCalledWith(180, 55);
+    });
+
+    it("below-horizon body name is not clickable (no underline)", () => {
+      const onSelect = vi.fn();
+      const el = createPlanetInfo(BODIES_MIXED, LAT, LON, TIME, onSelect);
+      const rows = el.querySelectorAll("[data-testid='planet-info-row']");
+      const venusRow = [...rows].find((r) => {
+        return r.querySelector("[data-testid='planet-name']")?.textContent === "Venus";
+      });
+      expect(venusRow).toBeDefined();
+      const nameEl = venusRow!.querySelector<HTMLElement>("[data-testid='planet-name']")!;
+      expect(nameEl.style.cursor).not.toBe("pointer");
+      expect(nameEl.style.textDecoration).not.toBe("underline");
+      nameEl.click();
+      expect(onSelect).not.toHaveBeenCalled();
     });
   });
 });

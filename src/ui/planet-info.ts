@@ -21,12 +21,15 @@ function formatAltAz(alt: number, az: number): string {
  *
  * Renders a row per body with current Alt/Az, rise time, and set time.
  * Bodies below the horizon are shown with a "below horizon" indicator.
+ * When onSelect is provided, above-horizon body names are clickable and call
+ * onSelect(az, alt) to point the view at that body.
  */
 export function createPlanetInfo(
   bodies: CelestialBody[],
   lat: number,
   lon: number,
   time: Date,
+  onSelect?: (az: number, alt: number) => void,
 ): HTMLElement {
   const section = document.createElement("div");
   section.style.marginBottom = GAP;
@@ -92,6 +95,15 @@ export function createPlanetInfo(
     nameEl.style.fontWeight = "bold";
     nameEl.style.fontSize = "12px";
     nameEl.style.fontFamily = "sans-serif";
+
+    if (celestialBody.alt > 0 && onSelect) {
+      nameEl.style.cursor = "pointer";
+      nameEl.style.textDecoration = "underline";
+      nameEl.addEventListener("click", () => {
+        onSelect(celestialBody.az, celestialBody.alt);
+      });
+    }
+
     nameRow.appendChild(nameEl);
 
     // Below-horizon indicator
