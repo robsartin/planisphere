@@ -5,6 +5,7 @@ export { createTimeControls } from "./time-controls";
 export { createLocationControls } from "./location-controls";
 export { createLayerControls } from "./layer-controls";
 export { createViewControls } from "./view-controls";
+export { createPlanetInfo } from "./planet-info";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 

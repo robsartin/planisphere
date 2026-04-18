@@ -49,6 +49,7 @@ import {
   createLocationControls,
   createLayerControls,
   createViewControls,
+  createPlanetInfo,
 } from "./ui";
 import type { UIIntent } from "./ui";
 import rawStars from "../data/stars.json";
@@ -355,12 +356,23 @@ export async function bootstrap(
     createTooltip(viewer, cesiumContainer);
   }
 
+  // Planet info wrapper — holds the current planet-info section, refreshed on time/observer changes
+  const planetInfoWrapper = document.createElement("div");
+
+  function refreshPlanetInfo(s: AppState): void {
+    const bodies = computeBodyPositions(s.observer.lat, s.observer.lon, s.timeUtc, false);
+    planetInfoWrapper.replaceChildren(
+      createPlanetInfo(bodies, s.observer.lat, s.observer.lon, s.timeUtc),
+    );
+  }
+
   // Intent handler
   function handleIntent(intent: UIIntent): void {
     switch (intent.type) {
       case "set-time": {
         state = { ...state, timeUtc: intent.time };
         scheduleRerender(state);
+        refreshPlanetInfo(state);
         updateUrl(state);
         break;
       }
@@ -368,6 +380,7 @@ export async function bootstrap(
         state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
         initCamera(viewer.camera, intent.lat, intent.lon);
         scheduleRerender(state);
+        refreshPlanetInfo(state);
         updateUrl(state);
         break;
       }
@@ -416,6 +429,9 @@ export async function bootstrap(
 
     const layerEl = createLayerControls(state.layers, state.opacity, handleIntent);
     uiContainer.appendChild(layerEl);
+
+    refreshPlanetInfo(state);
+    uiContainer.appendChild(planetInfoWrapper);
 
     panel.setContent(uiContainer);
   }
