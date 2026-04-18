@@ -11,6 +11,7 @@ import {
   filterVisibleBoundaries,
   computeRaDecGrid,
   computeEclipticLine,
+  computeMilkyWayPoints,
 } from "./astro";
 import type { StarRecord } from "./astro";
 import { AstroWorkerClient } from "./workers/astro-worker-client";
@@ -28,6 +29,7 @@ import {
   createBoundaryLayer,
   createGridLayer,
   createEclipticLayer,
+  createMilkyWayLayer,
   setCameraView,
 } from "./scene";
 import type {
@@ -39,6 +41,7 @@ import type {
   CompassLayer,
   GridLayer,
   EclipticLayer,
+  MilkyWayLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import type { SatelliteRecord, TleParseError } from "./sat";
@@ -65,6 +68,7 @@ type Layers = {
   compass: CompassLayer;
   grid: GridLayer;
   ecliptic: EclipticLayer;
+  milkyWay: MilkyWayLayer;
 };
 
 function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void {
@@ -143,6 +147,9 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   const eclipticPoints = computeEclipticLine(observer.lat, observer.lon, timeUtc);
   layers.ecliptic.update(eclipticPoints, observer.lat, observer.lon);
 
+  const milkyWayPoints = computeMilkyWayPoints(observer.lat, observer.lon, timeUtc);
+  layers.milkyWay.update(milkyWayPoints, observer.lat, observer.lon);
+
   layers.compass.update(observer.lat, observer.lon);
 
   applyLayerVisibility(layers, state.layers);
@@ -150,6 +157,7 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
   layers.grid.setOpacity(state.opacity.raDecGrid);
   layers.ecliptic.setOpacity(state.opacity.ecliptic);
+  layers.milkyWay.setOpacity(state.opacity.milkyWay);
   if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
 }
 
@@ -187,6 +195,9 @@ async function doRerenderWithWorker(
   const eclipticPoints = computeEclipticLine(observer.lat, observer.lon, timeUtc);
   layers.ecliptic.update(eclipticPoints, observer.lat, observer.lon);
 
+  const milkyWayPoints = computeMilkyWayPoints(observer.lat, observer.lon, timeUtc);
+  layers.milkyWay.update(milkyWayPoints, observer.lat, observer.lon);
+
   if (data.boundaries.ok) {
     const visibleBoundaries = filterVisibleBoundaries(
       data.boundaries.value,
@@ -205,6 +216,7 @@ async function doRerenderWithWorker(
   layers.boundary.setOpacity(capturedState.opacity.constellationBoundaries * 0.15);
   layers.grid.setOpacity(capturedState.opacity.raDecGrid);
   layers.ecliptic.setOpacity(capturedState.opacity.ecliptic);
+  layers.milkyWay.setOpacity(capturedState.opacity.milkyWay);
   if (layers.satellite) layers.satellite.setOpacity(capturedState.opacity.satelliteTrails * 0.3);
 
   // Wait for worker result, then update stars + constellations
@@ -289,6 +301,7 @@ export async function bootstrap(
     compass: createCompassLayer(viewer.scene),
     grid: createGridLayer(viewer.scene),
     ecliptic: createEclipticLayer(viewer.scene),
+    milkyWay: createMilkyWayLayer(viewer.scene),
   };
 
   // Parse static data once
@@ -398,6 +411,7 @@ export async function bootstrap(
         layers.boundary.setOpacity(state.opacity.constellationBoundaries * 0.15);
         layers.grid.setOpacity(state.opacity.raDecGrid);
         layers.ecliptic.setOpacity(state.opacity.ecliptic);
+        layers.milkyWay.setOpacity(state.opacity.milkyWay);
         if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
         updateUrl(state);
         break;

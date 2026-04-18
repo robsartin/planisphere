@@ -17,6 +17,7 @@ const DEFAULT_OPACITY: LayerOpacity = {
   satelliteTrails: 1.0,
   raDecGrid: 0.2,
   ecliptic: 0.4,
+  milkyWay: 0.3,
 };
 
 describe("createLayerControls", () => {
@@ -54,9 +55,9 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("renders opacity sliders for all 5 line layers", () => {
+  it("renders opacity sliders for all 6 line layers", () => {
     const sliders = el.querySelectorAll("input[type='range']");
-    expect(sliders.length).toBe(5);
+    expect(sliders.length).toBe(6);
   });
 
   it("has opacity slider for constellationLines", () => {
@@ -120,6 +121,23 @@ describe("createLayerControls", () => {
     if (intent.type === "set-opacity") {
       expect(intent.layer).toBe("ecliptic");
       expect(intent.value).toBeCloseTo(0.6);
+    }
+  });
+
+  it("has opacity slider for milkyWay", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='milkyWay']");
+    expect(slider).not.toBeNull();
+  });
+
+  it("milkyWay slider dispatches set-opacity with milkyWay key", () => {
+    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='milkyWay']")!;
+    slider.value = "50";
+    slider.dispatchEvent(new Event("input"));
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-opacity");
+    if (intent.type === "set-opacity") {
+      expect(intent.layer).toBe("milkyWay");
+      expect(intent.value).toBeCloseTo(0.5);
     }
   });
 

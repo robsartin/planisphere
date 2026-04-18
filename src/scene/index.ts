@@ -10,3 +10,4 @@ export { type SatelliteLayer, createSatelliteLayer } from "./satellites";
 export { type BoundaryLayer, createBoundaryLayer } from "./boundaries";
 export { type GridLayer, createGridLayer } from "./grid";
 export { type EclipticLayer, createEclipticLayer } from "./ecliptic";
+export { type MilkyWayLayer, createMilkyWayLayer } from "./milkyway";

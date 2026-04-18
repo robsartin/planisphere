@@ -27,6 +27,7 @@ const LINE_LAYERS: LineDef[] = [
   { key: "satelliteTrails", label: "Satellite Trails", defaultPct: 30 },
   { key: "raDecGrid", label: "RA/Dec Grid", defaultPct: 20 },
   { key: "ecliptic", label: "Ecliptic", defaultPct: 40 },
+  { key: "milkyWay", label: "Milky Way", defaultPct: 30 },
 ];
 
 export function createLayerControls(

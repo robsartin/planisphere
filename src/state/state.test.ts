@@ -167,11 +167,48 @@ describe("AppState — serialize round-trip with layer fields", () => {
     expect(s2.opacity.ecliptic).toBeCloseTo(0.7);
   });
 
-  it("does not write op_grid and op_ecl when at defaults", () => {
+  it("does not write op_grid, op_ecl, or op_mw when at defaults", () => {
     const params = new URLSearchParams({ lat: "33", lon: "-117", t: "2026-06-01T00:00:00Z" });
     const s = expectOk(parseStateFromSearchParams(params));
     const out = serializeStateToSearchParams(s);
     expect(out.has("op_grid")).toBe(false);
     expect(out.has("op_ecl")).toBe(false);
+    expect(out.has("op_mw")).toBe(false);
+  });
+});
+
+describe("LayerOpacity — milkyWay field", () => {
+  it("milkyWay opacity defaults to 0.3", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.opacity.milkyWay).toBeCloseTo(0.3);
+  });
+
+  it("parses op_mw param as 0–1 fraction", () => {
+    const params = new URLSearchParams({ op_mw: "50" });
+    const s = expectOk(parseStateFromSearchParams(params));
+    expect(s.opacity.milkyWay).toBeCloseTo(0.5);
+  });
+
+  it("clamps op_mw to [0, 1]", () => {
+    const paramsHigh = new URLSearchParams({ op_mw: "200" });
+    expect(expectOk(parseStateFromSearchParams(paramsHigh)).opacity.milkyWay).toBe(1.0);
+    const paramsLow = new URLSearchParams({ op_mw: "-10" });
+    expect(expectOk(parseStateFromSearchParams(paramsLow)).opacity.milkyWay).toBe(0.0);
+  });
+
+  it("round-trips op_mw through serialize/parse", () => {
+    const params = new URLSearchParams({ op_mw: "45" });
+    const s = expectOk(parseStateFromSearchParams(params));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.opacity.milkyWay).toBeCloseTo(0.45);
+  });
+
+  it("writes op_mw to URL when not at default", () => {
+    const params = new URLSearchParams({ op_mw: "60" });
+    const s = expectOk(parseStateFromSearchParams(params));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("op_mw")).toBe(true);
+    expect(out.get("op_mw")).toBe("60");
   });
 });

@@ -23,4 +23,5 @@ export {
 } from "./boundaries";
 export { type GridData, computeRaDecGrid } from "./grid";
 export { computeEclipticLine } from "./ecliptic";
+export { computeMilkyWayPoints } from "./milkyway";
 export { bvToRgb } from "./star-color";
