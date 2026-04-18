@@ -25,7 +25,7 @@ export function setCameraView(
   camera.setView({
     destination: Cartesian3.fromDegrees(lon, lat, height),
     orientation: {
-      heading: CesiumMath.toRadians((360 - azDeg) % 360),
+      heading: CesiumMath.toRadians(azDeg),
       pitch: CesiumMath.toRadians(clampedAlt),
       roll: 0,
     },
