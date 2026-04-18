@@ -89,45 +89,103 @@ function formatSatellite(sat: VisibleSatellite): string {
   );
 }
 
+function pickHtml(viewer: { scene: { pick: (pos: Cartesian2) => unknown } }, position: Cartesian2): string | null {
+  const picked: { id?: unknown } | undefined = viewer.scene.pick(position) as
+    | { id?: unknown }
+    | undefined;
+
+  if (!defined(picked) || picked === undefined) return null;
+
+  if (isAltAzStar(picked.id)) return formatStar(picked.id);
+  if (isCelestialBody(picked.id)) return formatBody(picked.id);
+  if (isVisibleSatellite(picked.id)) return formatSatellite(picked.id);
+  return null;
+}
+
+const HOVER_STYLE =
+  "position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
+  "color:#fff;font:12px/1.4 monospace;padding:6px 10px;border-radius:4px;" +
+  "border:1px solid rgba(255,255,255,0.2);white-space:nowrap;z-index:10";
+
+const PINNED_STYLE =
+  "position:absolute;pointer-events:auto;display:none;background:rgba(10,20,40,0.95);" +
+  "color:#fff;font:12px/1.4 monospace;padding:6px 10px 6px 10px;border-radius:4px;" +
+  "border:1px solid rgba(100,160,255,0.8);white-space:nowrap;z-index:11;box-shadow:0 0 8px rgba(100,160,255,0.3)";
+
+const CLOSE_BTN_STYLE =
+  "background:none;border:none;color:rgba(255,255,255,0.6);cursor:pointer;" +
+  "font:14px/1 monospace;padding:0 0 0 8px;vertical-align:top;float:right";
+
 export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
-  const el = document.createElement("div");
-  el.style.cssText =
-    "position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
-    "color:#fff;font:12px/1.4 monospace;padding:6px 10px;border-radius:4px;" +
-    "border:1px solid rgba(255,255,255,0.2);white-space:nowrap;z-index:10";
-  container.appendChild(el);
+  // Hover tooltip
+  const hoverEl = document.createElement("div");
+  hoverEl.style.cssText = HOVER_STYLE;
+  container.appendChild(hoverEl);
+
+  // Pinned tooltip
+  const pinnedEl = document.createElement("div");
+  pinnedEl.style.cssText = PINNED_STYLE;
+  pinnedEl.dataset.pinned = "true";
+  container.appendChild(pinnedEl);
+
+  let isPinned = false;
+
+  function dismissPinned(): void {
+    isPinned = false;
+    pinnedEl.style.display = "none";
+    pinnedEl.innerHTML = "";
+  }
 
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 
+  // Hover handler
   handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
-    const picked: { id?: unknown } | undefined = viewer.scene.pick(movement.endPosition) as
-      | { id?: unknown }
-      | undefined;
-
-    let html: string | null = null;
-    if (defined(picked) && picked !== undefined) {
-      if (isAltAzStar(picked.id)) {
-        html = formatStar(picked.id);
-      } else if (isCelestialBody(picked.id)) {
-        html = formatBody(picked.id);
-      } else if (isVisibleSatellite(picked.id)) {
-        html = formatSatellite(picked.id);
-      }
+    if (isPinned) {
+      hoverEl.style.display = "none";
+      return;
     }
 
+    const html = pickHtml(viewer, movement.endPosition);
     if (html !== null) {
-      el.innerHTML = html;
-      el.style.display = "block";
-      el.style.left = `${String(movement.endPosition.x + 14)}px`;
-      el.style.top = `${String(movement.endPosition.y + 14)}px`;
+      hoverEl.innerHTML = html;
+      hoverEl.style.display = "block";
+      hoverEl.style.left = `${String(movement.endPosition.x + 14)}px`;
+      hoverEl.style.top = `${String(movement.endPosition.y + 14)}px`;
     } else {
-      el.style.display = "none";
+      hoverEl.style.display = "none";
     }
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
+  // Click handler
+  handler.setInputAction((movement: { position: Cartesian2 }) => {
+    const html = pickHtml(viewer, movement.position);
+
+    if (html === null) {
+      // Clicked empty space — dismiss pinned
+      dismissPinned();
+      return;
+    }
+
+    // Pin the tooltip
+    isPinned = true;
+    hoverEl.style.display = "none";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.style.cssText = CLOSE_BTN_STYLE;
+    closeBtn.textContent = "\u00D7";
+    closeBtn.addEventListener("click", () => { dismissPinned(); });
+
+    pinnedEl.innerHTML = html;
+    pinnedEl.appendChild(closeBtn);
+    pinnedEl.style.display = "block";
+    pinnedEl.style.left = `${String(movement.position.x + 14)}px`;
+    pinnedEl.style.top = `${String(movement.position.y + 14)}px`;
+  }, ScreenSpaceEventType.LEFT_CLICK);
+
   function destroy(): void {
     handler.destroy();
-    el.remove();
+    hoverEl.remove();
+    pinnedEl.remove();
   }
 
   return { destroy };
