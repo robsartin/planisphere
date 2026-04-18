@@ -320,3 +320,58 @@ describe("language — serialize round-trip", () => {
     expect(s2.language).toBe("zh");
   });
 });
+
+describe("fov preset — defaults", () => {
+  it("defaults to 'off' when fov param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.fov).toBe("off");
+  });
+});
+
+describe("fov preset — parse from URL", () => {
+  it("parses a known preset id", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "binoculars" })));
+    expect(s.fov).toBe("binoculars");
+  });
+
+  it("parses naked-eye", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "naked-eye" })));
+    expect(s.fov).toBe("naked-eye");
+  });
+
+  it("parses small-scope", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "small-scope" })));
+    expect(s.fov).toBe("small-scope");
+  });
+
+  it("parses large-scope", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "large-scope" })));
+    expect(s.fov).toBe("large-scope");
+  });
+
+  it("falls back to 'off' for unknown preset id", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "garbage" })));
+    expect(s.fov).toBe("off");
+  });
+});
+
+describe("fov preset — serialize round-trip", () => {
+  it("omits fov param when at default (off)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("fov")).toBe(false);
+  });
+
+  it("writes fov param when a preset is selected", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "small-scope" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("fov")).toBe("small-scope");
+  });
+
+  it("round-trips a non-default fov preset", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ fov: "binoculars" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.fov).toBe("binoculars");
+  });
+});

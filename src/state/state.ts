@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { err, ok, type Result } from "../result";
 import { LANGUAGES, type Language } from "../astro/constellation-names";
+import { type FovPresetId, parseFovPreset } from "../astro/fov-presets";
 
 export type Observer = { readonly lat: number; readonly lon: number };
 
@@ -35,6 +36,7 @@ export type AppState = {
   readonly nightVision: boolean;
   readonly magLimit: number; // 1.0–6.0, default 6.0
   readonly language: Language;
+  readonly fov: FovPresetId; // telescope FOV reticle preset, default "off"
 };
 
 export type StateParseError =
@@ -74,6 +76,7 @@ export const DEFAULT_VIEW: ViewDirection = { az: 0, alt: 89.9 };
 export const DEFAULT_MAG_LIMIT = 6.0;
 
 export const DEFAULT_LANGUAGE: Language = "la";
+export const DEFAULT_FOV: FovPresetId = "off";
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
@@ -84,6 +87,7 @@ export const DEFAULT_STATE: AppState = {
   nightVision: false,
   magLimit: DEFAULT_MAG_LIMIT,
   language: DEFAULT_LANGUAGE,
+  fov: DEFAULT_FOV,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -190,6 +194,7 @@ export function parseStateFromSearchParams(
   const rawMag = params.get("mag");
   const magLimit = parseMagLimit(rawMag);
   const language = parseLanguage(params.get("lang"));
+  const fov = parseFovPreset(params.get("fov"));
 
   return ok({
     observer: { lat, lon },
@@ -200,6 +205,7 @@ export function parseStateFromSearchParams(
     nightVision,
     magLimit,
     language,
+    fov,
   });
 }
 
@@ -253,6 +259,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.language !== DEFAULT_LANGUAGE) {
     params.set("lang", state.language);
+  }
+
+  if (state.fov !== DEFAULT_FOV) {
+    params.set("fov", state.fov);
   }
 
   return params;

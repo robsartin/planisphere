@@ -16,7 +16,15 @@ vi.mock("./workers/astro-worker-client", () => {
   };
 });
 
-vi.mock("cesium", () => ({
+vi.mock("cesium", () => {
+  const mockCamera = {
+    setView: vi.fn(),
+    direction: { x: 0, y: 0, z: 1 },
+    up: { x: 0, y: 1, z: 0 },
+    right: { x: 1, y: 0, z: 0 },
+    frustum: { fovy: Math.PI / 3, fov: Math.PI / 3 },
+  };
+  return {
   Viewer: vi.fn().mockImplementation(() => ({
     scene: {
       skyBox: undefined,
@@ -27,6 +35,7 @@ vi.mock("cesium", () => ({
       globe: { show: true },
       primitives: { add: vi.fn() },
       canvas: document.createElement("canvas"),
+      camera: mockCamera,
       screenSpaceCameraController: {
         enableRotate: true,
         enableTranslate: true,
@@ -36,12 +45,7 @@ vi.mock("cesium", () => ({
       },
     },
     imageryLayers: { removeAll: vi.fn() },
-    camera: {
-      setView: vi.fn(),
-      direction: { x: 0, y: 0, z: 1 },
-      up: { x: 0, y: 1, z: 0 },
-      right: { x: 1, y: 0, z: 0 },
-    },
+    camera: mockCamera,
     destroy: vi.fn(),
   })),
   BillboardCollection: vi.fn().mockImplementation(() => ({
@@ -66,7 +70,10 @@ vi.mock("cesium", () => ({
     }),
   },
   Ion: { defaultAccessToken: "" },
-  Math: { toRadians: (d: number) => (d * Math.PI) / 180 },
+  Math: {
+    toRadians: (d: number) => (d * Math.PI) / 180,
+    toDegrees: (r: number) => (r * 180) / Math.PI,
+  },
   HorizontalOrigin: { CENTER: 0 },
   VerticalOrigin: { CENTER: 0 },
   Transforms: {
@@ -106,7 +113,8 @@ vi.mock("cesium", () => ({
   })),
   LabelStyle: { FILL: 0 },
   Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
-}));
+  };
+});
 
 vi.mock("../data/stars.json", () => ({
   default: [
@@ -152,6 +160,7 @@ vi.mock("./ui", () => ({
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
   createPlanetInfo: vi.fn().mockReturnValue(document.createElement("div")),
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
+  createFovControls: vi.fn().mockReturnValue(document.createElement("div")),
 }));
 
 // Mock the TLE bundled data
@@ -515,6 +524,16 @@ describe("handleIntent routing", () => {
     await bootstrap(root);
     capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Sun" });
     expect(() => capturedDispatch!({ type: "hide-trail" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-fov intent updates reticle preset without throwing", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "set-fov", preset: "binoculars" })).not.toThrow();
+    expect(() => capturedDispatch!({ type: "set-fov", preset: "off" })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
