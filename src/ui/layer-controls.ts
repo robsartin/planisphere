@@ -3,6 +3,7 @@ import { applyBaseText, ACCENT_COLOR, GAP } from "./styles";
 import type { UIIntent } from "./index";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import { LANGUAGES, type Language } from "../astro/constellation-names";
+import { SKYCULTURES, type SkycultureId } from "../astro/skycultures";
 
 const LANGUAGE_LABELS: Record<Language, string> = {
   la: "Latin",
@@ -10,6 +11,11 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   zh: "中文",
   ar: "العربية",
   el: "Ελληνικά",
+};
+
+const SKYCULTURE_LABELS: Record<SkycultureId, string> = {
+  western: "Western (IAU)",
+  chinese: "Chinese (Xingguan)",
 };
 
 type LayerDef = {
@@ -46,6 +52,7 @@ export function createLayerControls(
   dispatch: (intent: UIIntent) => void,
   initialMagLimit = 6.0,
   initialLanguage: Language = "la",
+  initialSkyculture: SkycultureId = "western",
 ): HTMLElement {
   const visibility = { ...initialVisibility };
 
@@ -209,6 +216,40 @@ export function createLayerControls(
 
   langRow.appendChild(langSelect);
   section.appendChild(langRow);
+
+  // Skyculture dropdown (asterism stick-figure set)
+  const skyHeading = document.createElement("div");
+  skyHeading.textContent = "Skyculture";
+  skyHeading.style.fontWeight = "bold";
+  skyHeading.style.marginTop = "8px";
+  skyHeading.style.marginBottom = GAP;
+  applyBaseText(skyHeading);
+  section.appendChild(skyHeading);
+
+  const skyRow = document.createElement("div");
+  skyRow.style.marginBottom = "6px";
+
+  const skySelect = document.createElement("select");
+  skySelect.dataset.skyculture = "";
+  skySelect.style.width = "100%";
+  applyBaseText(skySelect);
+  skySelect.style.fontSize = "12px";
+
+  for (const id of SKYCULTURES) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = SKYCULTURE_LABELS[id];
+    if (id === initialSkyculture) option.selected = true;
+    skySelect.appendChild(option);
+  }
+
+  skySelect.addEventListener("change", () => {
+    const value = skySelect.value as SkycultureId;
+    dispatch({ type: "set-skyculture", id: value });
+  });
+
+  skyRow.appendChild(skySelect);
+  section.appendChild(skyRow);
 
   return section;
 }

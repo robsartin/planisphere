@@ -2,6 +2,7 @@
 import { err, ok, type Result } from "../result";
 import { LANGUAGES, type Language } from "../astro/constellation-names";
 import { type FovPresetId, parseFovPreset } from "../astro/fov-presets";
+import { parseSkyculture, type SkycultureId } from "../astro/skycultures";
 
 export type Observer = { readonly lat: number; readonly lon: number };
 
@@ -37,6 +38,7 @@ export type AppState = {
   readonly magLimit: number; // 1.0–6.0, default 6.0
   readonly language: Language;
   readonly fov: FovPresetId; // telescope FOV reticle preset, default "off"
+  readonly skyculture: SkycultureId; // asterism set, default "western"
 };
 
 export type StateParseError =
@@ -77,6 +79,7 @@ export const DEFAULT_MAG_LIMIT = 6.0;
 
 export const DEFAULT_LANGUAGE: Language = "la";
 export const DEFAULT_FOV: FovPresetId = "off";
+export const DEFAULT_SKYCULTURE: SkycultureId = "western";
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
@@ -88,6 +91,7 @@ export const DEFAULT_STATE: AppState = {
   magLimit: DEFAULT_MAG_LIMIT,
   language: DEFAULT_LANGUAGE,
   fov: DEFAULT_FOV,
+  skyculture: DEFAULT_SKYCULTURE,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -195,6 +199,7 @@ export function parseStateFromSearchParams(
   const magLimit = parseMagLimit(rawMag);
   const language = parseLanguage(params.get("lang"));
   const fov = parseFovPreset(params.get("fov"));
+  const skyculture = parseSkyculture(params.get("sky"));
 
   return ok({
     observer: { lat, lon },
@@ -206,6 +211,7 @@ export function parseStateFromSearchParams(
     magLimit,
     language,
     fov,
+    skyculture,
   });
 }
 
@@ -263,6 +269,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.fov !== DEFAULT_FOV) {
     params.set("fov", state.fov);
+  }
+
+  if (state.skyculture !== DEFAULT_SKYCULTURE) {
+    params.set("sky", state.skyculture);
   }
 
   return params;

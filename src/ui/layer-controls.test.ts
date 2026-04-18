@@ -191,6 +191,58 @@ describe("createLayerControls — language dropdown", () => {
   });
 });
 
+describe("createLayerControls — skyculture dropdown", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "la", "western");
+  });
+
+  it("renders a skyculture select with data-skyculture attribute", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]");
+    expect(select).not.toBeNull();
+  });
+
+  it("includes options for western and chinese", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    const values = [...select.options].map((o) => o.value);
+    expect(values).toEqual(expect.arrayContaining(["western", "chinese"]));
+  });
+
+  it("select initialises to the given skyculture", () => {
+    const elCh = createLayerControls(
+      DEFAULT_VISIBILITY,
+      DEFAULT_OPACITY,
+      dispatch,
+      6.0,
+      "la",
+      "chinese",
+    );
+    const select = elCh.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    expect(select.value).toBe("chinese");
+  });
+
+  it("changing the select dispatches set-skyculture intent", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    select.value = "chinese";
+    select.dispatchEvent(new Event("change"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-skyculture");
+    if (intent.type === "set-skyculture") {
+      expect(intent.id).toBe("chinese");
+    }
+  });
+
+  it("defaults to 'western' when no initial skyculture is passed", () => {
+    const elDefault = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch);
+    const select = elDefault.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    expect(select.value).toBe("western");
+  });
+});
+
 describe("createLayerControls — magnitude slider", () => {
   let dispatch: ReturnType<typeof vi.fn>;
   let el: HTMLElement;
