@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { HorizontalCoord } from "./coords";
-import { raDecToAltAz } from "./coords";
+import { fastRaDecToAltAz } from "./fast-coords";
 
 // Mean obliquity of the ecliptic (J2000.0, degrees)
 const OBLIQUITY_DEG = 23.4393;
@@ -26,7 +26,7 @@ export function computeEclipticLine(lat: number, lon: number, time: Date): Horiz
     // atan2 returns [-180, 180]; normalize to [0, 360]
     const raDegNorm = raDeg < 0 ? raDeg + 360 : raDeg;
 
-    const coord = raDecToAltAz(raDegNorm, decDeg, lat, lon, time);
+    const coord = fastRaDecToAltAz(raDegNorm, decDeg, lat, lon, time);
     if (coord.alt >= 0) {
       points.push(coord);
     }

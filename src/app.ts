@@ -12,6 +12,9 @@ import {
   computeRaDecGrid,
   computeEclipticLine,
 } from "./astro";
+import type { StarRecord } from "./astro";
+import { AstroWorkerClient } from "./workers/astro-worker-client";
+import { buildRaDecArray, buildAltAzStars } from "./workers/star-builder";
 import {
   createViewer,
   initCamera,
@@ -79,12 +82,16 @@ type ParsedData = {
 
 let rerenderTimer: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleRerender(state: AppState, layers: Layers, data: ParsedData): void {
-  if (rerenderTimer !== null) clearTimeout(rerenderTimer);
-  rerenderTimer = setTimeout(() => {
-    rerenderTimer = null;
-    doRerender(state, layers, data);
-  }, 50);
+/**
+ * Try to create an AstroWorkerClient. Returns null if workers are unavailable
+ * (e.g. test environment, old browsers, or bundler restrictions).
+ */
+function tryCreateWorker(): AstroWorkerClient | null {
+  try {
+    return new AstroWorkerClient();
+  } catch {
+    return null;
+  }
 }
 
 function rerenderSatellites(
@@ -143,6 +150,89 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   layers.grid.setOpacity(state.opacity.raDecGrid);
   layers.ecliptic.setOpacity(state.opacity.ecliptic);
   if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
+}
+
+/**
+ * Worker-accelerated rerender for subsequent renders (after initial).
+ *
+ * Offloads the hot alt/az math for stars to the worker. Grid/ecliptic/boundaries use
+ * fastRaDecToAltAz on the main thread (they're much smaller datasets).
+ * Falls back to synchronous doRerender if the worker promise rejects.
+ */
+async function doRerenderWithWorker(
+  state: AppState,
+  layers: Layers,
+  data: ParsedData,
+  worker: AstroWorkerClient,
+  catalog: StarRecord[],
+  capturedState: AppState,
+): Promise<void> {
+  if (!data.stars.ok) return;
+  const { observer, timeUtc } = capturedState;
+
+  // Kick off worker computation for stars (largest dataset, ~5000 entries)
+  const raDecs = buildRaDecArray(catalog);
+  const workerPromise = worker.computeAltAz(raDecs, observer.lat, observer.lon, timeUtc);
+
+  // On the main thread, compute smaller datasets and solar system bodies (need precise ephemeris)
+  const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
+  layers.body.update(bodies, observer.lat, observer.lon);
+
+  rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
+
+  const gridData = computeRaDecGrid(observer.lat, observer.lon, timeUtc);
+  layers.grid.update(gridData, observer.lat, observer.lon);
+
+  const eclipticPoints = computeEclipticLine(observer.lat, observer.lon, timeUtc);
+  layers.ecliptic.update(eclipticPoints, observer.lat, observer.lon);
+
+  if (data.boundaries.ok) {
+    const visibleBoundaries = filterVisibleBoundaries(
+      data.boundaries.value,
+      observer.lat,
+      observer.lon,
+      timeUtc,
+    );
+    layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
+  }
+
+  layers.compass.update(observer.lat, observer.lon);
+
+  // Apply the current state's opacity/visibility (fast, no computation)
+  applyLayerVisibility(layers, capturedState.layers);
+  layers.constellation.setOpacity(capturedState.opacity.constellationLines * 0.25);
+  layers.boundary.setOpacity(capturedState.opacity.constellationBoundaries * 0.15);
+  layers.grid.setOpacity(capturedState.opacity.raDecGrid);
+  layers.ecliptic.setOpacity(capturedState.opacity.ecliptic);
+  if (layers.satellite) layers.satellite.setOpacity(capturedState.opacity.satelliteTrails * 0.3);
+
+  // Wait for worker result, then update stars + constellations
+  try {
+    const { altAzs, visibleIndices } = await workerPromise;
+    // Check that state hasn't changed since we started (avoid stale updates)
+    if (capturedState !== state) return;
+    const visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices);
+    layers.star.update(visibleStars, observer.lat, observer.lon);
+
+    if (data.constellations.ok) {
+      const visibleConstellations = filterVisibleConstellations(
+        data.constellations.value,
+        visibleStars,
+      );
+      layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
+    }
+  } catch {
+    // Worker failed — fall back to synchronous star computation
+    const visibleStars = filterVisibleStars(catalog, observer.lat, observer.lon, timeUtc);
+    layers.star.update(visibleStars, observer.lat, observer.lon);
+    if (data.constellations.ok) {
+      const visibleConstellations = filterVisibleConstellations(
+        data.constellations.value,
+        visibleStars,
+      );
+      layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
+    }
+  }
 }
 
 function updateUrl(state: AppState): void {
@@ -208,8 +298,27 @@ export async function bootstrap(
     satelliteRecords: null,
   };
 
-  // Initial render (synchronous, no debounce)
+  // Initial render (synchronous, no debounce — ensures immediate display)
   doRerender(state, layers, data);
+
+  // Initialise worker for subsequent rerenders (falls back to sync if unavailable)
+  const worker = tryCreateWorker();
+  const catalog = catalogResult.value;
+
+  // scheduleRerender debounces rapid state changes, then runs rerender
+  function scheduleRerender(capturedState: AppState): void {
+    if (rerenderTimer !== null) clearTimeout(rerenderTimer);
+    rerenderTimer = setTimeout(() => {
+      rerenderTimer = null;
+      if (worker !== null) {
+        // Worker path: star math off main thread
+        void doRerenderWithWorker(state, layers, data, worker, catalog, capturedState);
+      } else {
+        // Fallback: synchronous (also used in test environment)
+        doRerender(capturedState, layers, data);
+      }
+    }, 50);
+  }
 
   // Satellite layer (async)
   const tleResult = await fetchTle();
@@ -245,14 +354,14 @@ export async function bootstrap(
     switch (intent.type) {
       case "set-time": {
         state = { ...state, timeUtc: intent.time };
-        scheduleRerender(state, layers, data);
+        scheduleRerender(state);
         updateUrl(state);
         break;
       }
       case "set-observer": {
         state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
         initCamera(viewer.camera, intent.lat, intent.lon);
-        scheduleRerender(state, layers, data);
+        scheduleRerender(state);
         updateUrl(state);
         break;
       }

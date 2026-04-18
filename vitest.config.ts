@@ -70,6 +70,15 @@ export default defineConfig({
           functions: 80,
           branches: 70,
         },
+
+        // Workers: astro-worker.ts runs inside a Web Worker context (not jsdom-testable);
+        // star-builder.ts is fully tested. Set a lower floor for the whole directory.
+        "src/workers/**": {
+          lines: 60,
+          statements: 60,
+          functions: 60,
+          branches: 50,
+        },
       },
     },
   },

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { StarRecord } from "./catalog";
-import { raDecToAltAz } from "./coords";
+import { fastRaDecToAltAz } from "./fast-coords";
 import { magToVisual } from "./magnitude";
 
 export type AltAzStar = {
@@ -23,7 +23,7 @@ export function filterVisibleStars(
 ): AltAzStar[] {
   const result: AltAzStar[] = [];
   for (const star of catalog) {
-    const { alt, az } = raDecToAltAz(star.ra, star.dec, lat, lon, time);
+    const { alt, az } = fastRaDecToAltAz(star.ra, star.dec, lat, lon, time);
     if (alt <= 0) continue;
     const { size, opacity } = magToVisual(star.mag);
     result.push({
