@@ -40,3 +40,11 @@ Messier catalog data (messier.json) is derived from well-known public-domain
 astronomical data. Positions and magnitudes are J2000 epoch coordinates compiled
 from standard references including the original Messier catalog and subsequent
 corrections. The Messier catalog is in the public domain.
+
+Constellation name translations (data/constellation-names/*.json) are
+hand-curated translations of the 88 IAU constellation names into English,
+Chinese, Arabic, and Modern Greek. The IAU constellation names themselves
+are standard nomenclature in the public domain; translations were compiled
+from standard references (interlanguage Wikipedia entries and the
+corresponding national-language astronomical literature) and are released
+as part of this project under the Apache 2.0 license.

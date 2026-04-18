@@ -15,8 +15,9 @@ import {
   filterVisibleMessier,
   computeMilkyWayPoints,
   computeBodyTrail,
+  parseConstellationNames,
 } from "./astro";
-import type { StarRecord } from "./astro";
+import type { StarRecord, Language, ConstellationNameMap } from "./astro";
 import { AstroWorkerClient } from "./workers/astro-worker-client";
 import { buildRaDecArray, buildAltAzStars } from "./workers/star-builder";
 import {
@@ -69,6 +70,29 @@ import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
 import rawBoundaries from "../data/boundaries.json";
 import rawMessier from "../data/messier.json";
+import rawNamesEn from "../data/constellation-names/en.json";
+import rawNamesZh from "../data/constellation-names/zh.json";
+import rawNamesAr from "../data/constellation-names/ar.json";
+import rawNamesEl from "../data/constellation-names/el.json";
+
+const CONSTELLATION_NAMES_RAW: Partial<Record<Language, unknown>> = {
+  en: rawNamesEn,
+  zh: rawNamesZh,
+  ar: rawNamesAr,
+  el: rawNamesEl,
+};
+
+function loadNameOverridesForLanguage(lang: Language): ConstellationNameMap | null {
+  if (lang === "la") return null;
+  const raw = CONSTELLATION_NAMES_RAW[lang];
+  if (raw === undefined) return null;
+  const parsed = parseConstellationNames(raw);
+  if (!parsed.ok) {
+    console.warn(`Constellation names for '${lang}' invalid: ${parsed.error.kind}`);
+    return null;
+  }
+  return parsed.value;
+}
 
 type Layers = {
   star: StarLayer;
@@ -399,6 +423,9 @@ export async function bootstrap(
     satelliteRecords: null,
   };
 
+  // Apply initial constellation name overrides based on language
+  layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
+
   // Initial render (synchronous, no debounce — ensures immediate display)
   doRerender(state, layers, data);
 
@@ -574,6 +601,14 @@ export async function bootstrap(
         refreshPlanetInfo(state);
         break;
       }
+      case "set-language": {
+        state = { ...state, language: intent.language };
+        layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
+        // Only constellation labels need updating, but we rebuild to pick up new text
+        scheduleRerender(state);
+        updateUrl(state);
+        break;
+      }
       case "now": {
         const now = new Date();
         state = { ...state, timeUtc: now };
@@ -634,7 +669,13 @@ export async function bootstrap(
     const viewEl = createViewControls(0, 89.9, handleIntent);
     uiContainer.appendChild(viewEl);
 
-    const layerEl = createLayerControls(state.layers, state.opacity, handleIntent, state.magLimit);
+    const layerEl = createLayerControls(
+      state.layers,
+      state.opacity,
+      handleIntent,
+      state.magLimit,
+      state.language,
+    );
     uiContainer.appendChild(layerEl);
 
     refreshPlanetInfo(state);

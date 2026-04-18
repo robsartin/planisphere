@@ -149,3 +149,41 @@ describe("ConstellationLayer.setVisible", () => {
     expect(() => layer.setOpacity(0.5)).not.toThrow();
   });
 });
+
+describe("ConstellationLayer.setNameOverrides", () => {
+  it("has a setNameOverrides method", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    expect(layer).toHaveProperty("setNameOverrides");
+  });
+
+  it("uses the override map when rendering labels (e.g. Ori → 猎户座)", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    layer.setNameOverrides({ Ori: "猎户座", UMa: "大熊座" });
+    layer.update(CONSTELLATIONS, 33, -117);
+    const calls = mockLabelAdd.mock.calls.map((c) => (c[0] as { text: string }).text);
+    expect(calls).toContain("猎户座");
+    expect(calls).toContain("大熊座");
+  });
+
+  it("falls back to the Latin name when an override is missing", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    layer.setNameOverrides({ Ori: "猎户座" });
+    layer.update(CONSTELLATIONS, 33, -117);
+    const calls = mockLabelAdd.mock.calls.map((c) => (c[0] as { text: string }).text);
+    expect(calls).toContain("猎户座");
+    // UMa has no override, keep Latin name
+    expect(calls).toContain("Ursa Major");
+  });
+
+  it("setNameOverrides(null) reverts to Latin names", () => {
+    const layer = createConstellationLayer(makeMockScene() as never);
+    layer.setNameOverrides({ Ori: "猎户座" });
+    layer.update(CONSTELLATIONS, 33, -117);
+    mockLabelAdd.mockClear();
+    layer.setNameOverrides(null);
+    layer.update(CONSTELLATIONS, 33, -117);
+    const calls = mockLabelAdd.mock.calls.map((c) => (c[0] as { text: string }).text);
+    expect(calls).toContain("Orion");
+    expect(calls).toContain("Ursa Major");
+  });
+});

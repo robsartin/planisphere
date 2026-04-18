@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { err, ok, type Result } from "../result";
+import { LANGUAGES, type Language } from "../astro/constellation-names";
 
 export type Observer = { readonly lat: number; readonly lon: number };
 
@@ -33,6 +34,7 @@ export type AppState = {
   readonly view: ViewDirection;
   readonly nightVision: boolean;
   readonly magLimit: number; // 1.0–6.0, default 6.0
+  readonly language: Language;
 };
 
 export type StateParseError =
@@ -71,6 +73,8 @@ export const DEFAULT_VIEW: ViewDirection = { az: 0, alt: 89.9 };
 
 export const DEFAULT_MAG_LIMIT = 6.0;
 
+export const DEFAULT_LANGUAGE: Language = "la";
+
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
   timeUtc: new Date("2026-04-15T00:00:00.000Z"),
@@ -79,6 +83,7 @@ export const DEFAULT_STATE: AppState = {
   view: DEFAULT_VIEW,
   nightVision: false,
   magLimit: DEFAULT_MAG_LIMIT,
+  language: DEFAULT_LANGUAGE,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -125,6 +130,11 @@ function parseMagLimit(raw: string | null): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return DEFAULT_MAG_LIMIT;
   return Math.min(6.0, Math.max(1.0, n));
+}
+
+function parseLanguage(raw: string | null): Language {
+  if (raw === null) return DEFAULT_LANGUAGE;
+  return (LANGUAGES as readonly string[]).includes(raw) ? (raw as Language) : DEFAULT_LANGUAGE;
 }
 
 export function parseStateFromSearchParams(
@@ -179,6 +189,7 @@ export function parseStateFromSearchParams(
   const nightVision = params.get("nv") === "1";
   const rawMag = params.get("mag");
   const magLimit = parseMagLimit(rawMag);
+  const language = parseLanguage(params.get("lang"));
 
   return ok({
     observer: { lat, lon },
@@ -188,6 +199,7 @@ export function parseStateFromSearchParams(
     view: { az: viewAz, alt: viewAlt },
     nightVision,
     magLimit,
+    language,
   });
 }
 
@@ -237,6 +249,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
       ? String(state.magLimit)
       : String(state.magLimit);
     params.set("mag", formatted);
+  }
+
+  if (state.language !== DEFAULT_LANGUAGE) {
+    params.set("lang", state.language);
   }
 
   return params;
