@@ -8,6 +8,8 @@ import {
 } from "astronomy-engine";
 import { ok, type Result } from "../result";
 import rawMeteorShowers from "../../data/meteor-showers.json";
+import type { SatelliteRecord } from "../sat/tle";
+import { computeUpcomingPasses, isIssRecord, type IssPass } from "../sat/passes";
 
 // Meteor-shower reference data: International Meteor Organization (IMO) calendar.
 // Dates listed are canonical annual peaks (UTC); the real peak drifts by a few hours
@@ -66,7 +68,21 @@ export type MeteorShowerEvent = {
   readonly zhr: number;
 };
 
-export type CelestialEvent = ConjunctionEvent | LunarEclipseEvent | MeteorShowerEvent;
+export type IssPassEvent = {
+  readonly kind: "iss-pass";
+  readonly when: Date;
+  readonly title: string;
+  readonly description: string;
+  readonly peakAltDeg: number;
+  readonly peakAzDeg: number;
+  readonly durationSec: number;
+};
+
+export type CelestialEvent =
+  | ConjunctionEvent
+  | LunarEclipseEvent
+  | MeteorShowerEvent
+  | IssPassEvent;
 
 /** Typed domain errors returned from computeUpcomingEvents. Currently none are produced,
  *  but the Result wrapper keeps the boundary consistent if future variants (e.g. parse
@@ -223,6 +239,58 @@ function refineMinimum(b1: Body, b2: Body, loMs: number, hiMs: number): { t: num
   return { t, sep };
 }
 
+// ---------- ISS passes ----------
+
+const COMPASS_POINTS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+];
+
+function azToCompass(azDeg: number): string {
+  const idx = Math.round(((azDeg % 360) + 360) / 22.5) % 16;
+  return COMPASS_POINTS[idx]!;
+}
+
+function formatLocalTime(d: Date): string {
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+/** Turn an IssPass into a CelestialEvent. `when` is the rise time so the event merges
+ *  correctly into the sorted-by-time list. */
+function toIssPassEvent(pass: IssPass): IssPassEvent {
+  const durationSec = Math.round((pass.set.getTime() - pass.rise.getTime()) / 1000);
+  const minutes = Math.max(1, Math.round(durationSec / 60));
+  const peakAltInt = Math.round(pass.peak.altDeg);
+  const riseCompass = azToCompass(pass.peak.azDeg);
+  const setLocal = formatLocalTime(pass.set);
+  const peakLocal = formatLocalTime(pass.peak.time);
+  return {
+    kind: "iss-pass",
+    when: pass.rise,
+    title: `ISS pass — peaks at ${peakAltInt}° altitude`,
+    description: `Peaks ${peakAltInt}° in the ${riseCompass} at ${peakLocal} local, sets ${setLocal} (${minutes} min pass).`,
+    peakAltDeg: pass.peak.altDeg,
+    peakAzDeg: pass.peak.azDeg,
+    durationSec,
+  };
+}
+
 // ---------- Composition ----------
 
 export type ObserverInput = { readonly lat: number; readonly lon: number };
@@ -230,25 +298,43 @@ export type ObserverInput = { readonly lat: number; readonly lon: number };
 const DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS = 30;
 const DEFAULT_LOOKAHEAD_ECLIPSE_DAYS = 365;
 const DEFAULT_LOOKAHEAD_SHOWER_DAYS = 365;
+const DEFAULT_LOOKAHEAD_ISS_HOURS = 48;
 
 /**
  * Compose the upcoming events list for display.
  *
- * Computes conjunctions (30-day horizon), lunar eclipses (1-year horizon), and
- * meteor-shower peaks (1-year horizon), then merges and sorts them.
+ * Computes conjunctions (30-day horizon), lunar eclipses (1-year horizon),
+ * meteor-shower peaks (1-year horizon), and ISS passes (48-hour horizon, ISS record
+ * only, observer required), then merges and sorts them.
  *
- * `observer` is accepted for future per-site filtering (e.g. which eclipses are visible
- * from the observer's location) but isn't used in the current shipping subset.
+ * `satelliteRecords` is optional. When supplied, the ISS record (if present) contributes
+ * pass events; non-ISS satellites are ignored in this scope.
  */
 export function computeUpcomingEvents(
   now: Date,
-  _observer?: ObserverInput,
+  observer?: ObserverInput,
+  satelliteRecords?: readonly SatelliteRecord[],
 ): Result<CelestialEvent[], EventsError> {
   const conjunctions = computeConjunctions(now, DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS);
   const eclipses = computeLunarEclipses(now, DEFAULT_LOOKAHEAD_ECLIPSE_DAYS);
   const showers = computeMeteorShowerPeaks(now, DEFAULT_LOOKAHEAD_SHOWER_DAYS);
 
-  const merged: CelestialEvent[] = [...conjunctions, ...eclipses, ...showers];
+  const issEvents: IssPassEvent[] = [];
+  if (observer && satelliteRecords) {
+    const iss = satelliteRecords.find(isIssRecord);
+    if (iss) {
+      const passes = computeUpcomingPasses(
+        iss,
+        observer.lat,
+        observer.lon,
+        now,
+        DEFAULT_LOOKAHEAD_ISS_HOURS,
+      );
+      for (const p of passes) issEvents.push(toIssPassEvent(p));
+    }
+  }
+
+  const merged: CelestialEvent[] = [...conjunctions, ...eclipses, ...showers, ...issEvents];
   merged.sort((a, b) => a.when.getTime() - b.when.getTime());
   return ok(merged);
 }

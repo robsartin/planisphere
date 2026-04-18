@@ -38,6 +38,18 @@ function makeShower(when: Date): CelestialEvent {
   };
 }
 
+function makeIssPass(when: Date): CelestialEvent {
+  return {
+    kind: "iss-pass",
+    when,
+    title: "ISS pass — peaks at 43° altitude",
+    description: "Peaks 43° in the SSE at 21:34 local, sets 21:38 local (4 min pass).",
+    peakAltDeg: 43,
+    peakAzDeg: 157,
+    durationSec: 240,
+  };
+}
+
 describe("createEventsPanel", () => {
   it("returns an HTMLElement", () => {
     const el = createEventsPanel([], vi.fn());
@@ -106,6 +118,26 @@ describe("createEventsPanel", () => {
     const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
     btn.click();
     expect(dispatch).toHaveBeenCalledOnce();
+    expect(dispatch).toHaveBeenCalledWith({ type: "set-time", time: when });
+  });
+
+  it("renders ISS pass events with title and description", () => {
+    const events = [makeIssPass(new Date("2024-04-10T04:00:00Z"))];
+    const el = createEventsPanel(events, vi.fn());
+    const title = el.querySelector("[data-testid='event-title']");
+    const desc = el.querySelector("[data-testid='event-description']");
+    expect(title).not.toBeNull();
+    expect(title!.textContent).toMatch(/ISS/);
+    expect(desc).not.toBeNull();
+    expect(desc!.textContent).toMatch(/min pass/);
+  });
+
+  it("'Go to' on an ISS pass dispatches set-time with rise time", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2024-04-10T04:00:00Z");
+    const el = createEventsPanel([makeIssPass(when)], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
     expect(dispatch).toHaveBeenCalledWith({ type: "set-time", time: when });
   });
 

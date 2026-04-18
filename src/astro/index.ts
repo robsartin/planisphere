@@ -65,6 +65,7 @@ export {
   type ConjunctionEvent,
   type LunarEclipseEvent,
   type MeteorShowerEvent,
+  type IssPassEvent,
   type EventsError,
   computeUpcomingEvents,
   computeConjunctions,

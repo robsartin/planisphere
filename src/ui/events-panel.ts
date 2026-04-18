@@ -21,6 +21,8 @@ function kindColor(kind: CelestialEvent["kind"]): string {
       return "#ffb088";
     case "meteor-shower-peak":
       return "#b6ff8e";
+    case "iss-pass":
+      return "#ffe08a";
   }
 }
 
