@@ -18,4 +18,6 @@ export type UIIntent =
   | { type: "set-view"; az: number; alt: number }
   | { type: "toggle-night-vision" }
   | { type: "set-mag-limit"; value: number }
+  | { type: "show-trail"; objectKind: "body"; id: string }
+  | { type: "hide-trail" }
   | { type: "now" };

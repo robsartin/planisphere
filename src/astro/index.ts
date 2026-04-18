@@ -32,3 +32,4 @@ export {
   filterVisibleMessier,
 } from "./messier";
 export { computeMilkyWayPoints } from "./milkyway";
+export { type TrailError, computeBodyTrail } from "./trails";
