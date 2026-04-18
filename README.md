@@ -4,6 +4,23 @@ Interactive web planisphere with satellite overlays. Static SPA built with Cesiu
 
 See `docs/specs/2026-04-15-planisphere-v1-design.md` for the full v1 design and `CLAUDE.md` for working conventions.
 
+## Architecture
+
+Planisphere is composed of six modules with strict boundaries:
+
+| Module        | Role                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/astro/`  | Pure astronomy math — star catalog, ephemerides, coordinate transforms, constellation/boundary filtering                                       |
+| `src/sat/`    | TLE loading (with bundled fallback), SGP4 propagation via satellite.js                                                                         |
+| `src/scene/`  | CesiumJS rendering — one factory per layer (`StarLayer`, `BodyLayer`, `ConstellationLayer`, `BoundaryLayer`, `SatelliteLayer`, `CompassLayer`) |
+| `src/ui/`     | DOM controls that emit typed `UIIntent` values; no position math                                                                               |
+| `src/state/`  | `AppState` type, URL serialisation/deserialisation                                                                                             |
+| `src/result/` | `Result<T, E>` discriminated union and helpers                                                                                                 |
+
+`src/app.ts` is the composition root: it wires state → computation → rendering → UI and keeps the URL in sync.
+
+See [`docs/architecture.md`](docs/architecture.md) for Mermaid diagrams covering the module dependency graph, data flow, layer interface model, and TLE fetch/fallback flow.
+
 ## Prerequisites
 
 - Node 20.11.1 (see `.nvmrc`)
