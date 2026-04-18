@@ -1,6 +1,21 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, expect, it, vi } from "vitest";
 
+// Mock the astro worker client so tests exercise the worker code path
+// without needing a real Web Worker (jsdom doesn't support import.meta.url workers).
+vi.mock("./workers/astro-worker-client", () => {
+  const mockComputeAltAz = vi.fn().mockResolvedValue({
+    altAzs: new Float64Array([45, 90, 30, 180]),
+    visibleIndices: new Uint16Array([0, 1]),
+  });
+  return {
+    AstroWorkerClient: vi.fn().mockImplementation(() => ({
+      computeAltAz: mockComputeAltAz,
+      terminate: vi.fn(),
+    })),
+  };
+});
+
 vi.mock("cesium", () => ({
   Viewer: vi.fn().mockImplementation(() => ({
     scene: {

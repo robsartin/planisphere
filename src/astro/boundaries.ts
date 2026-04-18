@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { err, ok, type Result } from "../result";
-import { raDecToAltAz } from "./coords";
+import { fastRaDecToAltAz } from "./fast-coords";
 
 export type BoundaryVertex = {
   readonly ra: number; // degrees
@@ -79,7 +79,7 @@ export function filterVisibleBoundaries(
     observerLat,
     observerLon,
     time,
-  ) => raDecToAltAz(ra, dec, observerLat, observerLon, time).alt,
+  ) => fastRaDecToAltAz(ra, dec, observerLat, observerLon, time).alt,
 ): VisibleBoundary[] {
   const result: VisibleBoundary[] = [];
 

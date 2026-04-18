@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { HorizontalCoord } from "./coords";
-import { raDecToAltAz } from "./coords";
+import { fastRaDecToAltAz } from "./fast-coords";
 
 export type GridData = {
   readonly raLines: HorizontalCoord[][];
@@ -22,7 +22,7 @@ export function computeRaDecGrid(lat: number, lon: number, time: Date): GridData
     const raDeg = raHour * 15;
     const line: HorizontalCoord[] = [];
     for (let dec = -80; dec <= 80; dec += 10) {
-      const coord = raDecToAltAz(raDeg, dec, lat, lon, time);
+      const coord = fastRaDecToAltAz(raDeg, dec, lat, lon, time);
       if (coord.alt >= 0) {
         line.push(coord);
       }
@@ -37,7 +37,7 @@ export function computeRaDecGrid(lat: number, lon: number, time: Date): GridData
     const line: HorizontalCoord[] = [];
     for (let raHour = 0; raHour < 24; raHour++) {
       const raDeg = raHour * 15;
-      const coord = raDecToAltAz(raDeg, dec, lat, lon, time);
+      const coord = fastRaDecToAltAz(raDeg, dec, lat, lon, time);
       if (coord.alt >= 0) {
         line.push(coord);
       }
