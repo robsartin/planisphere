@@ -38,6 +38,8 @@ import type {
   EclipticLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
+import type { SatelliteRecord, TleParseError } from "./sat";
+import type { Result } from "./result";
 import {
   createPanel,
   createTimeControls,
@@ -68,41 +70,64 @@ function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void
   if (layers.satellite) layers.satellite.setVisible(visibility.satellites);
 }
 
-function rerender(
-  state: AppState,
+type ParsedData = {
+  stars: ReturnType<typeof parseCatalog>;
+  constellations: ReturnType<typeof parseConstellations>;
+  boundaries: ReturnType<typeof parseBoundaries>;
+  satelliteRecords: Result<SatelliteRecord[], TleParseError> | null;
+};
+
+let rerenderTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleRerender(state: AppState, layers: Layers, data: ParsedData): void {
+  if (rerenderTimer !== null) clearTimeout(rerenderTimer);
+  rerenderTimer = setTimeout(() => {
+    rerenderTimer = null;
+    doRerender(state, layers, data);
+  }, 50);
+}
+
+function rerenderSatellites(
   layers: Layers,
-  catalogResult: ReturnType<typeof parseCatalog>,
+  data: ParsedData,
+  lat: number,
+  lon: number,
+  time: Date,
 ): void {
-  if (!catalogResult.ok) return;
+  if (!data.satelliteRecords?.ok || !layers.satellite) return;
+  const visibleSats = propagateSatellites(data.satelliteRecords.value, lat, lon, time, true);
+  layers.satellite.update(visibleSats, lat, lon);
+}
+
+function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
+  if (!data.stars.ok) return;
   const { observer, timeUtc } = state;
 
-  const visibleStars = filterVisibleStars(catalogResult.value, observer.lat, observer.lon, timeUtc);
+  const visibleStars = filterVisibleStars(data.stars.value, observer.lat, observer.lon, timeUtc);
   layers.star.update(visibleStars, observer.lat, observer.lon);
 
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
   layers.body.update(bodies, observer.lat, observer.lon);
 
-  const constellationResult = parseConstellations(rawConstellations);
-  if (constellationResult.ok) {
+  if (data.constellations.ok) {
     const visibleConstellations = filterVisibleConstellations(
-      constellationResult.value,
+      data.constellations.value,
       visibleStars,
     );
     layers.constellation.update(visibleConstellations, observer.lat, observer.lon);
   }
 
-  const boundaryResult = parseBoundaries(rawBoundaries);
-  if (boundaryResult.ok) {
+  if (data.boundaries.ok) {
     const visibleBoundaries = filterVisibleBoundaries(
-      boundaryResult.value,
+      data.boundaries.value,
       observer.lat,
       observer.lon,
       timeUtc,
     );
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
-  } else {
-    console.warn(`Boundary load warning: ${boundaryResult.error.message}`);
   }
+
+  rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
 
   const gridData = computeRaDecGrid(observer.lat, observer.lon, timeUtc);
   layers.grid.update(gridData, observer.lat, observer.lon);
@@ -169,14 +194,29 @@ export async function bootstrap(
     ecliptic: createEclipticLayer(viewer.scene),
   };
 
-  // Initial render
-  rerender(state, layers, catalogResult);
+  // Parse static data once
+  const constellationResult = parseConstellations(rawConstellations);
+  const boundaryResult = parseBoundaries(rawBoundaries);
+  if (!boundaryResult.ok) {
+    console.warn(`Boundary load warning: ${boundaryResult.error.message}`);
+  }
+
+  const data: ParsedData = {
+    stars: catalogResult,
+    constellations: constellationResult,
+    boundaries: boundaryResult,
+    satelliteRecords: null,
+  };
+
+  // Initial render (synchronous, no debounce)
+  doRerender(state, layers, data);
 
   // Satellite layer (async)
   const tleResult = await fetchTle();
   if (tleResult.ok) {
     const satResult = parseTle(tleResult.value);
     if (satResult.ok) {
+      data.satelliteRecords = satResult;
       const satLayer = createSatelliteLayer(viewer.scene);
       layers.satellite = satLayer;
       const visibleSats = propagateSatellites(
@@ -205,14 +245,14 @@ export async function bootstrap(
     switch (intent.type) {
       case "set-time": {
         state = { ...state, timeUtc: intent.time };
-        rerender(state, layers, catalogResult);
+        scheduleRerender(state, layers, data);
         updateUrl(state);
         break;
       }
       case "set-observer": {
         state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
         initCamera(viewer.camera, intent.lat, intent.lon);
-        rerender(state, layers, catalogResult);
+        scheduleRerender(state, layers, data);
         updateUrl(state);
         break;
       }

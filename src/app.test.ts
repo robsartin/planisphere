@@ -145,9 +145,7 @@ vi.mock("../data/tle/visual.txt?raw", () => ({
 // Mock the sat module so tests don't do real network/propagation
 vi.mock("./sat", () => ({
   fetchTle: vi.fn().mockResolvedValue({ ok: true, value: "" }),
-  parseTle: vi
-    .fn()
-    .mockReturnValue({ ok: false, error: { kind: "tle-parse-failed", message: "mocked" } }),
+  parseTle: vi.fn().mockReturnValue({ ok: true, value: [] }),
   propagateSatellites: vi.fn().mockReturnValue([]),
 }));
 
@@ -274,6 +272,7 @@ describe("handleIntent routing", () => {
   }
 
   it("set-time intent re-renders without throwing", async () => {
+    vi.useFakeTimers();
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
@@ -281,17 +280,22 @@ describe("handleIntent routing", () => {
     expect(() =>
       capturedDispatch!({ type: "set-time", time: new Date("2026-05-01T00:00:00Z") }),
     ).not.toThrow();
+    vi.advanceTimersByTime(100);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+    vi.useRealTimers();
   });
 
   it("set-observer intent re-renders without throwing", async () => {
+    vi.useFakeTimers();
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(() => capturedDispatch!({ type: "set-observer", lat: 51.5, lon: -0.12 })).not.toThrow();
+    vi.advanceTimersByTime(100);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+    vi.useRealTimers();
   });
 
   it("toggle-layer intent updates layer visibility without throwing", async () => {
