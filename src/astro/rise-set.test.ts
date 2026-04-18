@@ -38,9 +38,7 @@ describe("computeRiseSet", () => {
     expect(result.rise).toBeInstanceOf(Date);
     expect(result.transit).toBeInstanceOf(Date);
     // Rise must be before transit
-    expect((result.rise as Date).getTime()).toBeLessThan(
-      (result.transit as Date).getTime(),
-    );
+    expect((result.rise as Date).getTime()).toBeLessThan((result.transit as Date).getTime());
   });
 
   it("Sun sets after transit", () => {
@@ -48,33 +46,25 @@ describe("computeRiseSet", () => {
     expect(result.transit).toBeInstanceOf(Date);
     expect(result.set).toBeInstanceOf(Date);
     // Transit must be before set
-    expect((result.transit as Date).getTime()).toBeLessThan(
-      (result.set as Date).getTime(),
-    );
+    expect((result.transit as Date).getTime()).toBeLessThan((result.set as Date).getTime());
   });
 
   it("Sun rise is before set on the same day", () => {
     const result = computeRiseSet("Sun", LA_LAT, LA_LON, REF_TIME);
     expect(result.rise).toBeInstanceOf(Date);
     expect(result.set).toBeInstanceOf(Date);
-    expect((result.rise as Date).getTime()).toBeLessThan(
-      (result.set as Date).getTime(),
-    );
+    expect((result.rise as Date).getTime()).toBeLessThan((result.set as Date).getTime());
   });
 
   it("Sun rise is within ±12 hours of reference time", () => {
     const result = computeRiseSet("Sun", LA_LAT, LA_LON, REF_TIME);
-    const delta = Math.abs(
-      (result.rise as Date).getTime() - REF_TIME.getTime(),
-    );
+    const delta = Math.abs((result.rise as Date).getTime() - REF_TIME.getTime());
     expect(delta).toBeLessThan(12 * 3600 * 1000);
   });
 
   it("Sun set is within ±12 hours of reference time", () => {
     const result = computeRiseSet("Sun", LA_LAT, LA_LON, REF_TIME);
-    const delta = Math.abs(
-      (result.set as Date).getTime() - REF_TIME.getTime(),
-    );
+    const delta = Math.abs((result.set as Date).getTime() - REF_TIME.getTime());
     expect(delta).toBeLessThan(12 * 3600 * 1000);
   });
 
@@ -106,18 +96,14 @@ describe("computeRiseSet", () => {
     const result = computeRiseSet("Sun", LA_LAT, LA_LON, REF_TIME);
     expect(result.rise).not.toBeNull();
     expect(result.transit).not.toBeNull();
-    expect((result.rise as Date).getTime()).toBeLessThan(
-      (result.transit as Date).getTime(),
-    );
+    expect((result.rise as Date).getTime()).toBeLessThan((result.transit as Date).getTime());
   });
 
   it("Sun set az is between 180 and 360 (western sky) — set is after transit", () => {
     const result = computeRiseSet("Sun", LA_LAT, LA_LON, REF_TIME);
     expect(result.set).not.toBeNull();
     expect(result.transit).not.toBeNull();
-    expect((result.set as Date).getTime()).toBeGreaterThan(
-      (result.transit as Date).getTime(),
-    );
+    expect((result.set as Date).getTime()).toBeGreaterThan((result.transit as Date).getTime());
   });
 
   it("returns all nulls for an unknown body name", () => {
