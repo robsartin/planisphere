@@ -17,10 +17,10 @@ function generateGlowSprite(size: number): HTMLCanvasElement {
   if (!ctx) return canvas;
   const center = size / 2;
   const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
-  gradient.addColorStop(0, "rgba(180, 200, 230, 0.35)");
-  gradient.addColorStop(0.2, "rgba(180, 200, 230, 0.25)");
-  gradient.addColorStop(0.5, "rgba(170, 190, 220, 0.12)");
-  gradient.addColorStop(0.8, "rgba(160, 180, 210, 0.04)");
+  gradient.addColorStop(0, "rgba(180, 200, 230, 0.12)");
+  gradient.addColorStop(0.2, "rgba(180, 200, 230, 0.08)");
+  gradient.addColorStop(0.5, "rgba(170, 190, 220, 0.04)");
+  gradient.addColorStop(0.8, "rgba(160, 180, 210, 0.01)");
   gradient.addColorStop(1, "rgba(160, 180, 210, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
