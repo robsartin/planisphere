@@ -4,6 +4,7 @@ import type { Cartesian2, Viewer } from "cesium";
 import type { AltAzStar } from "../astro";
 import type { CelestialBody } from "../astro";
 import type { VisibleSatellite } from "../sat";
+import type { VisibleMessier } from "../astro/messier";
 
 export type Tooltip = {
   destroy: () => void;
@@ -80,6 +81,32 @@ function isVisibleSatellite(obj: unknown): obj is VisibleSatellite {
   );
 }
 
+function isVisibleMessier(obj: unknown): obj is VisibleMessier {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "m" in obj &&
+    typeof (obj as Record<string, unknown>).m === "number" &&
+    "type" in obj &&
+    "alt" in obj &&
+    "az" in obj &&
+    "mag" in obj &&
+    !("hip" in obj) &&
+    !("noradId" in obj) &&
+    !("id" in obj)
+  );
+}
+
+function formatMessier(obj: VisibleMessier): string {
+  const label = obj.name.length > 0 ? `M${String(obj.m)} \u2014 ${obj.name}` : `M${String(obj.m)}`;
+  return (
+    `<strong>${label}</strong> (${obj.type})<br>` +
+    `mag ${obj.mag.toFixed(1)}<br>` +
+    `Alt ${obj.alt.toFixed(1)}\u00B0 Az ${obj.az.toFixed(1)}\u00B0<br>` +
+    `RA ${formatRa(obj.ra)} Dec ${formatDec(obj.dec)}`
+  );
+}
+
 function formatSatellite(sat: VisibleSatellite): string {
   return (
     `<strong>${sat.name}</strong> (NORAD ${String(sat.noradId)})<br>` +
@@ -102,6 +129,7 @@ function pickHtml(
   if (isAltAzStar(picked.id)) return formatStar(picked.id);
   if (isCelestialBody(picked.id)) return formatBody(picked.id);
   if (isVisibleSatellite(picked.id)) return formatSatellite(picked.id);
+  if (isVisibleMessier(picked.id)) return formatMessier(picked.id);
   return null;
 }
 

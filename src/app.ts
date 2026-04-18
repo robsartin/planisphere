@@ -11,6 +11,8 @@ import {
   filterVisibleBoundaries,
   computeRaDecGrid,
   computeEclipticLine,
+  parseMessier,
+  filterVisibleMessier,
 } from "./astro";
 import type { StarRecord } from "./astro";
 import { AstroWorkerClient } from "./workers/astro-worker-client";
@@ -28,6 +30,7 @@ import {
   createBoundaryLayer,
   createGridLayer,
   createEclipticLayer,
+  createMessierLayer,
   setCameraView,
 } from "./scene";
 import type {
@@ -39,6 +42,7 @@ import type {
   CompassLayer,
   GridLayer,
   EclipticLayer,
+  MessierLayer,
 } from "./scene";
 import { fetchTle, parseTle, propagateSatellites } from "./sat";
 import type { SatelliteRecord, TleParseError } from "./sat";
@@ -55,6 +59,7 @@ import type { UIIntent } from "./ui";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
 import rawBoundaries from "../data/boundaries.json";
+import rawMessier from "../data/messier.json";
 
 type Layers = {
   star: StarLayer;
@@ -65,12 +70,14 @@ type Layers = {
   compass: CompassLayer;
   grid: GridLayer;
   ecliptic: EclipticLayer;
+  messier: MessierLayer;
 };
 
 function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void {
   layers.star.setVisible(visibility.stars);
   layers.body.setVisible(visibility.planets);
   layers.compass.setVisible(visibility.compass);
+  layers.messier.setVisible(visibility.deepSky);
   if (layers.satellite) layers.satellite.setVisible(visibility.satellites);
 }
 
@@ -78,6 +85,7 @@ type ParsedData = {
   stars: ReturnType<typeof parseCatalog>;
   constellations: ReturnType<typeof parseConstellations>;
   boundaries: ReturnType<typeof parseBoundaries>;
+  messierObjects: ReturnType<typeof parseMessier>;
   satelliteRecords: Result<SatelliteRecord[], TleParseError> | null;
 };
 
@@ -137,6 +145,16 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
 
   rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
 
+  if (data.messierObjects.ok) {
+    const visibleMessier = filterVisibleMessier(
+      data.messierObjects.value,
+      observer.lat,
+      observer.lon,
+      timeUtc,
+    );
+    layers.messier.update(visibleMessier, observer.lat, observer.lon);
+  }
+
   const gridData = computeRaDecGrid(observer.lat, observer.lon, timeUtc);
   layers.grid.update(gridData, observer.lat, observer.lon);
 
@@ -195,6 +213,16 @@ async function doRerenderWithWorker(
       timeUtc,
     );
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
+  }
+
+  if (data.messierObjects.ok) {
+    const visibleMessier = filterVisibleMessier(
+      data.messierObjects.value,
+      observer.lat,
+      observer.lon,
+      timeUtc,
+    );
+    layers.messier.update(visibleMessier, observer.lat, observer.lon);
   }
 
   layers.compass.update(observer.lat, observer.lon);
@@ -289,6 +317,7 @@ export async function bootstrap(
     compass: createCompassLayer(viewer.scene),
     grid: createGridLayer(viewer.scene),
     ecliptic: createEclipticLayer(viewer.scene),
+    messier: createMessierLayer(viewer.scene),
   };
 
   // Parse static data once
@@ -297,11 +326,16 @@ export async function bootstrap(
   if (!boundaryResult.ok) {
     console.warn(`Boundary load warning: ${boundaryResult.error.message}`);
   }
+  const messierResult = parseMessier(rawMessier);
+  if (!messierResult.ok) {
+    console.warn(`Messier catalog load warning: ${messierResult.error.message}`);
+  }
 
   const data: ParsedData = {
     stars: catalogResult,
     constellations: constellationResult,
     boundaries: boundaryResult,
+    messierObjects: messierResult,
     satelliteRecords: null,
   };
 

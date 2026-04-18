@@ -24,3 +24,10 @@ export {
 export { type GridData, computeRaDecGrid } from "./grid";
 export { computeEclipticLine } from "./ecliptic";
 export { bvToRgb } from "./star-color";
+export {
+  type MessierRecord,
+  type MessierLoadError,
+  type VisibleMessier,
+  parseMessier,
+  filterVisibleMessier,
+} from "./messier";

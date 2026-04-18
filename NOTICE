@@ -35,3 +35,8 @@ IAU constellation boundary data from the Catalogue of Constellation Boundary Dat
 (Davenhall & Leggett, 1989), available from CDS VizieR
 (https://cdsarc.cds.unistra.fr/ftp/VI/49/).
 The boundary data is in the public domain.
+
+Messier catalog data (messier.json) is derived from well-known public-domain
+astronomical data. Positions and magnitudes are J2000 epoch coordinates compiled
+from standard references including the original Messier catalog and subsequent
+corrections. The Messier catalog is in the public domain.

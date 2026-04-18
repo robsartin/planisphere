@@ -345,4 +345,36 @@ describe("createTooltip", () => {
     // Should have pointer-events enabled (not none) so close button is clickable
     expect(pinnedDiv.style.pointerEvents).not.toBe("none");
   });
+
+  it("shows tooltip with Messier object info when a VisibleMessier billboard is picked", () => {
+    const container = document.createElement("div");
+    const viewer = makeMockViewer();
+    createTooltip(viewer as never, container);
+
+    const moveCallback = mockSetInputAction.mock.calls[0]![0] as (movement: {
+      endPosition: { x: number; y: number };
+    }) => void;
+
+    mockPick.mockReset();
+    mockPick.mockReturnValueOnce({
+      id: {
+        m: 42,
+        name: "Orion Nebula",
+        type: "nebula",
+        alt: 45.2,
+        az: 180.3,
+        ra: 83.8221,
+        dec: -5.3911,
+        mag: 4.0,
+      },
+    });
+    moveCallback({ endPosition: { x: 100, y: 200 } });
+
+    const tooltipDiv = container.querySelector("div")!;
+    expect(tooltipDiv.style.display).toBe("block");
+    expect(tooltipDiv.innerHTML).toContain("M42");
+    expect(tooltipDiv.innerHTML).toContain("Orion Nebula");
+    expect(tooltipDiv.innerHTML).toContain("nebula");
+    expect(tooltipDiv.innerHTML).toContain("4.0");
+  });
 });
