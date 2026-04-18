@@ -15,6 +15,7 @@ import {
 import {
   createViewer,
   initCamera,
+  setupTrackballControls,
   createStarLayer,
   createBodyLayer,
   createTooltip,
@@ -154,6 +155,7 @@ export async function bootstrap(
   const viewer = viewerResult.value;
 
   initCamera(viewer.camera, state.observer.lat, state.observer.lon);
+  setupTrackballControls(viewer);
 
   // Create all layers
   const layers: Layers = {
