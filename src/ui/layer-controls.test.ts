@@ -9,6 +9,7 @@ const DEFAULT_VISIBILITY: LayerVisibility = {
   planets: true,
   satellites: true,
   compass: true,
+  deepSky: true,
 };
 
 const DEFAULT_OPACITY: LayerOpacity = {
@@ -32,9 +33,9 @@ describe("createLayerControls", () => {
     expect(el).toBeInstanceOf(HTMLElement);
   });
 
-  it("renders a toggle checkbox for each toggle layer (stars, planets, satellites, compass)", () => {
+  it("renders a toggle checkbox for each toggle layer (stars, planets, satellites, compass, deepSky)", () => {
     const toggles = el.querySelectorAll("input[type='checkbox']");
-    expect(toggles.length).toBe(4);
+    expect(toggles.length).toBe(5);
   });
 
   it("toggle checkboxes reflect initial visibility state (all true)", () => {

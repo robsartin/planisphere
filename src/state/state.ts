@@ -8,6 +8,7 @@ export type LayerVisibility = {
   readonly planets: boolean;
   readonly satellites: boolean;
   readonly compass: boolean;
+  readonly deepSky: boolean;
 };
 
 export type LayerOpacity = {
@@ -43,6 +44,7 @@ const ALL_LAYER_KEYS: readonly (keyof LayerVisibility)[] = [
   "planets",
   "satellites",
   "compass",
+  "deepSky",
 ];
 
 export const DEFAULT_LAYERS: LayerVisibility = {
@@ -50,6 +52,7 @@ export const DEFAULT_LAYERS: LayerVisibility = {
   planets: true,
   satellites: true,
   compass: true,
+  deepSky: true,
 };
 
 export const DEFAULT_OPACITY: LayerOpacity = {
@@ -98,6 +101,7 @@ function parseLayerVisibility(raw: string | null): LayerVisibility {
     planets: keys.has("planets"),
     satellites: keys.has("satellites"),
     compass: keys.has("compass"),
+    deepSky: keys.has("deepSky"),
   };
 }
 

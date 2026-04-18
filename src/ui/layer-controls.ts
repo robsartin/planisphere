@@ -19,6 +19,7 @@ const TOGGLE_LAYERS: LayerDef[] = [
   { key: "planets", label: "Planets ☾" },
   { key: "satellites", label: "Satellites 🛰" },
   { key: "compass", label: "Compass ◎" },
+  { key: "deepSky", label: "Deep Sky \u2726" },
 ];
 
 const LINE_LAYERS: LineDef[] = [
