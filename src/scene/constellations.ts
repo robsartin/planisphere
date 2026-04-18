@@ -12,10 +12,13 @@ import type { Scene } from "cesium";
 import type { VisibleConstellation } from "../astro";
 import { altAzToCartesian } from "./stars";
 
+export type ConstellationNameOverrides = Readonly<Record<string, string>> | null;
+
 export type ConstellationLayer = {
   update: (constellations: VisibleConstellation[], lat: number, lon: number) => void;
   setVisible: (visible: boolean) => void;
   setOpacity: (opacity: number) => void;
+  setNameOverrides: (overrides: ConstellationNameOverrides) => void;
 };
 
 export function createConstellationLayer(scene: Scene): ConstellationLayer {
@@ -25,6 +28,15 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
   scene.primitives.add(labels);
 
   const addedPolylines: Array<{ material: { uniforms: { color: { alpha: number } } } }> = [];
+  let nameOverrides: ConstellationNameOverrides = null;
+
+  function labelFor(c: VisibleConstellation): string {
+    if (nameOverrides !== null) {
+      const translated = nameOverrides[c.id];
+      if (typeof translated === "string" && translated.length > 0) return translated;
+    }
+    return c.name;
+  }
 
   function update(constellations: VisibleConstellation[], lat: number, lon: number): void {
     polylines.removeAll();
@@ -53,7 +65,7 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
       );
       labels.add({
         position: centroidPos,
-        text: constellation.name,
+        text: labelFor(constellation),
         font: "12px sans-serif",
         fillColor: Color.WHITE.withAlpha(0.6),
         style: LabelStyle.FILL,
@@ -77,5 +89,9 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
     }
   }
 
-  return { update, setVisible, setOpacity };
+  function setNameOverrides(overrides: ConstellationNameOverrides): void {
+    nameOverrides = overrides;
+  }
+
+  return { update, setVisible, setOpacity, setNameOverrides };
 }

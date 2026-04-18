@@ -33,3 +33,10 @@ export {
 } from "./messier";
 export { computeMilkyWayPoints } from "./milkyway";
 export { type TrailError, computeBodyTrail } from "./trails";
+export {
+  type Language,
+  type ConstellationNameMap,
+  type ConstellationNamesParseError,
+  LANGUAGES,
+  parseConstellationNames,
+} from "./constellation-names";

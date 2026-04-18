@@ -9,6 +9,7 @@ export { createPlanetInfo } from "./planet-info";
 export { createSearch } from "./search";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
+import type { Language } from "../astro/constellation-names";
 
 export type UIIntent =
   | { type: "set-time"; time: Date }
@@ -20,4 +21,5 @@ export type UIIntent =
   | { type: "set-mag-limit"; value: number }
   | { type: "show-trail"; objectKind: "body"; id: string }
   | { type: "hide-trail" }
+  | { type: "set-language"; language: Language }
   | { type: "now" };

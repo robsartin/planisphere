@@ -261,3 +261,62 @@ describe("magLimit — serialize round-trip", () => {
     expect(s2.magLimit).toBeCloseTo(2.5);
   });
 });
+
+describe("language — defaults", () => {
+  it("defaults to 'la' (Latin) when lang param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.language).toBe("la");
+  });
+
+  it("DEFAULT_STATE.language is 'la'", () => {
+    expect(DEFAULT_STATE.language).toBe("la");
+  });
+});
+
+describe("language — parse from URL", () => {
+  it("parses lang=en as English", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "en" })));
+    expect(s.language).toBe("en");
+  });
+
+  it("parses lang=zh as Chinese", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "zh" })));
+    expect(s.language).toBe("zh");
+  });
+
+  it("parses lang=ar as Arabic", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "ar" })));
+    expect(s.language).toBe("ar");
+  });
+
+  it("parses lang=el as Greek", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "el" })));
+    expect(s.language).toBe("el");
+  });
+
+  it("falls back to 'la' for unknown language code", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "xx" })));
+    expect(s.language).toBe("la");
+  });
+});
+
+describe("language — serialize round-trip", () => {
+  it("omits lang param when at default ('la')", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("lang")).toBe(false);
+  });
+
+  it("writes lang param when not at default", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "en" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("lang")).toBe("en");
+  });
+
+  it("round-trips a non-default language", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ lang: "zh" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.language).toBe("zh");
+  });
+});

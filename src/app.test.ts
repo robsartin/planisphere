@@ -443,6 +443,34 @@ describe("handleIntent routing", () => {
     vi.useRealTimers();
   });
 
+  it("set-language intent updates URL with lang param", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    await bootstrap(root);
+    spy.mockClear();
+    capturedDispatch!({ type: "set-language", language: "zh" });
+    expect(spy).toHaveBeenCalled();
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).toContain("lang=zh");
+    spy.mockRestore();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-language back to 'la' removes lang param from URL", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ lang: "zh" }));
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    capturedDispatch!({ type: "set-language", language: "la" });
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).not.toContain("lang=");
+    spy.mockRestore();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
   it("now intent handles missing geolocation API gracefully", async () => {
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();

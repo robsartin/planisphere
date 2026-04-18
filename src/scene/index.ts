@@ -4,7 +4,11 @@ export { initCamera, setCameraView, setupTrackballControls } from "./camera";
 export { type StarLayer, createStarLayer } from "./stars";
 export { type Tooltip, createTooltip } from "./tooltip";
 export { type BodyLayer, createBodyLayer } from "./bodies";
-export { type ConstellationLayer, createConstellationLayer } from "./constellations";
+export {
+  type ConstellationLayer,
+  type ConstellationNameOverrides,
+  createConstellationLayer,
+} from "./constellations";
 export { type CompassLayer, createCompassLayer } from "./compass";
 export { type SatelliteLayer, createSatelliteLayer } from "./satellites";
 export { type BoundaryLayer, createBoundaryLayer } from "./boundaries";

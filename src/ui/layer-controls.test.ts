@@ -146,6 +146,51 @@ describe("createLayerControls", () => {
   });
 });
 
+describe("createLayerControls — language dropdown", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "la");
+  });
+
+  it("renders a language select with data-language attribute", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]");
+    expect(select).not.toBeNull();
+  });
+
+  it("includes options for la, en, zh, ar, el", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
+    const values = [...select.options].map((o) => o.value);
+    expect(values).toEqual(expect.arrayContaining(["la", "en", "zh", "ar", "el"]));
+  });
+
+  it("select initialises to the given language", () => {
+    const elEn = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "en");
+    const select = elEn.querySelector<HTMLSelectElement>("select[data-language]")!;
+    expect(select.value).toBe("en");
+  });
+
+  it("changing the select dispatches set-language intent", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
+    select.value = "zh";
+    select.dispatchEvent(new Event("change"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-language");
+    if (intent.type === "set-language") {
+      expect(intent.language).toBe("zh");
+    }
+  });
+
+  it("defaults to 'la' when no initial language is passed", () => {
+    const elDefault = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch);
+    const select = elDefault.querySelector<HTMLSelectElement>("select[data-language]")!;
+    expect(select.value).toBe("la");
+  });
+});
+
 describe("createLayerControls — magnitude slider", () => {
   let dispatch: ReturnType<typeof vi.fn>;
   let el: HTMLElement;

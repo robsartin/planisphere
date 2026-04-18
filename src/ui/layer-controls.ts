@@ -2,6 +2,15 @@
 import { applyBaseText, ACCENT_COLOR, GAP } from "./styles";
 import type { UIIntent } from "./index";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
+import { LANGUAGES, type Language } from "../astro/constellation-names";
+
+const LANGUAGE_LABELS: Record<Language, string> = {
+  la: "Latin",
+  en: "English",
+  zh: "中文",
+  ar: "العربية",
+  el: "Ελληνικά",
+};
 
 type LayerDef = {
   key: keyof LayerVisibility;
@@ -36,6 +45,7 @@ export function createLayerControls(
   initialOpacity: LayerOpacity,
   dispatch: (intent: UIIntent) => void,
   initialMagLimit = 6.0,
+  initialLanguage: Language = "la",
 ): HTMLElement {
   const visibility = { ...initialVisibility };
 
@@ -165,6 +175,40 @@ export function createLayerControls(
   magRow.appendChild(magLabel);
   magRow.appendChild(magSlider);
   section.appendChild(magRow);
+
+  // Language dropdown (constellation label language)
+  const langHeading = document.createElement("div");
+  langHeading.textContent = "Constellation Names";
+  langHeading.style.fontWeight = "bold";
+  langHeading.style.marginTop = "8px";
+  langHeading.style.marginBottom = GAP;
+  applyBaseText(langHeading);
+  section.appendChild(langHeading);
+
+  const langRow = document.createElement("div");
+  langRow.style.marginBottom = "6px";
+
+  const langSelect = document.createElement("select");
+  langSelect.dataset.language = "";
+  langSelect.style.width = "100%";
+  applyBaseText(langSelect);
+  langSelect.style.fontSize = "12px";
+
+  for (const code of LANGUAGES) {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = LANGUAGE_LABELS[code];
+    if (code === initialLanguage) option.selected = true;
+    langSelect.appendChild(option);
+  }
+
+  langSelect.addEventListener("change", () => {
+    const value = langSelect.value as Language;
+    dispatch({ type: "set-language", language: value });
+  });
+
+  langRow.appendChild(langSelect);
+  section.appendChild(langRow);
 
   return section;
 }
