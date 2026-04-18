@@ -269,7 +269,13 @@ export async function bootstrap(
   }
   const viewer = viewerResult.value;
 
-  initCamera(viewer.camera, state.observer.lat, state.observer.lon);
+  setCameraView(
+    viewer.camera,
+    state.observer.lat,
+    state.observer.lon,
+    state.view.az,
+    state.view.alt,
+  );
   setupTrackballControls(viewer);
 
   // Create all layers
@@ -384,7 +390,9 @@ export async function bootstrap(
         break;
       }
       case "set-view": {
+        state = { ...state, view: { az: intent.az, alt: intent.alt } };
         setCameraView(viewer.camera, state.observer.lat, state.observer.lon, intent.az, intent.alt);
+        updateUrl(state);
         break;
       }
     }
