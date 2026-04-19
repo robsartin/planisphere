@@ -50,6 +50,47 @@ function makeIssPass(when: Date): CelestialEvent {
   };
 }
 
+describe("createEventsPanel — ISS Go-to dispatches view aim", () => {
+  it("on 'Go to' for an ISS pass, dispatches set-time AND set-view to peak az/alt so the camera points at the ISS", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2026-06-10T10:00:00Z");
+    const issEvent = makeIssPass(when);
+    const el = createEventsPanel([issEvent], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
+    const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
+    const hasSetTime = calls.some((c) => c.type === "set-time");
+    const hasSetView = calls.some((c) => c.type === "set-view");
+    expect(hasSetTime).toBe(true);
+    expect(hasSetView).toBe(true);
+    const viewIntent = calls.find((c) => c.type === "set-view") as
+      | { type: "set-view"; az: number; alt: number }
+      | undefined;
+    expect(viewIntent?.az).toBe(157);
+    expect(viewIntent?.alt).toBe(43);
+  });
+
+  it("on 'Go to' for a non-ISS event, only dispatches set-time (no set-view)", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2026-06-10T10:00:00Z");
+    const conjEvent: CelestialEvent = {
+      kind: "conjunction",
+      when,
+      title: "Moon — Venus conjunction",
+      description: "within 2°",
+      body1: "Moon",
+      body2: "Venus",
+      separationDeg: 2,
+    };
+    const el = createEventsPanel([conjEvent], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
+    const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
+    expect(calls.some((c) => c.type === "set-time")).toBe(true);
+    expect(calls.some((c) => c.type === "set-view")).toBe(false);
+  });
+});
+
 describe("createEventsPanel", () => {
   it("returns an HTMLElement", () => {
     const el = createEventsPanel([], vi.fn());

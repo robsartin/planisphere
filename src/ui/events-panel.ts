@@ -121,6 +121,12 @@ export function createEventsPanel(
       gotoBtn.style.cursor = "pointer";
       gotoBtn.addEventListener("click", () => {
         dispatch({ type: "set-time", time: event.when });
+        // For ISS passes, also aim the camera at the peak position so the
+        // satellite is actually in the user's field of view rather than the
+        // camera staying at whatever direction it was last pointed.
+        if (event.kind === "iss-pass") {
+          dispatch({ type: "set-view", az: event.peakAzDeg, alt: event.peakAltDeg });
+        }
       });
       titleRow.appendChild(gotoBtn);
       row.appendChild(titleRow);

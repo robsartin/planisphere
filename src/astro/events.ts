@@ -271,20 +271,20 @@ function formatLocalTime(d: Date): string {
   return `${h}:${m}`;
 }
 
-/** Turn an IssPass into a CelestialEvent. `when` is the rise time so the event merges
- *  correctly into the sorted-by-time list. */
+/** Turn an IssPass into a CelestialEvent. `when` is the peak time so Go-to jumps to
+ *  the highest-altitude (easiest viewing) moment of the pass rather than to the horizon. */
 function toIssPassEvent(pass: IssPass): IssPassEvent {
   const durationSec = Math.round((pass.set.getTime() - pass.rise.getTime()) / 1000);
   const minutes = Math.max(1, Math.round(durationSec / 60));
   const peakAltInt = Math.round(pass.peak.altDeg);
-  const riseCompass = azToCompass(pass.peak.azDeg);
+  const peakCompass = azToCompass(pass.peak.azDeg);
   const setLocal = formatLocalTime(pass.set);
   const peakLocal = formatLocalTime(pass.peak.time);
   return {
     kind: "iss-pass",
-    when: pass.rise,
+    when: pass.peak.time,
     title: `ISS pass — peaks at ${peakAltInt}° altitude`,
-    description: `Peaks ${peakAltInt}° in the ${riseCompass} at ${peakLocal} local, sets ${setLocal} (${minutes} min pass).`,
+    description: `Peaks ${peakAltInt}° in the ${peakCompass} at ${peakLocal} local, sets ${setLocal} (${minutes} min pass).`,
     peakAltDeg: pass.peak.altDeg,
     peakAzDeg: pass.peak.azDeg,
     durationSec,

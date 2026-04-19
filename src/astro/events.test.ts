@@ -219,6 +219,28 @@ describe("computeUpcomingEvents", () => {
     expect(issEvents).toHaveLength(0);
   });
 
+  it("sets ISS event 'when' to the peak time (not the rise time) so Go-to jumps to the easiest viewing moment", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter(
+      (e): e is Extract<CelestialEvent, { kind: "iss-pass" }> => e.kind === "iss-pass",
+    );
+    expect(issEvents.length).toBeGreaterThan(0);
+    for (const e of issEvents) {
+      // The description lists a peak time in local-time HH:MM; parse it back out
+      // and confirm `when` matches. (Regression guard: we used to emit rise time.)
+      const m = /Peaks \d+° in the [A-Z]+ at (\d{2}:\d{2}) local/.exec(e.description);
+      expect(m).not.toBeNull();
+      if (m === null) continue;
+      const [peakH, peakM] = m[1]!.split(":").map(Number);
+      expect(e.when.getHours()).toBe(peakH);
+      expect(e.when.getMinutes()).toBe(peakM);
+    }
+  });
+
   it("returns no ISS passes when no record matches ISS", () => {
     const now = new Date("2024-04-10T00:00:00Z");
     const hubbleOnly = `HUBBLE
