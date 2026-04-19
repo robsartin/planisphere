@@ -200,6 +200,64 @@ describe("createPanel", () => {
     });
   });
 
+  describe("mode-toggle button", () => {
+    it("renders a mode-toggle button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-mode']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("renders the 🌃 icon while in planetarium mode", () => {
+      const { element } = createPanel(container, vi.fn(), { mode: "planetarium" });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      expect(btn.textContent).toBe("\u{1F303}");
+    });
+
+    it("renders the 📓 icon while in notebook mode", () => {
+      const { element } = createPanel(container, vi.fn(), { mode: "notebook" });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      expect(btn.textContent).toBe("\u{1F4D3}");
+    });
+
+    it("defaults the icon to 🌃 when no mode is provided (planetarium default)", () => {
+      const { element } = createPanel(container, vi.fn());
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      expect(btn.textContent).toBe("\u{1F303}");
+    });
+
+    it("clicking in planetarium mode dispatches set-mode notebook", () => {
+      const dispatch = vi.fn();
+      const { element } = createPanel(container, dispatch, { mode: "planetarium" });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      btn.click();
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "set-mode",
+        mode: "notebook",
+      } satisfies UIIntent);
+    });
+
+    it("clicking in notebook mode dispatches set-mode planetarium", () => {
+      const dispatch = vi.fn();
+      const { element } = createPanel(container, dispatch, { mode: "notebook" });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      btn.click();
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "set-mode",
+        mode: "planetarium",
+      } satisfies UIIntent);
+    });
+
+    it("setMode updates the button icon", () => {
+      const { element, setMode } = createPanel(container, vi.fn(), { mode: "planetarium" });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      expect(btn.textContent).toBe("\u{1F303}");
+      setMode("notebook");
+      expect(btn.textContent).toBe("\u{1F4D3}");
+      setMode("planetarium");
+      expect(btn.textContent).toBe("\u{1F303}");
+    });
+  });
+
   describe("copy-link button", () => {
     beforeEach(() => {
       Object.defineProperty(navigator, "clipboard", {

@@ -85,6 +85,7 @@ import {
   createLocationPickerOverlay,
   createEmptySkyPopover,
   createOnboardingOverlay,
+  createNotebookWorkspace,
   ONBOARDING_STORAGE_KEY,
 } from "./ui";
 import type { OnboardingStep } from "./ui";
@@ -1063,6 +1064,7 @@ export async function bootstrap(
 
   let bottomHud: BottomHud | null = null;
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
+  let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
 
   // Intent handler
   function handleIntent(intent: UIIntent): void {
@@ -1161,6 +1163,13 @@ export async function bootstrap(
       case "set-fov": {
         state = { ...state, fov: intent.preset };
         layers.reticle?.setPreset(intent.preset);
+        updateUrl(state);
+        break;
+      }
+      case "set-mode": {
+        state = { ...state, mode: intent.mode };
+        notebookWorkspace?.setVisible(intent.mode === "notebook");
+        nightVisionPanel?.setMode(intent.mode);
         updateUrl(state);
         break;
       }
@@ -1357,6 +1366,18 @@ export async function bootstrap(
   });
   document.body.appendChild(locationPicker.element);
 
+  // Notebook workspace (milestone 2A of Plan 07, issue #216). Right-side shell
+  // shown only when state.mode === "notebook". Content is a placeholder +
+  // localStorage-backed scratch textarea; the real editor arrives in #219.
+  notebookWorkspace = createNotebookWorkspace({
+    getCurrentView: () => ({
+      href: globalThis.location.href,
+      timeUtc: state.timeUtc,
+    }),
+  });
+  document.body.appendChild(notebookWorkspace.element);
+  notebookWorkspace.setVisible(state.mode === "notebook");
+
   // Poll the camera heading on each animation frame so the compass chip mirrors
   // drag-rotation of the view. Cesium's camera doesn't emit a change event.
   const raf =
@@ -1408,6 +1429,7 @@ export async function bootstrap(
         if (settingsDrawer.isOpen()) settingsDrawer.close();
         tonightDrawer?.open();
       },
+      mode: state.mode,
     });
     nightVisionPanel = panel;
     if (state.nightVision) {

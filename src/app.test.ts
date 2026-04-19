@@ -239,7 +239,14 @@ let capturedPanelOptions: {
   onOpenSettings?: () => void;
   onOpenHelp?: () => void;
   onOpenTonight?: () => void;
+  mode?: "planetarium" | "notebook";
 } | null = null;
+let notebookWorkspaceMock: {
+  element: HTMLElement;
+  setVisible: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
+} | null = null;
+let panelSetModeMock: ReturnType<typeof vi.fn> | null = null;
 let settingsDrawerMock: {
   open: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
@@ -279,14 +286,18 @@ vi.mock("./ui", () => ({
         onOpenSettings?: () => void;
         onOpenHelp?: () => void;
         onOpenTonight?: () => void;
+        mode?: "planetarium" | "notebook";
       },
     ) => {
       capturedPanelOptions = options ?? null;
+      const setMode = vi.fn();
+      panelSetModeMock = setMode;
       return {
         element: document.createElement("div"),
         setContent: vi.fn(),
         setCollapsed: vi.fn(),
         setNightVision: vi.fn(),
+        setMode,
       };
     },
   ),
@@ -418,6 +429,18 @@ vi.mock("./ui", () => ({
         isOpen: vi.fn().mockReturnValue(false),
       };
     }),
+  createNotebookWorkspace: vi.fn().mockImplementation(() => {
+    const element = document.createElement("aside");
+    element.dataset.testid = "notebook-workspace";
+    const mock = {
+      element,
+      setVisible: vi.fn(),
+      destroy: vi.fn(),
+    };
+    notebookWorkspaceMock = mock;
+    return mock;
+  }),
+  NOTEBOOK_SCRATCH_STORAGE_KEY: "planisphere.notebook.scratch.v1",
   createOnboardingOverlay: vi.fn().mockImplementation(() => {
     const element = document.createElement("div");
     element.dataset.testid = "onboarding-overlay";
@@ -1617,6 +1640,122 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
     document
       .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("mounts the notebook workspace on the document body", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(notebookWorkspaceMock).not.toBeNull();
+    expect(document.querySelector("[data-testid='notebook-workspace']")).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("notebook workspace starts hidden in planetarium mode", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(notebookWorkspaceMock).not.toBeNull();
+    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(false);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("notebook workspace is shown when bootstrapping with mode=notebook", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ mode: "notebook" }));
+    expect(notebookWorkspaceMock).not.toBeNull();
+    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("set-mode intent toggles the notebook workspace visibility", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(notebookWorkspaceMock).not.toBeNull();
+    notebookWorkspaceMock!.setVisible.mockClear();
+    capturedDispatch!({ type: "set-mode", mode: "notebook" });
+    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    capturedDispatch!({ type: "set-mode", mode: "planetarium" });
+    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(false);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("set-mode intent updates URL with mode param when notebook, removes it when planetarium", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    const { root, panelRoot } = makeRoot();
+    const spy = vi.spyOn(globalThis.history, "replaceState");
+    await bootstrap(root);
+    spy.mockClear();
+
+    capturedDispatch!({ type: "set-mode", mode: "notebook" });
+    let lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).toContain("mode=notebook");
+
+    capturedDispatch!({ type: "set-mode", mode: "planetarium" });
+    lastCall = spy.mock.calls[spy.mock.calls.length - 1]!;
+    expect(String(lastCall[2])).not.toContain("mode=");
+
+    spy.mockRestore();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("set-mode intent updates the panel's mode-toggle icon via setMode", async () => {
+    capturedDispatch = null;
+    panelSetModeMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(panelSetModeMock).not.toBeNull();
+    panelSetModeMock!.mockClear();
+    capturedDispatch!({ type: "set-mode", mode: "notebook" });
+    expect(panelSetModeMock).toHaveBeenCalledWith("notebook");
+    capturedDispatch!({ type: "set-mode", mode: "planetarium" });
+    expect(panelSetModeMock).toHaveBeenCalledWith("planetarium");
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("panel receives the initial mode option at bootstrap", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ mode: "notebook" }));
+    expect(capturedPanelOptions).not.toBeNull();
+    expect(capturedPanelOptions!.mode).toBe("notebook");
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
