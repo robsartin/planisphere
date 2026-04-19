@@ -1016,3 +1016,34 @@ These secrets are already configured in the `robsartin/planisphere` repo. They'r
 - **Cloudflare dashboard:** Pages → planisphere → Deployments. Shows all deploys with status, build logs, and URLs.
 - **GitHub PR checks:** The "Workers Builds: planisphere" check shows pass/fail and links to the Cloudflare build log.
 - **Production URL:** After deploy, the site is live immediately. No cache invalidation needed — Cloudflare handles it.
+
+## Phase 2 runtime environment
+
+> Stub. Phase 2 infrastructure (Notebook / paid tier) has not shipped yet. This section records the shape of the chosen backend so that subsequent issues (#218 onward) can land against a written target. For the decision rationale see [ADR 009 — Backend selection: Cloudflare Workers + D1](./adr/009-backend-selection.md).
+
+Phase 2 keeps the static SPA on Cloudflare Pages unchanged and adds a **Cloudflare Worker** alongside it for all server-side concerns: auth callbacks (magic-link / OAuth), notebook CRUD, Stripe webhooks, and OpenGraph thumbnail SSR. The Worker is the only piece that talks to the database — the browser never sees D1 directly, it hits `/api/*` on the same origin as the SPA. Pages continues to serve the bundled HTML/JS/CSS/data from the edge cache; the Worker handles anything that isn't a static asset.
+
+Persistent state lives in **D1**, Cloudflare's edge SQLite. The schema (to be landed with the first auth milestone) covers users, sessions, notebooks, and subscription state. Reads are single-row or short-list queries keyed by user id; there is no heavy analytical workload. If that changes — vector search for linked entities, for instance — the ADR flags Neon-behind-Workers as the natural escape hatch without client-visible impact.
+
+Auth tokens are JWTs minted by the Worker after a magic-link or OAuth round-trip and stored in an HTTP-only, SameSite=Lax cookie scoped to the app's origin. The Worker verifies the cookie on every authenticated request; the browser never stores a bearer token in JS. Pro-only routes that don't need any free-tier handling — e.g. the 4K export endpoint — are additionally fronted by **Cloudflare Access** (Rung 3 of the entitlement ladder), which enforces the paid-subscriber claim at the edge before the Worker runs. Mixed free/trial/paid routes (most of the Notebook API) stay gated in Worker code against D1 because they need to return tier-specific responses rather than 403.
+
+Local development runs the full stack via `wrangler dev`: a local Worker instance bound to a local D1 (SQLite file), with the Pages SPA served by Vite against it. Contributors need `wrangler` on their PATH; no Docker, no separate database process. Migrations are committed as SQL files and applied with `wrangler d1 migrations apply`. Secrets (`JWT_SIGNING_KEY`, Stripe keys, OAuth client secrets) live in `wrangler secret` for production and a gitignored `.dev.vars` for local.
+
+```mermaid
+flowchart LR
+    Browser["Browser<br/>(static SPA)"]
+    Pages["Cloudflare Pages<br/>(dist/ — HTML/JS/CSS/data)"]
+    Worker["Cloudflare Worker<br/>/api/* handlers<br/>auth • notebooks • stripe • og"]
+    Access["Cloudflare Access<br/>(Pro-only route gate)"]
+    D1[("D1 — SQLite at edge<br/>users • sessions<br/>notebooks • subs")]
+    Stripe["Stripe<br/>(webhooks)"]
+
+    Browser -->|HTML/JS load| Pages
+    Browser -->|fetch /api/*| Worker
+    Browser -->|fetch /api/pro/*| Access
+    Access -->|JWT verified| Worker
+    Worker --> D1
+    Stripe -->|webhook| Worker
+```
+
+No infrastructure code has landed yet — this section describes the target. See the Phase 2 milestones in `docs/plans/2026-04-19-07-ux-transformation.md` for the issue sequence (#218 auth first, then notebook CRUD, then billing).
