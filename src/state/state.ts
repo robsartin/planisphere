@@ -28,6 +28,8 @@ export type ViewDirection = {
   readonly alt: number;
 };
 
+export type AppMode = "planetarium" | "notebook";
+
 export type AppState = {
   readonly observer: Observer;
   readonly timeUtc: Date;
@@ -39,6 +41,7 @@ export type AppState = {
   readonly language: Language;
   readonly fov: FovPresetId; // telescope FOV reticle preset, default "off"
   readonly skyculture: SkycultureId; // asterism set, default "western"
+  readonly mode: AppMode; // app-surface mode, default "planetarium"
 };
 
 export type StateParseError =
@@ -80,6 +83,7 @@ export const DEFAULT_MAG_LIMIT = 6.0;
 export const DEFAULT_LANGUAGE: Language = "la";
 export const DEFAULT_FOV: FovPresetId = "off";
 export const DEFAULT_SKYCULTURE: SkycultureId = "western";
+export const DEFAULT_MODE: AppMode = "planetarium";
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
@@ -92,6 +96,7 @@ export const DEFAULT_STATE: AppState = {
   language: DEFAULT_LANGUAGE,
   fov: DEFAULT_FOV,
   skyculture: DEFAULT_SKYCULTURE,
+  mode: DEFAULT_MODE,
 };
 
 function parseLat(raw: string): Result<number, StateParseError> {
@@ -143,6 +148,12 @@ function parseMagLimit(raw: string | null): number {
 function parseLanguage(raw: string | null): Language {
   if (raw === null) return DEFAULT_LANGUAGE;
   return (LANGUAGES as readonly string[]).includes(raw) ? (raw as Language) : DEFAULT_LANGUAGE;
+}
+
+function parseMode(raw: string | null): AppMode {
+  if (raw === "notebook") return "notebook";
+  if (raw === "planetarium") return "planetarium";
+  return DEFAULT_MODE;
 }
 
 export function parseStateFromSearchParams(
@@ -202,6 +213,7 @@ export function parseStateFromSearchParams(
   const language = parseLanguage(params.get("lang"));
   const fov = parseFovPreset(params.get("fov"));
   const skyculture = parseSkyculture(params.get("sky"));
+  const mode = parseMode(params.get("mode"));
 
   return ok({
     observer: { lat, lon },
@@ -214,6 +226,7 @@ export function parseStateFromSearchParams(
     language,
     fov,
     skyculture,
+    mode,
   });
 }
 
@@ -275,6 +288,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.skyculture !== DEFAULT_SKYCULTURE) {
     params.set("sky", state.skyculture);
+  }
+
+  if (state.mode !== DEFAULT_MODE) {
+    params.set("mode", state.mode);
   }
 
   return params;

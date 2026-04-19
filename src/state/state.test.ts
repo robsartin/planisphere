@@ -432,3 +432,52 @@ describe("fov preset — serialize round-trip", () => {
     expect(s2.fov).toBe("binoculars");
   });
 });
+
+describe("mode — defaults", () => {
+  it("defaults to 'planetarium' when mode param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.mode).toBe("planetarium");
+  });
+
+  it("DEFAULT_STATE.mode is 'planetarium'", () => {
+    expect(DEFAULT_STATE.mode).toBe("planetarium");
+  });
+});
+
+describe("mode — parse from URL", () => {
+  it("parses mode=notebook as Notebook", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mode: "notebook" })));
+    expect(s.mode).toBe("notebook");
+  });
+
+  it("parses mode=planetarium as Planetarium", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mode: "planetarium" })));
+    expect(s.mode).toBe("planetarium");
+  });
+
+  it("falls back to 'planetarium' for unknown mode value", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mode: "wat" })));
+    expect(s.mode).toBe("planetarium");
+  });
+});
+
+describe("mode — serialize round-trip", () => {
+  it("omits mode param when at default ('planetarium')", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("mode")).toBe(false);
+  });
+
+  it("writes mode param when set to 'notebook'", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mode: "notebook" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("mode")).toBe("notebook");
+  });
+
+  it("round-trips a non-default mode", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ mode: "notebook" })));
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.mode).toBe("notebook");
+  });
+});

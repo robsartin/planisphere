@@ -42,6 +42,8 @@ export type {
 } from "./location-picker-overlay";
 export { createCommandPalette } from "./command-palette";
 export type { CommandPalette, CommandPaletteOptions } from "./command-palette";
+export { createNotebookWorkspace, NOTEBOOK_SCRATCH_STORAGE_KEY } from "./notebook-workspace";
+export type { NotebookWorkspace, NotebookWorkspaceOptions } from "./notebook-workspace";
 export { buildPaletteResults, fuzzyScore } from "./palette-results";
 export type {
   PaletteResult,
@@ -67,7 +69,7 @@ export type {
   OpenCardRequest,
 } from "./object-cards-manager";
 
-import type { LayerVisibility, LayerOpacity } from "../state/state";
+import type { LayerVisibility, LayerOpacity, AppMode } from "../state/state";
 import type { Language } from "../astro/constellation-names";
 import type { FovPresetId } from "../astro/fov-presets";
 import type { SkycultureId } from "../astro/skycultures";
@@ -85,6 +87,7 @@ export type UIIntent =
   | { type: "set-language"; language: Language }
   | { type: "set-skyculture"; id: SkycultureId }
   | { type: "set-fov"; preset: FovPresetId }
+  | { type: "set-mode"; mode: AppMode }
   | { type: "now" }
   | { type: "open-location-picker" }
   | { type: "toggle-animation" }

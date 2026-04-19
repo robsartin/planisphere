@@ -9,12 +9,17 @@ import {
   applyButton,
 } from "./styles";
 import type { UIIntent } from "./index";
+import type { AppMode } from "../state/state";
+
+const MODE_ICON_PLANETARIUM = "\u{1F303}"; // 🌃 shown while in planetarium mode
+const MODE_ICON_NOTEBOOK = "\u{1F4D3}"; // 📓 shown while in notebook mode
 
 export type Panel = {
   element: HTMLElement;
   setContent: (child: HTMLElement) => void;
   setCollapsed: (collapsed: boolean) => void;
   setNightVision: (on: boolean) => void;
+  setMode: (mode: AppMode) => void;
 };
 
 export type PanelOptions = {
@@ -22,6 +27,8 @@ export type PanelOptions = {
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
   onOpenTonight?: () => void;
+  /** Current app mode — controls the 🌃/📓 toggle icon. Defaults to "planetarium". */
+  mode?: AppMode;
 };
 
 export function createPanel(
@@ -99,6 +106,13 @@ export function createPanel(
   settingsBtn.title = "Settings";
   applyButton(settingsBtn);
 
+  let currentMode: AppMode = options.mode ?? "planetarium";
+  const modeBtn = document.createElement("button");
+  modeBtn.dataset.testid = "panel-mode";
+  modeBtn.textContent = currentMode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
+  modeBtn.title = "Toggle Planetarium / Notebook";
+  applyButton(modeBtn);
+
   const toggleBtn = document.createElement("button");
   toggleBtn.dataset.testid = "panel-toggle";
   toggleBtn.textContent = "\u2212";
@@ -111,6 +125,7 @@ export function createPanel(
   btnGroup.appendChild(tonightBtn);
   btnGroup.appendChild(helpBtn);
   btnGroup.appendChild(settingsBtn);
+  btnGroup.appendChild(modeBtn);
   btnGroup.appendChild(toggleBtn);
 
   header.appendChild(title);
@@ -145,6 +160,11 @@ export function createPanel(
 
   settingsBtn.addEventListener("click", () => {
     options.onOpenSettings?.();
+  });
+
+  modeBtn.addEventListener("click", () => {
+    const next: AppMode = currentMode === "planetarium" ? "notebook" : "planetarium";
+    dispatch({ type: "set-mode", mode: next });
   });
 
   copyLinkBtn.addEventListener("click", () => {
@@ -197,5 +217,10 @@ export function createPanel(
     }
   }
 
-  return { element: panel, setContent, setCollapsed, setNightVision };
+  function setMode(mode: AppMode): void {
+    currentMode = mode;
+    modeBtn.textContent = mode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
+  }
+
+  return { element: panel, setContent, setCollapsed, setNightVision, setMode };
 }
