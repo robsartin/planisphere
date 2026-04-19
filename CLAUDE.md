@@ -80,10 +80,20 @@ Once scaffolded:
 - `pnpm test` — run Vitest
 - `pnpm test:cov` — run with coverage (what CI enforces)
 - `pnpm lint` — ESLint
+- `pnpm format:check` — Prettier (check only; CI runs this exact command)
+- `pnpm format` — Prettier with `--write` (fixes formatting in place)
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm build` — production build into `dist/`
 
-A change is not "done" until `pnpm typecheck && pnpm lint && pnpm test:cov && pnpm build` all pass locally.
+A change is not "done" — and **must not be pushed to a PR branch** — until ALL of these pass locally, in order:
+
+```
+pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:cov && pnpm build
+```
+
+Treat that one-liner as the canonical pre-push gate. CI runs the same set; skipping `format:check` locally is the most common reason a PR shows red on GitHub after the author's tests all passed. Prettier errors are boring to chase down post-push — fix them before.
+
+If you're about to push and haven't run this full sequence, run it. If anything fails, fix it before pushing (don't push expecting CI to tell you).
 
 ## Working style
 
