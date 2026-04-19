@@ -182,27 +182,21 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  handler.setInputAction(
-    (event: ScreenSpaceEventHandler.TwoPointEvent) => {
-      pinchStartDistance = distance(event.position1, event.position2);
-      pinchStartFovDeg = getCameraFovDeg(camera);
-    },
-    ScreenSpaceEventType.PINCH_START,
-  );
+  handler.setInputAction((event: ScreenSpaceEventHandler.TwoPointEvent) => {
+    pinchStartDistance = distance(event.position1, event.position2);
+    pinchStartFovDeg = getCameraFovDeg(camera);
+  }, ScreenSpaceEventType.PINCH_START);
 
-  handler.setInputAction(
-    (event: ScreenSpaceEventHandler.TwoPointMotionEvent) => {
-      if (pinchStartDistance <= 0) return;
-      const currentDistance = distance(event.position1, event.position2);
-      if (currentDistance <= 0) return;
-      // Fingers apart → larger distance → zoom in (smaller FOV)
-      const ratio = pinchStartDistance / currentDistance;
-      const next = clampFov(pinchStartFovDeg * ratio);
-      setCameraFovDeg(camera, next);
-      options.onZoom?.();
-    },
-    ScreenSpaceEventType.PINCH_MOVE,
-  );
+  handler.setInputAction((event: ScreenSpaceEventHandler.TwoPointMotionEvent) => {
+    if (pinchStartDistance <= 0) return;
+    const currentDistance = distance(event.position1, event.position2);
+    if (currentDistance <= 0) return;
+    // Fingers apart → larger distance → zoom in (smaller FOV)
+    const ratio = pinchStartDistance / currentDistance;
+    const next = clampFov(pinchStartFovDeg * ratio);
+    setCameraFovDeg(camera, next);
+    options.onZoom?.();
+  }, ScreenSpaceEventType.PINCH_MOVE);
 
   handler.setInputAction(() => {
     pinchStartDistance = 0;

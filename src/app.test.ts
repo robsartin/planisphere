@@ -361,9 +361,7 @@ describe("bootstrap", () => {
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
     );
     let wheelFn: ((delta: number) => void) | null = null;
-    let doubleClickFn:
-      | ((ev: { position: { x: number; y: number } }) => void)
-      | null = null;
+    let doubleClickFn: ((ev: { position: { x: number; y: number } }) => void) | null = null;
     for (const h of handlers) {
       for (const call of h.setInputAction.mock.calls) {
         const [fn, type] = call as [unknown, unknown];

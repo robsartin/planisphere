@@ -353,8 +353,13 @@ describe("setupGestures", () => {
     });
     const startCall = mockSetInputAction.mock.calls.find(
       (c: unknown[]) => c[1] === "PINCH_START",
-    ) as [(ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void, string];
-    const moveCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "PINCH_MOVE") as [
+    ) as [
+      (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
+      string,
+    ];
+    const moveCall = mockSetInputAction.mock.calls.find(
+      (c: unknown[]) => c[1] === "PINCH_MOVE",
+    ) as [
       (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
       string,
     ];
@@ -374,7 +379,9 @@ describe("setupGestures", () => {
       resolveObjectAt: () => null,
       onZoom,
     });
-    const moveCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "PINCH_MOVE") as [
+    const moveCall = mockSetInputAction.mock.calls.find(
+      (c: unknown[]) => c[1] === "PINCH_MOVE",
+    ) as [
       (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
       string,
     ];
@@ -392,12 +399,17 @@ describe("setupGestures", () => {
     });
     const startCall = mockSetInputAction.mock.calls.find(
       (c: unknown[]) => c[1] === "PINCH_START",
-    ) as [(ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void, string];
+    ) as [
+      (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
+      string,
+    ];
     const endCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "PINCH_END") as [
       () => void,
       string,
     ];
-    const moveCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "PINCH_MOVE") as [
+    const moveCall = mockSetInputAction.mock.calls.find(
+      (c: unknown[]) => c[1] === "PINCH_MOVE",
+    ) as [
       (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
       string,
     ];
@@ -417,8 +429,13 @@ describe("setupGestures", () => {
     });
     const startCall = mockSetInputAction.mock.calls.find(
       (c: unknown[]) => c[1] === "PINCH_START",
-    ) as [(ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void, string];
-    const moveCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "PINCH_MOVE") as [
+    ) as [
+      (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
+      string,
+    ];
+    const moveCall = mockSetInputAction.mock.calls.find(
+      (c: unknown[]) => c[1] === "PINCH_MOVE",
+    ) as [
       (ev: { position1: { x: number; y: number }; position2: { x: number; y: number } }) => void,
       string,
     ];
