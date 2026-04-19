@@ -41,6 +41,8 @@
   "dependencies": {
     "astronomy-engine": "^2.1.19",
     "cesium": "^1.140.0",
+    "dompurify": "^3.4.0",
+    "marked": "^18.0.2",
     "satellite.js": "^7.0.0"
   }
 }

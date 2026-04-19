@@ -74,6 +74,7 @@ import {
   createSearch,
   createFovControls,
   createEventsPanel,
+  createHelpModal,
 } from "./ui";
 import type { TimeControls } from "./ui";
 import { computeUpcomingEvents } from "./astro/events";
@@ -729,11 +730,17 @@ export async function bootstrap(
     document.body.classList.add("night-vision");
   }
 
+  // Help modal — created once at bootstrap, appended to <body> so it overlays everything.
+  const helpModal = createHelpModal();
+  document.body.appendChild(helpModal.element);
+
   // Build UI panel
   let nightVisionPanel: ReturnType<typeof createPanel> | null = null;
   const panelRoot = document.getElementById("ui-panel-root");
   if (panelRoot) {
-    const panel = createPanel(panelRoot, handleIntent);
+    const panel = createPanel(panelRoot, handleIntent, {
+      onOpenHelp: () => helpModal.open(),
+    });
     nightVisionPanel = panel;
     if (state.nightVision) {
       panel.setNightVision(true);

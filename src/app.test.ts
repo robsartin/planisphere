@@ -216,6 +216,12 @@ vi.mock("./ui", () => ({
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
   createFovControls: vi.fn().mockReturnValue(document.createElement("div")),
   createEventsPanel: vi.fn().mockReturnValue(document.createElement("div")),
+  createHelpModal: vi.fn().mockReturnValue({
+    element: document.createElement("div"),
+    open: vi.fn(),
+    close: vi.fn(),
+    isOpen: vi.fn().mockReturnValue(false),
+  }),
 }));
 
 // Mock the TLE bundled data

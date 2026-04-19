@@ -17,9 +17,14 @@ export type Panel = {
   setNightVision: (on: boolean) => void;
 };
 
+export type PanelOptions = {
+  onOpenHelp?: () => void;
+};
+
 export function createPanel(
   container: HTMLElement,
   dispatch: (intent: UIIntent) => void = () => {},
+  options: PanelOptions = {},
 ): Panel {
   const panel = document.createElement("div");
   panel.style.position = "fixed";
@@ -67,6 +72,12 @@ export function createPanel(
   copyLinkBtn.title = "Copy link";
   applyButton(copyLinkBtn);
 
+  const helpBtn = document.createElement("button");
+  helpBtn.dataset.testid = "panel-help";
+  helpBtn.textContent = "?";
+  helpBtn.title = "Help";
+  applyButton(helpBtn);
+
   const toggleBtn = document.createElement("button");
   toggleBtn.dataset.testid = "panel-toggle";
   toggleBtn.textContent = "⚙";
@@ -75,6 +86,7 @@ export function createPanel(
 
   btnGroup.appendChild(nightVisionBtn);
   btnGroup.appendChild(copyLinkBtn);
+  btnGroup.appendChild(helpBtn);
   btnGroup.appendChild(toggleBtn);
 
   header.appendChild(title);
@@ -93,6 +105,10 @@ export function createPanel(
 
   nightVisionBtn.addEventListener("click", () => {
     dispatch({ type: "toggle-night-vision" });
+  });
+
+  helpBtn.addEventListener("click", () => {
+    options.onOpenHelp?.();
   });
 
   copyLinkBtn.addEventListener("click", () => {
