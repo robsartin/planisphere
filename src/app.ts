@@ -70,7 +70,6 @@ import type { Result } from "./result";
 import {
   createPanel,
   createLocationControls,
-  createLayerControls,
   createViewControls,
   createPlanetInfo,
   createSearch,
@@ -79,6 +78,7 @@ import {
   createHelpModal,
   createBottomHud,
   createCommandPalette,
+  createSettingsDrawer,
 } from "./ui";
 import type { BottomHud, EventsDrawer } from "./ui";
 import type {
@@ -1000,6 +1000,20 @@ export async function bootstrap(
   document.body.appendChild(eventsDrawer.element);
   eventsDrawer.setEvents(cachedEvents);
 
+  // Settings drawer (Plan 07 1E) — slide-in ⚙ drawer that replaces the
+  // Layer block previously rendered in the side panel.
+  const settingsDrawer = createSettingsDrawer({
+    visibility: state.layers,
+    opacity: state.opacity,
+    magLimit: state.magLimit,
+    language: state.language,
+    skyculture: state.skyculture,
+    dispatch: (intent) => {
+      handleIntent(intent);
+    },
+  });
+  document.body.appendChild(settingsDrawer.element);
+
   // Bottom HUD — ambient bar with time, location chip, and compass. Replaces the
   // side-panel Time section (milestone 1A of Plan 07). Appended to <body> so it
   // sits above the cesium canvas independently of the side panel.
@@ -1049,7 +1063,13 @@ export async function bootstrap(
       onOpenEvents: () => {
         // Mutual exclusion: close other open surfaces before opening the drawer.
         if (helpModal.isOpen()) helpModal.close();
+        if (settingsDrawer.isOpen()) settingsDrawer.close();
         eventsDrawer?.open();
+      },
+      onOpenSettings: () => {
+        if (helpModal.isOpen()) helpModal.close();
+        if (eventsDrawer?.isOpen()) eventsDrawer.close();
+        settingsDrawer.open();
       },
     });
     nightVisionPanel = panel;
@@ -1071,16 +1091,6 @@ export async function bootstrap(
 
     const fovEl = createFovControls(state.fov, handleIntent);
     uiContainer.appendChild(fovEl);
-
-    const layerEl = createLayerControls(
-      state.layers,
-      state.opacity,
-      handleIntent,
-      state.magLimit,
-      state.language,
-      state.skyculture,
-    );
-    uiContainer.appendChild(layerEl);
 
     refreshPlanetInfo(state);
     uiContainer.appendChild(planetInfoWrapper);

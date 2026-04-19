@@ -207,9 +207,16 @@ vi.mock("../data/boundaries.json", () => ({
 
 // Captured dispatch function from UI mock — used in intent tests
 let capturedDispatch: ((intent: unknown) => void) | null = null;
-
-// Captured panel options from UI mock — lets tests assert on drawer wiring.
-let capturedPanelOptions: { onOpenEvents?: () => void; onOpenHelp?: () => void } | null = null;
+let capturedPanelOptions: {
+  onOpenEvents?: () => void;
+  onOpenSettings?: () => void;
+  onOpenHelp?: () => void;
+} | null = null;
+let settingsDrawerMock: {
+  open: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  isOpen: ReturnType<typeof vi.fn>;
+} | null = null;
 
 // Captured events-drawer setEvents spy — lets tests assert it was called when
 // `set-time` / `set-observer` / `now` intents fire.
@@ -218,25 +225,26 @@ const eventsDrawerOpen = vi.fn();
 
 // Mock UI modules — they exercise DOM which is fully covered in their own tests
 vi.mock("./ui", () => ({
-  createPanel: vi
-    .fn()
-    .mockImplementation(
-      (
-        _root: HTMLElement,
-        _dispatch: unknown,
-        options?: { onOpenEvents?: () => void; onOpenHelp?: () => void },
-      ) => {
-        capturedPanelOptions = options ?? null;
-        return {
-          element: document.createElement("div"),
-          setContent: vi.fn(),
-          setCollapsed: vi.fn(),
-          setNightVision: vi.fn(),
-        };
+  createPanel: vi.fn().mockImplementation(
+    (
+      _root: HTMLElement,
+      _dispatch: unknown,
+      options?: {
+        onOpenEvents?: () => void;
+        onOpenSettings?: () => void;
+        onOpenHelp?: () => void;
       },
-    ),
+    ) => {
+      capturedPanelOptions = options ?? null;
+      return {
+        element: document.createElement("div"),
+        setContent: vi.fn(),
+        setCollapsed: vi.fn(),
+        setNightVision: vi.fn(),
+      };
+    },
+  ),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
-  createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
   createPlanetInfo: vi.fn().mockReturnValue(document.createElement("div")),
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
@@ -264,6 +272,18 @@ vi.mock("./ui", () => ({
     open: vi.fn(),
     close: vi.fn(),
     isOpen: vi.fn().mockReturnValue(false),
+  }),
+  createSettingsDrawer: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "settings-drawer-root";
+    const mock = {
+      element,
+      open: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+    };
+    settingsDrawerMock = mock;
+    return mock;
   }),
   createBottomHud: vi.fn().mockImplementation((_initial: unknown, dispatch: unknown) => {
     capturedDispatch = dispatch as (intent: unknown) => void;
@@ -999,6 +1019,59 @@ describe("handleIntent routing", () => {
     document
       .querySelectorAll("[data-testid='events-drawer']")
       .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("wires createSettingsDrawer into the panel's onOpenSettings callback", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    settingsDrawerMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(settingsDrawerMock).not.toBeNull();
+    expect(capturedPanelOptions).not.toBeNull();
+    expect(typeof capturedPanelOptions!.onOpenSettings).toBe("function");
+    capturedPanelOptions!.onOpenSettings!();
+    expect(settingsDrawerMock!.open).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("settings drawer is mounted on document.body", async () => {
+    capturedDispatch = null;
+    settingsDrawerMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(document.querySelector("[data-testid='settings-drawer-root']")).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='settings-drawer-root']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("side panel setContent is called without a layer-controls child (moved to drawer)", async () => {
+    const ui = await import("./ui");
+    const panelMock = ui.createPanel as unknown as ReturnType<typeof vi.fn>;
+    const setContent = vi.fn();
+    panelMock.mockReturnValueOnce({
+      element: document.createElement("div"),
+      setContent,
+      setCollapsed: vi.fn(),
+      setNightVision: vi.fn(),
+    });
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(setContent).toHaveBeenCalled();
+    const uiContainer = setContent.mock.calls[0]![0] as HTMLElement;
+    // The drawer-mounted opacity sliders / language selects must NOT appear
+    // in the side panel's UI container anymore.
+    expect(uiContainer.querySelector("select[data-language]")).toBeNull();
+    expect(uiContainer.querySelector("select[data-skyculture]")).toBeNull();
+    expect(uiContainer.querySelector("input[data-mag='limit']")).toBeNull();
+    expect(uiContainer.querySelector("input[data-opacity]")).toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
   });
 
   it("Ctrl+K / Cmd+K opens the command palette via the global keydown handler", async () => {

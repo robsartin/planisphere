@@ -1,6 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createLayerControls } from "./layer-controls";
+import {
+  createVisibilitySection,
+  createOpacitySection,
+  createMagnitudeFilterSection,
+  createLanguageSection,
+  createSkycultureSection,
+} from "./layer-controls";
 import type { UIIntent } from "./index";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 
@@ -21,20 +27,20 @@ const DEFAULT_OPACITY: LayerOpacity = {
   milkyWay: 0.3,
 };
 
-describe("createLayerControls", () => {
+describe("createVisibilitySection", () => {
   let dispatch: ReturnType<typeof vi.fn>;
   let el: HTMLElement;
 
   beforeEach(() => {
     dispatch = vi.fn();
-    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch);
+    el = createVisibilitySection(DEFAULT_VISIBILITY, dispatch);
   });
 
   it("returns an HTMLElement", () => {
     expect(el).toBeInstanceOf(HTMLElement);
   });
 
-  it("renders a toggle checkbox for each toggle layer (stars, planets, satellites, compass, deepSky)", () => {
+  it("renders a checkbox per toggle layer (stars, planets, satellites, compass, deepSky)", () => {
     const toggles = el.querySelectorAll("input[type='checkbox']");
     expect(toggles.length).toBe(5);
   });
@@ -56,40 +62,37 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("renders opacity sliders for all 6 line layers plus the mag slider", () => {
+  it("does not render checkboxes for constellationLines or constellationBoundaries", () => {
+    const clCheckbox = el.querySelector("input[data-layer='constellationLines']");
+    const cbCheckbox = el.querySelector("input[data-layer='constellationBoundaries']");
+    expect(clCheckbox).toBeNull();
+    expect(cbCheckbox).toBeNull();
+  });
+});
+
+describe("createOpacitySection", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createOpacitySection(DEFAULT_OPACITY, dispatch);
+  });
+
+  it("renders opacity sliders for all 6 line layers", () => {
     const sliders = el.querySelectorAll("input[type='range']");
-    expect(sliders.length).toBe(7);
+    expect(sliders.length).toBe(6);
   });
 
-  it("has opacity slider for constellationLines", () => {
-    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='constellationLines']");
-    expect(slider).not.toBeNull();
-  });
-
-  it("has opacity slider for constellationBoundaries", () => {
-    const slider = el.querySelector<HTMLInputElement>(
-      "input[data-opacity='constellationBoundaries']",
-    );
-    expect(slider).not.toBeNull();
-  });
-
-  it("has opacity slider for satelliteTrails", () => {
-    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='satelliteTrails']");
-    expect(slider).not.toBeNull();
-  });
-
-  it("has opacity slider for raDecGrid", () => {
-    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='raDecGrid']");
-    expect(slider).not.toBeNull();
-  });
-
-  it("has opacity slider for ecliptic", () => {
-    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='ecliptic']");
-    expect(slider).not.toBeNull();
-  });
-
-  it("has opacity slider for milkyWay", () => {
-    const slider = el.querySelector<HTMLInputElement>("input[data-opacity='milkyWay']");
+  it.each([
+    "constellationLines",
+    "constellationBoundaries",
+    "satelliteTrails",
+    "raDecGrid",
+    "ecliptic",
+    "milkyWay",
+  ])("has opacity slider for %s", (key) => {
+    const slider = el.querySelector<HTMLInputElement>(`input[data-opacity='${key}']`);
     expect(slider).not.toBeNull();
   });
 
@@ -130,126 +133,21 @@ describe("createLayerControls", () => {
     }
   });
 
-  it("line layer sliders are always visible (no parent toggle)", () => {
-    // Since line layers have no toggle, their slider rows are always present
+  it("opacity rows are always visible (no parent toggle)", () => {
     const rows = el.querySelectorAll<HTMLElement>("[data-opacity-row]");
     for (const row of rows) {
       expect(row.style.display).not.toBe("none");
     }
   });
-
-  it("does not render checkboxes for constellationLines or constellationBoundaries", () => {
-    const clCheckbox = el.querySelector("input[data-layer='constellationLines']");
-    const cbCheckbox = el.querySelector("input[data-layer='constellationBoundaries']");
-    expect(clCheckbox).toBeNull();
-    expect(cbCheckbox).toBeNull();
-  });
 });
 
-describe("createLayerControls — language dropdown", () => {
+describe("createMagnitudeFilterSection", () => {
   let dispatch: ReturnType<typeof vi.fn>;
   let el: HTMLElement;
 
   beforeEach(() => {
     dispatch = vi.fn();
-    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "la");
-  });
-
-  it("renders a language select with data-language attribute", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-language]");
-    expect(select).not.toBeNull();
-  });
-
-  it("includes options for la, en, zh, ar, el", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
-    const values = [...select.options].map((o) => o.value);
-    expect(values).toEqual(expect.arrayContaining(["la", "en", "zh", "ar", "el"]));
-  });
-
-  it("select initialises to the given language", () => {
-    const elEn = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "en");
-    const select = elEn.querySelector<HTMLSelectElement>("select[data-language]")!;
-    expect(select.value).toBe("en");
-  });
-
-  it("changing the select dispatches set-language intent", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
-    select.value = "zh";
-    select.dispatchEvent(new Event("change"));
-    expect(dispatch).toHaveBeenCalledOnce();
-    const intent = dispatch.mock.calls[0]![0] as UIIntent;
-    expect(intent.type).toBe("set-language");
-    if (intent.type === "set-language") {
-      expect(intent.language).toBe("zh");
-    }
-  });
-
-  it("defaults to 'la' when no initial language is passed", () => {
-    const elDefault = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch);
-    const select = elDefault.querySelector<HTMLSelectElement>("select[data-language]")!;
-    expect(select.value).toBe("la");
-  });
-});
-
-describe("createLayerControls — skyculture dropdown", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
-  let el: HTMLElement;
-
-  beforeEach(() => {
-    dispatch = vi.fn();
-    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0, "la", "western");
-  });
-
-  it("renders a skyculture select with data-skyculture attribute", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]");
-    expect(select).not.toBeNull();
-  });
-
-  it("includes options for western and chinese", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
-    const values = [...select.options].map((o) => o.value);
-    expect(values).toEqual(expect.arrayContaining(["western", "chinese"]));
-  });
-
-  it("select initialises to the given skyculture", () => {
-    const elCh = createLayerControls(
-      DEFAULT_VISIBILITY,
-      DEFAULT_OPACITY,
-      dispatch,
-      6.0,
-      "la",
-      "chinese",
-    );
-    const select = elCh.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
-    expect(select.value).toBe("chinese");
-  });
-
-  it("changing the select dispatches set-skyculture intent", () => {
-    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
-    select.value = "chinese";
-    select.dispatchEvent(new Event("change"));
-    expect(dispatch).toHaveBeenCalledOnce();
-    const intent = dispatch.mock.calls[0]![0] as UIIntent;
-    expect(intent.type).toBe("set-skyculture");
-    if (intent.type === "set-skyculture") {
-      expect(intent.id).toBe("chinese");
-    }
-  });
-
-  it("defaults to 'western' when no initial skyculture is passed", () => {
-    const elDefault = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch);
-    const select = elDefault.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
-    expect(select.value).toBe("western");
-  });
-});
-
-describe("createLayerControls — magnitude slider", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
-  let el: HTMLElement;
-
-  beforeEach(() => {
-    dispatch = vi.fn();
-    el = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 6.0);
+    el = createMagnitudeFilterSection(6.0, dispatch);
   });
 
   it("renders a magnitude limit slider with data-mag attribute", () => {
@@ -269,7 +167,7 @@ describe("createLayerControls — magnitude slider", () => {
   });
 
   it("magnitude slider initialises to the given magLimit", () => {
-    const elWith4 = createLayerControls(DEFAULT_VISIBILITY, DEFAULT_OPACITY, dispatch, 4.0);
+    const elWith4 = createMagnitudeFilterSection(4.0, dispatch);
     const slider = elWith4.querySelector<HTMLInputElement>("input[data-mag='limit']")!;
     expect(Number(slider.value)).toBeCloseTo(4.0);
   });
@@ -298,5 +196,83 @@ describe("createLayerControls — magnitude slider", () => {
     slider.value = "3.5";
     slider.dispatchEvent(new Event("input"));
     expect(label.textContent).toContain("3.5");
+  });
+});
+
+describe("createLanguageSection", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createLanguageSection("la", dispatch);
+  });
+
+  it("renders a language select with data-language attribute", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]");
+    expect(select).not.toBeNull();
+  });
+
+  it("includes options for la, en, zh, ar, el", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
+    const values = [...select.options].map((o) => o.value);
+    expect(values).toEqual(expect.arrayContaining(["la", "en", "zh", "ar", "el"]));
+  });
+
+  it("select initialises to the given language", () => {
+    const elEn = createLanguageSection("en", dispatch);
+    const select = elEn.querySelector<HTMLSelectElement>("select[data-language]")!;
+    expect(select.value).toBe("en");
+  });
+
+  it("changing the select dispatches set-language intent", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-language]")!;
+    select.value = "zh";
+    select.dispatchEvent(new Event("change"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-language");
+    if (intent.type === "set-language") {
+      expect(intent.language).toBe("zh");
+    }
+  });
+});
+
+describe("createSkycultureSection", () => {
+  let dispatch: ReturnType<typeof vi.fn>;
+  let el: HTMLElement;
+
+  beforeEach(() => {
+    dispatch = vi.fn();
+    el = createSkycultureSection("western", dispatch);
+  });
+
+  it("renders a skyculture select with data-skyculture attribute", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]");
+    expect(select).not.toBeNull();
+  });
+
+  it("includes options for western and chinese", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    const values = [...select.options].map((o) => o.value);
+    expect(values).toEqual(expect.arrayContaining(["western", "chinese"]));
+  });
+
+  it("select initialises to the given skyculture", () => {
+    const elCh = createSkycultureSection("chinese", dispatch);
+    const select = elCh.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    expect(select.value).toBe("chinese");
+  });
+
+  it("changing the select dispatches set-skyculture intent", () => {
+    const select = el.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
+    select.value = "chinese";
+    select.dispatchEvent(new Event("change"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    const intent = dispatch.mock.calls[0]![0] as UIIntent;
+    expect(intent.type).toBe("set-skyculture");
+    if (intent.type === "set-skyculture") {
+      expect(intent.id).toBe("chinese");
+    }
   });
 });

@@ -144,6 +144,34 @@ describe("createPanel", () => {
     });
   });
 
+  describe("settings button", () => {
+    it("renders a settings button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-settings']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("displays the gear icon", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-settings']")!;
+      expect(btn.textContent).toBe("\u2699");
+    });
+
+    it("clicking the settings button invokes onOpenSettings", () => {
+      const onOpenSettings = vi.fn();
+      const { element } = createPanel(container, vi.fn(), { onOpenSettings });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-settings']")!;
+      btn.click();
+      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the settings button is a no-op when no callback is provided", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-settings']")!;
+      expect(() => btn.click()).not.toThrow();
+    });
+  });
+
   describe("copy-link button", () => {
     beforeEach(() => {
       Object.defineProperty(navigator, "clipboard", {
