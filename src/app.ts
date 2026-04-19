@@ -81,6 +81,7 @@ import {
   createCommandPalette,
   createSettingsDrawer,
   createObjectCardsManager,
+  createLocationPickerOverlay,
 } from "./ui";
 import type {
   BottomHud,
@@ -1034,6 +1035,7 @@ export async function bootstrap(
   }
 
   let bottomHud: BottomHud | null = null;
+  let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
 
   // Intent handler
   function handleIntent(intent: UIIntent): void {
@@ -1196,8 +1198,7 @@ export async function bootstrap(
         break;
       }
       case "open-location-picker": {
-        // Milestone 1B (#193) will replace this stub with the real overlay.
-        console.warn("[planisphere] open-location-picker intent — picker not yet implemented");
+        locationPicker?.open();
         break;
       }
       case "toggle-animation": {
@@ -1264,6 +1265,16 @@ export async function bootstrap(
   );
   document.body.appendChild(bottomHud.element);
   bottomHud.setCompass(getCameraHeadingDeg(viewer.camera));
+
+  // Location picker overlay (milestone 1B of Plan 07, issue #193). Created once at
+  // bootstrap and opened via the `open-location-picker` intent fired from the bottom
+  // HUD's location chip.
+  locationPicker = createLocationPickerOverlay({
+    dispatch: handleIntent,
+    initialLat: state.observer.lat,
+    initialLon: state.observer.lon,
+  });
+  document.body.appendChild(locationPicker.element);
 
   // Poll the camera heading on each animation frame so the compass chip mirrors
   // drag-rotation of the view. Cesium's camera doesn't emit a change event.
