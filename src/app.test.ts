@@ -239,12 +239,21 @@ let capturedPanelOptions: {
   onOpenSettings?: () => void;
   onOpenHelp?: () => void;
   onOpenTonight?: () => void;
+  onProRequired?: () => void;
   mode?: "planetarium" | "notebook";
 } | null = null;
 let notebookWorkspaceMock: {
   element: HTMLElement;
   setVisible: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
+  onProRequired: (() => void) | null;
+} | null = null;
+let emailGateModalMock: {
+  element: HTMLElement;
+  open: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  isOpen: ReturnType<typeof vi.fn>;
+  onGranted: () => void;
 } | null = null;
 let panelSetModeMock: ReturnType<typeof vi.fn> | null = null;
 let settingsDrawerMock: {
@@ -286,6 +295,7 @@ vi.mock("./ui", () => ({
         onOpenSettings?: () => void;
         onOpenHelp?: () => void;
         onOpenTonight?: () => void;
+        onProRequired?: () => void;
         mode?: "planetarium" | "notebook";
       },
     ) => {
@@ -429,18 +439,34 @@ vi.mock("./ui", () => ({
         isOpen: vi.fn().mockReturnValue(false),
       };
     }),
-  createNotebookWorkspace: vi.fn().mockImplementation(() => {
-    const element = document.createElement("aside");
-    element.dataset.testid = "notebook-workspace";
+  createNotebookWorkspace: vi
+    .fn()
+    .mockImplementation((opts?: { getCurrentView?: unknown; onProRequired?: () => void }) => {
+      const element = document.createElement("aside");
+      element.dataset.testid = "notebook-workspace";
+      const mock = {
+        element,
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+        onProRequired: opts?.onProRequired ?? null,
+      };
+      notebookWorkspaceMock = mock;
+      return mock;
+    }),
+  NOTEBOOK_SCRATCH_STORAGE_KEY: "planisphere.notebook.scratch.v1",
+  createEmailGateModal: vi.fn().mockImplementation((opts: { onGranted: () => void }) => {
+    const element = document.createElement("div");
+    element.dataset.testid = "email-gate-modal";
     const mock = {
       element,
-      setVisible: vi.fn(),
-      destroy: vi.fn(),
+      open: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+      onGranted: opts.onGranted,
     };
-    notebookWorkspaceMock = mock;
+    emailGateModalMock = mock;
     return mock;
   }),
-  NOTEBOOK_SCRATCH_STORAGE_KEY: "planisphere.notebook.scratch.v1",
   createOnboardingOverlay: vi.fn().mockImplementation(() => {
     const element = document.createElement("div");
     element.dataset.testid = "onboarding-overlay";
@@ -1685,9 +1711,12 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode intent toggles the notebook workspace visibility", async () => {
+  it("set-mode intent toggles the notebook workspace visibility (Pro user)", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
+    // Notebook is a Pro feature (issue #224); establish Pro identity first.
+    const { setUser } = await import("./features");
+    setUser("rob.sartin@gmail.com");
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(notebookWorkspaceMock).not.toBeNull();
@@ -1696,6 +1725,7 @@ describe("handleIntent routing", () => {
     expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
     capturedDispatch!({ type: "set-mode", mode: "planetarium" });
     expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(false);
+    globalThis.localStorage?.clear();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
@@ -1703,9 +1733,11 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode intent updates URL with mode param when notebook, removes it when planetarium", async () => {
+  it("set-mode intent updates URL with mode param when notebook, removes it when planetarium (Pro user)", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
+    const { setUser } = await import("./features");
+    setUser("rob.sartin@gmail.com");
     const { root, panelRoot } = makeRoot();
     const spy = vi.spyOn(globalThis.history, "replaceState");
     await bootstrap(root);
@@ -1720,6 +1752,7 @@ describe("handleIntent routing", () => {
     expect(String(lastCall[2])).not.toContain("mode=");
 
     spy.mockRestore();
+    globalThis.localStorage?.clear();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
@@ -1727,9 +1760,11 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode intent updates the panel's mode-toggle icon via setMode", async () => {
+  it("set-mode intent updates the panel's mode-toggle icon via setMode (Pro user)", async () => {
     capturedDispatch = null;
     panelSetModeMock = null;
+    const { setUser } = await import("./features");
+    setUser("rob.sartin@gmail.com");
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(panelSetModeMock).not.toBeNull();
@@ -1738,10 +1773,108 @@ describe("handleIntent routing", () => {
     expect(panelSetModeMock).toHaveBeenCalledWith("notebook");
     capturedDispatch!({ type: "set-mode", mode: "planetarium" });
     expect(panelSetModeMock).toHaveBeenCalledWith("planetarium");
+    globalThis.localStorage?.clear();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
       .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("set-mode notebook while NOT Pro opens the email-gate modal and does NOT flip", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    emailGateModalMock = null;
+    globalThis.localStorage?.clear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(emailGateModalMock).not.toBeNull();
+    expect(notebookWorkspaceMock).not.toBeNull();
+    notebookWorkspaceMock!.setVisible.mockClear();
+    emailGateModalMock!.open.mockClear();
+
+    capturedDispatch!({ type: "set-mode", mode: "notebook" });
+    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    expect(notebookWorkspaceMock!.setVisible).not.toHaveBeenCalledWith(true);
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='email-gate-modal']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("email-gate onGranted callback re-dispatches set-mode and flips to notebook", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    emailGateModalMock = null;
+    globalThis.localStorage?.clear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(emailGateModalMock).not.toBeNull();
+    notebookWorkspaceMock!.setVisible.mockClear();
+    // Simulate the modal's successful path: user is now Pro and onGranted fires.
+    const { setUser } = await import("./features");
+    setUser("rob.sartin@gmail.com");
+    emailGateModalMock!.onGranted();
+    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    globalThis.localStorage?.clear();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='email-gate-modal']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("panel option onProRequired opens the email-gate modal", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    emailGateModalMock = null;
+    globalThis.localStorage?.clear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(capturedPanelOptions).not.toBeNull();
+    expect(capturedPanelOptions!.onProRequired).toBeDefined();
+    expect(emailGateModalMock).not.toBeNull();
+    emailGateModalMock!.open.mockClear();
+    capturedPanelOptions!.onProRequired!();
+    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='email-gate-modal']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("notebook workspace's onProRequired opens the email-gate modal", async () => {
+    capturedDispatch = null;
+    notebookWorkspaceMock = null;
+    emailGateModalMock = null;
+    globalThis.localStorage?.clear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(notebookWorkspaceMock).not.toBeNull();
+    expect(notebookWorkspaceMock!.onProRequired).not.toBeNull();
+    expect(emailGateModalMock).not.toBeNull();
+    emailGateModalMock!.open.mockClear();
+    notebookWorkspaceMock!.onProRequired!();
+    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='email-gate-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
