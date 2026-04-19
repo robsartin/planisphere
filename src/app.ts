@@ -75,12 +75,12 @@ import {
   createPlanetInfo,
   createSearch,
   createFovControls,
-  createEventsPanel,
+  createEventsDrawer,
   createHelpModal,
   createBottomHud,
   createCommandPalette,
 } from "./ui";
-import type { BottomHud } from "./ui";
+import type { BottomHud, EventsDrawer } from "./ui";
 import type {
   CommandPalette,
   PaletteSources,
@@ -758,10 +758,11 @@ export async function bootstrap(
   // Planet info wrapper — holds the current planet-info section, refreshed on time/observer changes
   const planetInfoWrapper = document.createElement("div");
 
-  // Events panel wrapper — celestial event alerts (conjunctions / lunar eclipses / meteor showers).
-  // Cached: only recomputed on observer / time changes (events shift forward as `now` advances).
-  const eventsWrapper = document.createElement("div");
+  // Events drawer — celestial event alerts (conjunctions / lunar eclipses / meteor showers / ISS).
+  // Drawer is created at bootstrap (lives on <body>) and refreshed on any observer/time change
+  // regardless of whether it's currently open, so it's always fresh when the user taps 📅.
   let cachedEvents: readonly CelestialEvent[] = [];
+  let eventsDrawer: EventsDrawer | null = null;
 
   function refreshEvents(s: AppState): void {
     const result = computeUpcomingEvents(
@@ -770,7 +771,7 @@ export async function bootstrap(
       satelliteRecords,
     );
     cachedEvents = result.ok ? result.value : [];
-    eventsWrapper.replaceChildren(createEventsPanel(cachedEvents, handleIntent));
+    eventsDrawer?.setEvents(cachedEvents);
   }
 
   function refreshPlanetInfo(s: AppState): void {
@@ -992,6 +993,13 @@ export async function bootstrap(
   const helpModal = createHelpModal();
   document.body.appendChild(helpModal.element);
 
+  // Events drawer — slide-in surface holding the upcoming-events list (replaces
+  // the always-on side-panel section). Created here (after handleIntent is in
+  // scope) and refreshed with the first event list below once satellites load.
+  eventsDrawer = createEventsDrawer({ dispatch: handleIntent });
+  document.body.appendChild(eventsDrawer.element);
+  eventsDrawer.setEvents(cachedEvents);
+
   // Bottom HUD — ambient bar with time, location chip, and compass. Replaces the
   // side-panel Time section (milestone 1A of Plan 07). Appended to <body> so it
   // sits above the cesium canvas independently of the side panel.
@@ -1027,12 +1035,22 @@ export async function bootstrap(
   );
   document.body.appendChild(palette.element);
 
+  // Refresh events now that the drawer is mounted and satelliteRecords are known.
+  // This gives the drawer its first population regardless of whether the side panel
+  // exists (headless / test environments include).
+  refreshEvents(state);
+
   // Build UI panel
   let nightVisionPanel: ReturnType<typeof createPanel> | null = null;
   const panelRoot = document.getElementById("ui-panel-root");
   if (panelRoot) {
     const panel = createPanel(panelRoot, handleIntent, {
       onOpenHelp: () => helpModal.open(),
+      onOpenEvents: () => {
+        // Mutual exclusion: close other open surfaces before opening the drawer.
+        if (helpModal.isOpen()) helpModal.close();
+        eventsDrawer?.open();
+      },
     });
     nightVisionPanel = panel;
     if (state.nightVision) {
@@ -1044,12 +1062,6 @@ export async function bootstrap(
     // Search box — at the top of the panel
     const searchEl = createSearch((query) => searchObjects(searchIndex, query), handleIntent);
     uiContainer.appendChild(searchEl);
-
-    // Events panel sits right after search because Go-to jumps the time cursor;
-    // putting it above the location/layer blocks keeps it above the fold for
-    // typical panel heights.
-    refreshEvents(state);
-    uiContainer.appendChild(eventsWrapper);
 
     const locationEl = createLocationControls(state.observer.lat, state.observer.lon, handleIntent);
     uiContainer.appendChild(locationEl);

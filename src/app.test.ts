@@ -208,14 +208,33 @@ vi.mock("../data/boundaries.json", () => ({
 // Captured dispatch function from UI mock — used in intent tests
 let capturedDispatch: ((intent: unknown) => void) | null = null;
 
+// Captured panel options from UI mock — lets tests assert on drawer wiring.
+let capturedPanelOptions: { onOpenEvents?: () => void; onOpenHelp?: () => void } | null = null;
+
+// Captured events-drawer setEvents spy — lets tests assert it was called when
+// `set-time` / `set-observer` / `now` intents fire.
+const eventsDrawerSetEvents = vi.fn();
+const eventsDrawerOpen = vi.fn();
+
 // Mock UI modules — they exercise DOM which is fully covered in their own tests
 vi.mock("./ui", () => ({
-  createPanel: vi.fn().mockReturnValue({
-    element: document.createElement("div"),
-    setContent: vi.fn(),
-    setCollapsed: vi.fn(),
-    setNightVision: vi.fn(),
-  }),
+  createPanel: vi
+    .fn()
+    .mockImplementation(
+      (
+        _root: HTMLElement,
+        _dispatch: unknown,
+        options?: { onOpenEvents?: () => void; onOpenHelp?: () => void },
+      ) => {
+        capturedPanelOptions = options ?? null;
+        return {
+          element: document.createElement("div"),
+          setContent: vi.fn(),
+          setCollapsed: vi.fn(),
+          setNightVision: vi.fn(),
+        };
+      },
+    ),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
   createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
@@ -223,6 +242,23 @@ vi.mock("./ui", () => ({
   createSearch: vi.fn().mockReturnValue(document.createElement("div")),
   createFovControls: vi.fn().mockReturnValue(document.createElement("div")),
   createEventsPanel: vi.fn().mockReturnValue(document.createElement("div")),
+  createEventsDrawer: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "events-drawer";
+    let open = false;
+    return {
+      element,
+      open: vi.fn().mockImplementation(() => {
+        open = true;
+        eventsDrawerOpen();
+      }),
+      close: vi.fn().mockImplementation(() => {
+        open = false;
+      }),
+      isOpen: vi.fn().mockImplementation(() => open),
+      setEvents: eventsDrawerSetEvents,
+    };
+  }),
   createHelpModal: vi.fn().mockReturnValue({
     element: document.createElement("div"),
     open: vi.fn(),
@@ -860,6 +896,109 @@ describe("handleIntent routing", () => {
     expect(writeText).toHaveBeenCalledOnce();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  it("mounts the events drawer on the document body", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    eventsDrawerSetEvents.mockClear();
+    eventsDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    expect(document.querySelector("[data-testid='events-drawer']")).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='events-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("events drawer is refreshed on set-time intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    eventsDrawerSetEvents.mockClear();
+    eventsDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = eventsDrawerSetEvents.mock.calls.length;
+    capturedDispatch!({ type: "set-time", time: new Date("2026-05-01T00:00:00Z") });
+    expect(eventsDrawerSetEvents.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='events-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("events drawer is refreshed on set-observer intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    eventsDrawerSetEvents.mockClear();
+    eventsDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = eventsDrawerSetEvents.mock.calls.length;
+    capturedDispatch!({ type: "set-observer", lat: 48.8, lon: 2.35 });
+    expect(eventsDrawerSetEvents.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='events-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("events drawer is refreshed on now intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    eventsDrawerSetEvents.mockClear();
+    eventsDrawerOpen.mockClear();
+    Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = eventsDrawerSetEvents.mock.calls.length;
+    capturedDispatch!({ type: "now" });
+    expect(eventsDrawerSetEvents.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='events-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("panel's onOpenEvents callback opens the events drawer", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    eventsDrawerSetEvents.mockClear();
+    eventsDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    expect(capturedPanelOptions).not.toBeNull();
+    expect(typeof capturedPanelOptions!.onOpenEvents).toBe("function");
+    capturedPanelOptions!.onOpenEvents!();
+    expect(eventsDrawerOpen).toHaveBeenCalled();
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='events-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
   });
 
   it("Ctrl+K / Cmd+K opens the command palette via the global keydown handler", async () => {

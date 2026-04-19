@@ -116,6 +116,34 @@ describe("createPanel", () => {
     });
   });
 
+  describe("events button", () => {
+    it("renders an events (📅) button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-events']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("displays the 📅 icon", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-events']")!;
+      expect(btn.textContent).toBe("\u{1F4C5}");
+    });
+
+    it("clicking the events button invokes the provided onOpenEvents callback", () => {
+      const onOpenEvents = vi.fn();
+      const { element } = createPanel(container, vi.fn(), { onOpenEvents });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-events']")!;
+      btn.click();
+      expect(onOpenEvents).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the events button is a no-op when no callback is provided", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-events']")!;
+      expect(() => btn.click()).not.toThrow();
+    });
+  });
+
   describe("copy-link button", () => {
     beforeEach(() => {
       Object.defineProperty(navigator, "clipboard", {
