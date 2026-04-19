@@ -262,4 +262,3 @@ export function createSkycultureSection(
   section.appendChild(row);
   return section;
 }
-

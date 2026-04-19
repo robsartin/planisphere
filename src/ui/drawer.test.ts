@@ -132,9 +132,7 @@ describe("createDrawer", () => {
     const drawer = createDrawer({ side: "right", width: "320px", onClose });
     document.body.appendChild(drawer.element);
     drawer.open(document.createElement("div"));
-    drawer.element
-      .querySelector<HTMLElement>("[data-testid='drawer-backdrop']")!
-      .click();
+    drawer.element.querySelector<HTMLElement>("[data-testid='drawer-backdrop']")!.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

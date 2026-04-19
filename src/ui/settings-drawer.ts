@@ -131,10 +131,18 @@ export function createSettingsDrawer(options: SettingsDrawerOptions): SettingsDr
   container.appendChild(title);
 
   const sections: Record<SectionId, SectionHandle> = {
-    visibility: buildSection("visibility", "Visibility", createVisibilitySection(visibility, dispatch)),
+    visibility: buildSection(
+      "visibility",
+      "Visibility",
+      createVisibilitySection(visibility, dispatch),
+    ),
     opacity: buildSection("opacity", "Opacity", createOpacitySection(opacity, dispatch)),
     filters: buildSection("filters", "Filters", createMagnitudeFilterSection(magLimit, dispatch)),
-    display: buildSection("display", "Display", buildDisplaySection(language, skyculture, dispatch)),
+    display: buildSection(
+      "display",
+      "Display",
+      buildDisplaySection(language, skyculture, dispatch),
+    ),
   };
 
   for (const id of SECTION_IDS) {
