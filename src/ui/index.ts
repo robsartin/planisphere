@@ -38,6 +38,18 @@ export type {
   PaletteSettingSource,
   PaletteObjectType,
 } from "./palette-results";
+export { createObjectCard } from "./object-card";
+export type { ObjectCard, ObjectCardData, ObjectCardProps } from "./object-card";
+export { createObjectCardsManager } from "./object-cards-manager";
+export type {
+  ObjectCardsManager,
+  CardsManagerOptions,
+  CardKey,
+  ObjectCardKind,
+  ScreenPosition,
+  ObjectPosition,
+  OpenCardRequest,
+} from "./object-cards-manager";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import type { Language } from "../astro/constellation-names";
@@ -61,4 +73,11 @@ export type UIIntent =
   | { type: "open-location-picker" }
   | { type: "toggle-animation" }
   | { type: "pin-object"; id: string }
-  | { type: "copy-link" };
+  | { type: "copy-link" }
+  | {
+      type: "open-object-card";
+      objectKind: "star" | "body" | "satellite" | "messier" | "constellation";
+      id: string;
+      screenX: number;
+      screenY: number;
+    };

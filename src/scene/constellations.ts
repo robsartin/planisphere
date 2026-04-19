@@ -72,6 +72,9 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        // Attach the VisibleConstellation as the picked id so scene/tooltip can
+        // resolve clicks on the label back to a typed structured payload.
+        id: constellation,
       });
     }
   }

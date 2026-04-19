@@ -124,6 +124,9 @@ vi.mock("cesium", () => {
     })),
     LabelStyle: { FILL: 0 },
     Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
+    SceneTransforms: {
+      worldToWindowCoordinates: vi.fn().mockReturnValue({ x: 0, y: 0 }),
+    },
   };
 });
 
@@ -316,6 +319,15 @@ vi.mock("./ui", () => ({
         };
       },
     ),
+  // Object-cards manager — capture the dispatch + projector so tests can exercise
+  // the click-to-card intent pathway without a real Cesium scene.
+  createObjectCardsManager: vi.fn().mockImplementation(() => ({
+    open: vi.fn(),
+    close: vi.fn(),
+    closeActive: vi.fn(),
+    update: vi.fn(),
+    destroy: vi.fn(),
+  })),
 }));
 
 // Mock the TLE bundled data
@@ -1036,6 +1048,23 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
   });
 
+  it("open-object-card intent is handled without throwing when no card data is pending", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({
+        type: "open-object-card",
+        objectKind: "star",
+        id: "Sirius",
+        screenX: 100,
+        screenY: 200,
+      }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
   it("settings drawer is mounted on document.body", async () => {
     capturedDispatch = null;
     settingsDrawerMock = null;
@@ -1070,6 +1099,128 @@ describe("handleIntent routing", () => {
     expect(uiContainer.querySelector("select[data-skyculture]")).toBeNull();
     expect(uiContainer.querySelector("input[data-mag='limit']")).toBeNull();
     expect(uiContainer.querySelector("input[data-opacity]")).toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  async function driveScenePick(pickedId: Record<string, unknown>): Promise<{
+    openMock: ReturnType<typeof vi.fn>;
+    root: HTMLElement;
+    panelRoot: HTMLElement;
+  }> {
+    const ui = await import("./ui");
+    const openMock = vi.fn();
+    (
+      ui.createObjectCardsManager as unknown as { mockReturnValueOnce: (v: unknown) => void }
+    ).mockReturnValueOnce({
+      open: openMock,
+      close: vi.fn(),
+      closeActive: vi.fn(),
+      update: vi.fn(),
+      destroy: vi.fn(),
+    });
+
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const cesium = await import("cesium");
+    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlers = handlerCtor.mock.results.map(
+      (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
+    );
+    let clickFn: ((ev: { position: { x: number; y: number } }) => void) | null = null;
+    for (const h of handlers) {
+      for (const call of h.setInputAction.mock.calls) {
+        const [fn, type] = call as [unknown, unknown];
+        if (type === cesium.ScreenSpaceEventType.LEFT_CLICK) {
+          clickFn = fn as (ev: { position: { x: number; y: number } }) => void;
+        }
+      }
+    }
+
+    if (clickFn !== null) {
+      const viewerCtor = cesium.Viewer as unknown as ReturnType<typeof vi.fn>;
+      const lastViewer = viewerCtor.mock.results[viewerCtor.mock.results.length - 1]?.value as {
+        scene?: { pick?: ReturnType<typeof vi.fn> };
+      };
+      lastViewer?.scene?.pick?.mockReturnValueOnce({ id: pickedId });
+      clickFn({ position: { x: 140, y: 260 } });
+    }
+
+    return { openMock, root, panelRoot };
+  }
+
+  it("picking a star dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      hip: 32349,
+      ra: 101.2872,
+      dec: -16.7161,
+      alt: 45,
+      az: 180,
+      mag: -1.44,
+      name: "Sirius",
+      size: 16,
+      opacity: 1,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a planet (body) dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      id: "Mars",
+      ra: 120,
+      dec: 20,
+      alt: 30,
+      az: 90,
+      mag: 0.4,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a satellite dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      noradId: 25544,
+      name: "ISS",
+      alt: 40,
+      az: 160,
+      velocity: 7.66,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a Messier object dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      m: 31,
+      type: "Galaxy",
+      name: "Andromeda",
+      alt: 50,
+      az: 70,
+      mag: 3.4,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a constellation label dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      id: "Ori",
+      name: "Orion",
+      centroid: { alt: 25, az: 180 },
+      lines: [],
+    });
+    expect(openMock).toHaveBeenCalled();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });

@@ -21,7 +21,8 @@ export {
 } from "./animation-math";
 export type { AzAlt } from "./animation-math";
 export { type StarLayer, createStarLayer } from "./stars";
-export { type Tooltip, createTooltip } from "./tooltip";
+export { type Tooltip, type TooltipOptions, type PickedObject, createTooltip } from "./tooltip";
+export { type ScreenProjection, projectAltAzToScreen } from "./project";
 export { type BodyLayer, createBodyLayer } from "./bodies";
 export {
   type ConstellationLayer,
