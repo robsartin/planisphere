@@ -1369,7 +1369,12 @@ export async function bootstrap(
   // Notebook workspace (milestone 2A of Plan 07, issue #216). Right-side shell
   // shown only when state.mode === "notebook". Content is a placeholder +
   // localStorage-backed scratch textarea; the real editor arrives in #219.
-  notebookWorkspace = createNotebookWorkspace();
+  notebookWorkspace = createNotebookWorkspace({
+    getCurrentView: () => ({
+      href: globalThis.location.href,
+      timeUtc: state.timeUtc,
+    }),
+  });
   document.body.appendChild(notebookWorkspace.element);
   notebookWorkspace.setVisible(state.mode === "notebook");
 

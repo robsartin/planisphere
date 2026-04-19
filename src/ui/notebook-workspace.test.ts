@@ -88,6 +88,97 @@ describe("createNotebookWorkspace", () => {
     expect(container.contains(element)).toBe(false);
   });
 
+  describe("layout — does not overlap the right-side panel", () => {
+    it("anchors to the left edge, not the right", () => {
+      const { element } = createNotebookWorkspace({});
+      // Right-side is occupied by the 280px side panel (z-index 1000). Notebook
+      // pins to the left edge so both are visible simultaneously.
+      expect(element.style.left).toBe("0px");
+      expect(element.style.right).toBe("");
+    });
+
+    it("uses a z-index lower than drawers/modals but high enough to sit above the sky", () => {
+      const { element } = createNotebookWorkspace({});
+      // Drawers are 2000, help modal 2000, onboarding 4000+. Notebook stays below
+      // those so a drawer can be opened on top of it when needed.
+      const z = Number(element.style.zIndex);
+      expect(z).toBeGreaterThanOrEqual(900);
+      expect(z).toBeLessThan(2000);
+    });
+  });
+
+  describe("insert link to current view", () => {
+    const TEST_HREF = "http://localhost:5173/?lat=40.7&lon=-74&t=2026-08-12T04:30:00.000Z";
+    const TEST_TIME = new Date("2026-08-12T04:30:00.000Z");
+
+    function pad(n: number): string {
+      return String(n).padStart(2, "0");
+    }
+    function expectedLocalStamp(d: Date): string {
+      return (
+        `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}`
+      );
+    }
+
+    it("renders an 'Insert link' button", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("clicking inserts a markdown link with local-time label at the cursor", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const textarea = element.querySelector<HTMLTextAreaElement>(
+        "[data-testid='notebook-scratch']",
+      )!;
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      textarea.value = "";
+      textarea.selectionStart = 0;
+      textarea.selectionEnd = 0;
+      btn.click();
+      const stamp = expectedLocalStamp(TEST_TIME);
+      expect(textarea.value).toContain(`[${stamp}](${TEST_HREF})`);
+    });
+
+    it("insert preserves surrounding text and lands at the cursor", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const textarea = element.querySelector<HTMLTextAreaElement>(
+        "[data-testid='notebook-scratch']",
+      )!;
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      textarea.value = "before\nafter";
+      textarea.selectionStart = 7; // after "before\n"
+      textarea.selectionEnd = 7;
+      btn.click();
+      expect(textarea.value.startsWith("before\n")).toBe(true);
+      expect(textarea.value.endsWith("after")).toBe(true);
+      expect(textarea.value).toContain(TEST_HREF);
+    });
+
+    it("insert triggers autosave to localStorage", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      btn.click();
+      const saved = globalThis.localStorage.getItem(NOTEBOOK_SCRATCH_STORAGE_KEY) ?? "";
+      expect(saved).toContain(TEST_HREF);
+    });
+
+    it("is a no-op when getCurrentView is not supplied (button hidden)", () => {
+      const { element } = createNotebookWorkspace({});
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']");
+      expect(btn).toBeNull();
+    });
+  });
+
   it("handles localStorage unavailable (e.g. private browsing) without throwing", () => {
     const orig = globalThis.localStorage;
     const broken = {

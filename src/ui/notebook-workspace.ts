@@ -12,6 +12,12 @@ export const NOTEBOOK_SCRATCH_STORAGE_KEY = "planisphere.notebook.scratch.v1";
 export type NotebookWorkspaceOptions = {
   /** Initial visibility — defaults to false. */
   initiallyVisible?: boolean;
+  /**
+   * Supplies the current shareable URL + time. When provided, an "Insert link"
+   * button appears that stamps a markdown link into the scratch textarea at
+   * the cursor. Omitted in tests that don't care about the button.
+   */
+  getCurrentView?: () => { readonly href: string; readonly timeUtc: Date };
 };
 
 export type NotebookWorkspace = {
@@ -49,12 +55,12 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   root.dataset.testid = "notebook-workspace";
   root.style.position = "fixed";
   root.style.top = "0";
-  root.style.right = "0";
+  root.style.left = "0";
   root.style.bottom = "0";
   root.style.width = "400px";
   root.style.maxWidth = "100vw";
   root.style.background = PANEL_BG;
-  root.style.borderLeft = PANEL_BORDER;
+  root.style.borderRight = PANEL_BORDER;
   root.style.color = TEXT_COLOR;
   root.style.fontFamily = FONT_FAMILY;
   root.style.display = options.initiallyVisible === true ? "flex" : "none";
@@ -62,7 +68,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   root.style.padding = "20px 22px";
   root.style.gap = "14px";
   root.style.boxSizing = "border-box";
-  root.style.zIndex = "900";
+  root.style.zIndex = "1200";
   root.style.overflowY = "auto";
 
   // Responsive: on narrow viewports the shell goes full-width. Applied once at
@@ -122,9 +128,56 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   }
   scratch.addEventListener("input", onScratchInput);
 
+  // Optional "Insert link to current view" button. Only mounts when a
+  // getCurrentView callback is supplied so the notebook-alone test paths stay
+  // dependency-free. Format: Markdown link `- [YYYY-MM-DD HH:MM](href)\n` so
+  // a future slideshow parser can extract views as ordered list items.
+  let insertLinkBtn: HTMLButtonElement | null = null;
+  if (options.getCurrentView !== undefined) {
+    const getCurrentView = options.getCurrentView;
+    insertLinkBtn = document.createElement("button");
+    insertLinkBtn.type = "button";
+    insertLinkBtn.dataset.testid = "notebook-insert-link";
+    insertLinkBtn.textContent = "\u2192 Insert link to this view";
+    insertLinkBtn.style.background = "rgba(255,255,255,0.08)";
+    insertLinkBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+    insertLinkBtn.style.borderRadius = "4px";
+    insertLinkBtn.style.color = TEXT_COLOR;
+    insertLinkBtn.style.cursor = "pointer";
+    insertLinkBtn.style.fontFamily = FONT_FAMILY;
+    insertLinkBtn.style.fontSize = "12px";
+    insertLinkBtn.style.padding = "6px 10px";
+    insertLinkBtn.style.alignSelf = "flex-start";
+
+    insertLinkBtn.addEventListener("click", () => {
+      const view = getCurrentView();
+      const pad = (n: number): string => String(n).padStart(2, "0");
+      const d = view.timeUtc;
+      const stamp =
+        `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const line = `- [${stamp}](${view.href})\n`;
+
+      const start = scratch.selectionStart ?? scratch.value.length;
+      const end = scratch.selectionEnd ?? scratch.value.length;
+      scratch.value = scratch.value.slice(0, start) + line + scratch.value.slice(end);
+      // Move cursor to end of inserted line so user can type a caption.
+      const caret = start + line.length;
+      scratch.selectionStart = caret;
+      scratch.selectionEnd = caret;
+      scratch.focus();
+      // Trigger the existing autosave handler explicitly. Setting .value in
+      // code does not fire 'input'; dispatching matches the handler's contract.
+      scratch.dispatchEvent(new Event("input"));
+    });
+  }
+
   root.appendChild(heading);
   root.appendChild(description);
   root.appendChild(scratchLabel);
+  if (insertLinkBtn !== null) {
+    root.appendChild(insertLinkBtn);
+  }
   root.appendChild(scratch);
 
   function setVisible(visible: boolean): void {
