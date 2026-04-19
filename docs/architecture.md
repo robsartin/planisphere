@@ -2,7 +2,7 @@
 
 Planisphere is a static single-page application with no backend. All computation runs in the browser. This document describes the module structure, data flow, layer model, worker offload, TLE loading strategy, and the post-v1 feature subsystems.
 
-The v1 baseline design lives in `docs/specs/2026-04-15-planisphere-v1-design.md`. Everything in this file reflects the current state of the repo, including features added since v1 (star colors, Milky Way, Messier, search, planet info, RA/Dec grid + ecliptic, boundaries, view direction controls, trackball camera, Web Worker, fast RA/Dec math, PWA/service worker, copy-link, night vision, magnitude filter, "Now" button, object trails, multi-language constellation names, telescope FOV reticle).
+The v1 baseline design lives in `docs/specs/2026-04-15-planisphere-v1-design.md`. Everything in this file reflects the current state of the repo, including features added since v1 (star colors, Milky Way, Messier, search, planet info, RA/Dec grid + ecliptic, boundaries, view direction controls, trackball camera, Web Worker, fast RA/Dec math, PWA/service worker, copy-link, night vision, magnitude filter, "Now" button, object trails, multi-language constellation names, telescope FOV reticle, upcoming-celestial-events panel, ISS pass predictions with illumination, alternate skycultures).
 
 ## Module dependency graph
 
@@ -13,10 +13,12 @@ graph TD
     app["app.ts<br/>(composition root)"]
     main["main.ts<br/>(entrypoint + SW register)"]
     state["state/<br/>URL-synced app state"]
-    astro["astro/<br/>pure astro math"]
-    sat["sat/<br/>TLE loading + SGP4"]
+    astro["astro/<br/>pure astro math<br/>(incl. events)"]
+    sat["sat/<br/>TLE + SGP4"]
+    passes["sat/passes<br/>pass detection"]
+    illum["sat/illumination<br/>umbra + magnitude"]
     scene["scene/<br/>CesiumJS rendering"]
-    ui["ui/<br/>controls + intents"]
+    ui["ui/<br/>controls + intents<br/>(incl. events panel)"]
     workers["workers/<br/>astro Web Worker"]
     result["result/<br/>Result&lt;T,E&gt; helpers"]
 
@@ -31,10 +33,13 @@ graph TD
     state --> result
     state --> astro
     astro --> result
+    astro --> sat
     sat --> result
+    sat --> passes
+    passes --> illum
+    passes --> astro
 
     scene --> astro
-    sat --> astro
     workers --> astro
 
     ui --> state
@@ -48,23 +53,24 @@ graph TD
 - `ui/` reads `state/` types and emits `UIIntent` values; it does not compute positions.
 - `workers/` is the only module that constructs `Worker` instances. The worker entry (`src/workers/astro-worker.ts`) imports only from `src/workers/worker-math.ts` and has no DOM, Cesium, or astronomy-engine dependencies.
 - `result/` has no dependencies within the project.
-- `state/` imports narrow types from `astro/` (`Language`, `FovPresetId`) for URL parsing but no math.
+- `state/` imports narrow types from `astro/` (`Language`, `FovPresetId`, `SkycultureId`) for URL parsing but no math.
+- `astro/events.ts` is the one place in `astro/` that reaches into `sat/` — it imports `computeUpcomingPasses` and `isIssRecord` so the combined upcoming-events list can include ISS passes without `ui/` having to orchestrate two separate sources. `sat/` does not depend on `astro/events` (the edge goes one way).
 
 ## Module inventory
 
 Per-module summary of what lives where. Filenames omit the `.ts` extension; each module also has a `*.test.ts` sibling.
 
-| Module         | Files                                                                                                                                                                                                                                                | Responsibility                                                                                                                                         |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/result/`  | `result`                                                                                                                                                                                                                                             | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                |
-| `src/state/`   | `state`                                                                                                                                                                                                                                              | `AppState`, URL parse/serialize, defaults.                                                                                                             |
-| `src/astro/`   | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search` | Pure astronomy math. No DOM, no Cesium, no `Worker`.                                                                                                   |
-| `src/sat/`     | `fetch`, `tle`, `propagate`                                                                                                                                                                                                                          | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az.                                                         |
-| `src/scene/`   | `viewer`, `camera`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                       | CesiumJS primitives, one `create*Layer` factory per visual layer, camera setup, hover tooltip.                                                         |
-| `src/ui/`      | `panel`, `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `styles`                                                                                                                  | DOM controls, `UIIntent` union, layout/styles.                                                                                                         |
-| `src/workers/` | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                 | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.            |
-| `src/app.ts`   | —                                                                                                                                                                                                                                                    | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild. |
-| `src/main.ts`  | —                                                                                                                                                                                                                                                    | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                          |
+| Module         | Files                                                                                                                                                                                                                                                                         | Responsibility                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/result/`  | `result`                                                                                                                                                                                                                                                                      | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                |
+| `src/state/`   | `state`                                                                                                                                                                                                                                                                       | `AppState`, URL parse/serialize, defaults.                                                                                                             |
+| `src/astro/`   | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search`, `skycultures`, `events` | Pure astronomy math. No DOM, no Cesium, no `Worker`. `events` composes the upcoming-events list (reaches into `sat/passes` for ISS passes).            |
+| `src/sat/`     | `fetch`, `tle`, `propagate`, `passes`, `illumination`                                                                                                                                                                                                                         | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az, per-satellite pass detection, umbra/magnitude model.    |
+| `src/scene/`   | `viewer`, `camera`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                                                | CesiumJS primitives, one `create*Layer` factory per visual layer, camera setup, hover tooltip.                                                         |
+| `src/ui/`      | `panel`, `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `events-panel`, `styles`                                                                                                                           | DOM controls, `UIIntent` union, layout/styles. `events-panel` renders upcoming events and dispatches `set-time` / `set-view` from each Go-to button.   |
+| `src/workers/` | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                                          | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.            |
+| `src/app.ts`   | —                                                                                                                                                                                                                                                                             | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild. |
+| `src/main.ts`  | —                                                                                                                                                                                                                                                                             | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                          |
 
 ## Data flow
 
@@ -73,21 +79,25 @@ The application follows a unidirectional flow: state drives computation, computa
 ```mermaid
 flowchart LR
     URL["URL search params"]
-    State["AppState\n(observer, time, layers, opacity,\nview, nightVision, magLimit,\nlanguage, fov)"]
-    Astro["astro/ (main thread)\nfilterVisibleBoundaries\ncomputeBodyPositions\ncomputeRaDecGrid\ncomputeEclipticLine\ncomputeMilkyWayPoints\nfilterVisibleMessier\ncomputeBodyTrail\nfilterVisibleConstellations"]
+    State["AppState\n(observer, time, layers, opacity,\nview, nightVision, magLimit,\nlanguage, fov, skyculture)"]
+    Astro["astro/ (main thread)\nfilterVisibleBoundaries\ncomputeBodyPositions\ncomputeRaDecGrid\ncomputeEclipticLine\ncomputeMilkyWayPoints\nfilterVisibleMessier\ncomputeBodyTrail\nfilterVisibleConstellations\nfilterVisibleAsterisms (non-Western)"]
+    Events["astro/events\ncomputeUpcomingEvents\n(conjunctions, eclipses,\nshowers, ISS passes)"]
     Worker["workers/astro-worker\n(alt/az for ~5000 stars)"]
-    Sat["sat/\npropagateSatellites"]
+    Sat["sat/\npropagateSatellites\ncomputeUpcomingPasses"]
     Scene["scene/\nLayer.update()"]
-    UI["ui/\npanel + controls + search"]
+    UI["ui/\npanel + controls + search\nevents-panel"]
     Intent["UIIntent"]
 
     URL -->|parseStateFromSearchParams| State
     State -->|observer + timeUtc + magLimit| Astro
     State -->|RA/Dec catalog + observer + time| Worker
     State -->|observer + timeUtc| Sat
-    Astro -->|lines, bodies, grid, ecliptic,\nmilkyway, messier, trail, boundaries| Scene
+    State -->|observer + timeUtc + TLE| Events
+    Events -->|sat records| Sat
+    Astro -->|lines, bodies, grid, ecliptic,\nmilkyway, messier, trail,\nboundaries, asterisms| Scene
     Worker -->|altAzs + visibleIndices| Scene
     Sat -->|visible satellites| Scene
+    Events -->|CelestialEvent[]| UI
     Scene -->|primitives rendered| Browser["Browser / CesiumJS"]
     UI -->|user interaction| Intent
     Intent -->|handleIntent mutates state| State
@@ -96,16 +106,16 @@ flowchart LR
 
 On startup `bootstrap()` in `app.ts`:
 
-1. Parses `AppState` from URL search params via `parseStateFromSearchParams` (defaults used when params are absent).
-2. Parses the bundled star catalog (`data/stars.json`), constellation stick figures, boundaries, and Messier catalog.
+1. Parses `AppState` from URL search params via `parseStateFromSearchParams` (defaults used when params are absent). When `?t` is absent the default is the real "now" so upcoming events open on the current moment.
+2. Parses the bundled star catalog (`data/stars.json`), constellation stick figures, boundaries, Messier catalog, and — if the state's `skyculture` is non-Western — the selected asterism set from `data/asterisms/<id>.json`.
 3. Initialises the CesiumJS viewer, applies the initial `view` (az/alt) from state, and wires up trackball drag controls (see `src/scene/camera.ts`).
 4. Creates every scene layer up front (stars, bodies, constellations, boundaries, compass, grid, ecliptic, messier, milkyway, trail, reticle). The satellite layer is created later, once TLE data is available.
 5. Runs a synchronous initial `doRerender` so the sky appears instantly.
 6. Tries to spin up an `AstroWorkerClient`; if construction fails (test environment, bundler restriction) it falls back to synchronous rerenders.
-7. Fetches TLE data asynchronously and creates the satellite layer on success (see TLE flow below).
+7. Fetches TLE data asynchronously and creates the satellite layer on success (see TLE flow below). The same `SatelliteRecord[]` is passed into `computeUpcomingEvents` so the events panel can include ISS passes.
 8. Builds the search index over named stars, constellations, bodies, and satellites.
-9. Mounts the UI panel (time, location, view, FOV, layers, planet info, search box) plus the Copy link and Night vision buttons in the header. Each control fires a `UIIntent` that `handleIntent` dispatches.
-10. `scheduleRerender` debounces subsequent state changes with a 50 ms timeout and routes them through the worker when available.
+9. Mounts the UI panel (time, events, location, view, FOV, layers, planet info, search box) plus the Copy link and Night vision buttons in the header. Each control fires a `UIIntent` that `handleIntent` dispatches.
+10. `scheduleRerender` debounces subsequent state changes with a 50 ms timeout and routes them through the worker when available. The events panel is refreshed separately — only on `set-time`, `set-observer`, and `now` — because events depend on `now` and observer but not on layer / view / opacity state.
 
 ## Layer architecture
 
@@ -205,13 +215,15 @@ type AppState = {
   magLimit: number; // 1.0–6.0, default 6.0
   language: Language; // "la" | "en" | "zh" | "ar" | "el"
   fov: FovPresetId; // "off" | "naked-eye" | "binoculars" | "small-scope" | "large-scope"
+  skyculture: SkycultureId; // "western" | "chinese" | "indian" | "norse_edda"
+  //                         | "hawaiian_starlines" | "maori"
 };
 ```
 
 Only fields that differ from their default are written to the URL, so a freshly-loaded app produces a short, human-readable link.
 
 | Param     | Type                | State slice                       | Notes                                                                             |
-| --------- | ------------------- | --------------------------------- | --------------------------------------------------------------------------------- | ----------- | ------------ | ---------- | --------------------------- |
+| --------- | ------------------- | --------------------------------- | --------------------------------------------------------------------------------- | ----------- | ------------------ | ---------- | --------------------------- | ----------------------------------------------------------------------------------------- |
 | `lat`     | `number` (−90…90)   | `observer.lat`                    | Always written.                                                                   |
 | `lon`     | `number` (−180…180) | `observer.lon`                    | Always written.                                                                   |
 | `t`       | ISO 8601 string     | `timeUtc`                         | Always written.                                                                   |
@@ -226,8 +238,9 @@ Only fields that differ from their default are written to the URL, so a freshly-
 | `valt`    | `number` (0–90)     | `view.alt`                        | Written when `view` differs from zenith default.                                  |
 | `nv`      | `"1"` when on       | `nightVision`                     | Omitted when off.                                                                 |
 | `mag`     | `number` (1.0–6.0)  | `magLimit`                        | Omitted at default (6.0).                                                         |
-| `lang`    | `la                 | en                                | zh                                                                                | ar          | el`          | `language` | Omitted at default (`la`).  |
-| `fov`     | `off                | naked-eye                         | binoculars                                                                        | small-scope | large-scope` | `fov`      | Omitted at default (`off`). |
+| `lang`    | `la                 | en                                | zh                                                                                | ar          | el`                | `language` | Omitted at default (`la`).  |
+| `fov`     | `off                | naked-eye                         | binoculars                                                                        | small-scope | large-scope`       | `fov`      | Omitted at default (`off`). |
+| `sky`     | `western            | chinese                           | indian                                                                            | norse_edda  | hawaiian_starlines | maori`     | `skyculture`                | Omitted at default (`western`). Selects the bundled asterism set under `data/asterisms/`. |
 
 Parse and serialize are pure and returned as `Result<AppState, StateParseError>`; `handleIntent` in `app.ts` is the only place that re-serializes back into the URL (via `history.replaceState`).
 
@@ -247,11 +260,14 @@ type UIIntent =
   | { type: "show-trail"; objectKind: "body"; id: string }
   | { type: "hide-trail" }
   | { type: "set-language"; language: Language }
+  | { type: "set-skyculture"; id: SkycultureId }
   | { type: "set-fov"; preset: FovPresetId }
   | { type: "now" };
 ```
 
 `show-trail` / `hide-trail` are ephemeral — the current trail selection lives as a local variable in `bootstrap()` and is not serialised to the URL. The `now` intent additionally asks for the browser's geolocation; if it resolves, it also fires a `set-observer`-equivalent update.
+
+`set-language` and `set-skyculture` interact: non-Western skycultures ship their own native constellation names, so changing the language implicitly forces `skyculture = "western"` — otherwise the "Chinese" or "Māori" labels would be silently replaced by Latin translations that don't exist in those sets. The reverse isn't symmetric: selecting a non-Western skyculture keeps the language value as-is (it simply ceases to affect the currently-rendered labels until the user switches back to Western).
 
 ## Web Worker for star math
 
@@ -315,6 +331,96 @@ Solar-system bodies still use astronomy-engine's full pipeline (precession, nuta
 ## Multi-language constellation names
 
 `data/constellation-names/` holds translated names for constellation labels, one JSON file per non-Latin language (`en.json`, `zh.json`, `ar.json`, `el.json`). Latin (`la`) is the baseline from the upstream Stellarium data and needs no override file. `src/astro/constellation-names.ts` validates a raw map → `ConstellationNameMap` (`Result<..., ConstellationNamesParseError>`). `app.ts::loadNameOverridesForLanguage` reads the language from state; `ConstellationLayer.setNameOverrides(map | null)` patches the labels in place without re-computing constellation geometry. Language is serialised to the URL as `lang`.
+
+## Skycultures (alternate asterism sets)
+
+`src/astro/skycultures.ts` defines six `SkycultureId`s — `western`, `chinese`, `indian`, `norse_edda`, `hawaiian_starlines`, `maori`. The corresponding `data/asterisms/<id>.json` files hold the lines for each culture in a single shape:
+
+```ts
+type AsterismSet = {
+  id: string;
+  name: string;
+  constellations: {
+    id: string;
+    name: string; // already in the culture's native script (e.g. "毕宿", "Matariki")
+    lines: number[][]; // each entry is a polyline of HIP star ids, length ≥ 2
+  }[];
+};
+```
+
+Rendering goes through the same `ConstellationLayer`: `filterVisibleAsterisms` resolves each polyline's HIP ids against the current above-horizon star map, drops segments with either endpoint below the horizon, and returns `VisibleConstellation[]` — exactly the shape `filterVisibleConstellations` produces for the Western set. `app.ts::updateConstellationLayer` picks the source based on `data.activeAsterisms`: non-null means a non-Western skyculture is active, null falls back to the original Stellarium stick figures.
+
+`parseAsterismSet` is defensive — unknown entries, non-numeric HIP ids, and polylines shorter than two points are silently skipped rather than failing the whole set. The result is a `Result<AsterismSet, AsterismParseError>` with two error kinds: `asterism-invalid` (wrong top-level shape) and `asterism-empty` (no usable constellations survived). Invalid bundled data falls back to null in `loadAsterismSet`, i.e. rendering stays on whichever set was previously active rather than blanking the sky.
+
+### Build script
+
+`scripts/build-asterisms.mjs` produces the JSON files. Western is derived from `data/constellations.json` (the Stellarium `modern_st` stick figures, public domain). The other five are fetched from the Stellarium project's master branch at `skycultures/<name>/index.json` and normalised into the polyline shape above, preferring each constellation's `common_name.native` (rendered in the culture's script) and falling back to `common_name.english` then the raw id. Run `pnpm prettier --write data/asterisms/*.json` after the build to keep the committed files consistently formatted.
+
+### License attribution pattern
+
+The Stellarium skyculture data is CC-BY-SA 4.0 or CC-BY 4.0 depending on the culture; only the data files themselves carry those licenses — the planisphere code remains Apache 2.0. See `NOTICE` for per-culture attributions and [ADR 007](adr/007-stellarium-skyculture-data.md) for the decision record (including why CC-BY-ND and GPL-2.0 Stellarium cultures are explicitly **not** bundled). Adding another culture is a small build-script change plus a new JSON file plus a new id in `SKYCULTURES`.
+
+## Celestial events panel
+
+`src/astro/events.ts` composes the "upcoming events" list displayed under the time controls. A single `CelestialEvent` is a discriminated union of four kinds, each carrying its own fields alongside the shared `when: Date`, `title`, and `description`:
+
+```ts
+type CelestialEvent =
+  | ConjunctionEvent // planet-planet / planet-Sun / planet-Moon close approaches
+  | LunarEclipseEvent // penumbral / partial / total
+  | MeteorShowerEvent // annual peak from data/meteor-showers.json
+  | IssPassEvent; // observer-local visible pass
+```
+
+`computeUpcomingEvents(now, observer?, satelliteRecords?)` returns `Result<CelestialEvent[], EventsError>` with the four sources merged and sorted by `when`. The lookahead horizons are fixed: 30 days for conjunctions, 365 days for lunar eclipses, 365 days for meteor-shower peaks, and 48 hours for ISS passes. Passing `satelliteRecords` but no `observer` (or vice versa) suppresses ISS passes silently — they require both a TLE for the ISS and an observer lat/lon.
+
+### Observer-optional view-aim fields
+
+Every event kind except `iss-pass` carries **optional** `viewAz` / `viewAlt` fields. They are populated only when the caller supplies an `observer`:
+
+- `conjunction` — the angular midpoint of the two bodies' horizontal positions at `when`, computed with a short-arc azimuth mean so pairs straddling the 0°/360° wrap still get a sensible midpoint.
+- `lunar-eclipse` — the Moon's alt/az at peak obscuration. Below-horizon values are kept so the user sees "where the Moon would be" rather than a default zenith view.
+- `meteor-shower-peak` — the radiant's alt/az (`raDeg` / `decDeg` from `data/meteor-showers.json` run through `raDecToAltAz`).
+
+`iss-pass` is not optional: it always carries `peakAzDeg` / `peakAltDeg` because the underlying pass detection already has to compute them to find the peak.
+
+### Meteor-shower observer-local time shift
+
+IMO lists annual peak dates as UTC midnight on the peak day. A user in New York opening the app at 19:00 local on the night of the Perseids should see a `when` that says "tonight, roughly 03:00 local" — not "tomorrow 00:00 UTC", which is confusing and puts the radiant at a bad altitude. When an `observer` is supplied, `meteorPeakTime` shifts the base UTC midnight by `-observer.lon / 15 + 3` hours, so the resulting `when` lands around 03:00 local on the peak day (near the radiant's highest point for most observers). Without an `observer` the raw UTC midnight is preserved.
+
+`data/meteor-showers.json` grew an `raDeg` / `decDeg` pair per shower so the view-aim calculation can point at the radiant at the computed `when`. Attribution for the peak dates, ZHR values, and radiant coordinates is in `NOTICE` (IMO calendar + Wikipedia "List of meteor showers").
+
+### Events panel UI (`src/ui/events-panel.ts`)
+
+`createEventsPanel(events, dispatch)` renders a collapsible list. Each row shows the title, local-formatted date, and description, plus a Go-to button. The `viewFromEvent` helper extracts the view direction: `peakAzDeg/peakAltDeg` for ISS passes, `viewAz/viewAlt` for every other kind that has them populated. When a direction is available, Go-to dispatches both `set-time` (the event's `when`) and `set-view`; otherwise it only dispatches `set-time` and the camera stays wherever it was. Eclipsed ISS passes are rendered at 50 % opacity and keep their title prefixed "in Earth's shadow" so the user can see they exist but knows the satellite itself will be invisible.
+
+The events list is cached in `app.ts` and refreshed only on `set-time`, `set-observer`, and `now` — not on layer / opacity / view changes — because those intents don't move the horizon of "what events are coming up".
+
+## ISS passes and illumination (`src/sat/`)
+
+### Pass detection (`src/sat/passes.ts`)
+
+`computeUpcomingPasses(record, lat, lon, now, lookaheadHours)` walks the TLE in **30-second steps** across the window, detecting alt-sign transitions:
+
+- `prev ≤ 0 && cur > 0` → rise. The rise moment is linearly interpolated between the two straddling samples (`interpolateZeroCrossing`) rather than snapped to the sample grid, so rise times aren't biased by the step size.
+- `prev > 0 && cur ≤ 0` → set, interpolated the same way.
+- Peak is whichever in-pass sample has the highest alt — no separate refinement; 30 s resolution is fine for the single-decimal-degree display the events panel uses.
+
+After the raw passes are collected, each is filtered: the sun must be at least 6° below the horizon (civil twilight) at the **peak** moment. This is deliberately weaker than full astronomical darkness — it catches dusk and dawn ISS passes where the sky is bright but the ISS is still clearly visible. The sun check uses astronomy-engine's `Horizon` so it stays consistent with the rest of `astro/`. Daylight passes are dropped entirely; there's no visibility score beyond "pass survived the civil-twilight filter".
+
+`isIssRecord` matches on either "ISS" or the legacy "ZARYA" token in the satellite name (CelesTrak publishes it as "ISS (ZARYA)"). `astro/events` uses it to pick the one record out of the ~150-satellite TLE bundle.
+
+### Illumination model (`src/sat/illumination.ts`)
+
+Once a pass survives the civil-twilight filter, `computeIllumination(satEci, observerEci, sunEci)` annotates its peak with two things: an `eclipsed` flag and an approximate visual magnitude.
+
+**Cylindrical umbra:** Earth's shadow is approximated as an infinite cylinder of radius `R_EARTH_KM = 6378` along the anti-sun axis. The satellite is eclipsed when it's on the anti-sun side of Earth (`d > 0`) and its perpendicular distance to the anti-sun axis is less than `R_EARTH_KM`. This is slightly pessimistic versus the true cone — the cone's tip is ~1.4 × 10⁶ km down-axis, well beyond LEO — and the ~hundreds-of-km penumbra band is treated as pure-umbra vs. pure-sunlit (no partial illumination). Atmospheric refraction near the terminator is future work.
+
+**Magnitude (ISS-tuned):** based on the amateur-observer convention of "standard magnitude at 1000 km, full phase":
+
+    m ≈ m0 + 5·log10(range_km / 1000) − 2.5·log10(cos(phase) + diffuse)
+
+with `m0 = −1.8` (empirical ISS value from Heavens-Above / Mike McCants tables) and a small diffuse floor (`0.1`) so the brightness factor stays positive at 90° phase. `cos(phase)` is clamped at zero so the model stays monotone. This is accurate to roughly ±0.5 mag and only used for UI display — **never render the magnitude with more than one decimal digit** (see the comment at the top of `illumination.ts`). Eclipsed passes return `magnitude: null`; the events panel displays them as "(shadow)" and greys the row out rather than showing a misleading number.
 
 ## Search
 
@@ -557,18 +663,23 @@ node scripts/build-star-catalog.mjs     # ~5000 stars from HYG database → data
 node scripts/build-constellations.mjs   # 88 constellations from Stellarium → data/constellations.json
 node scripts/build-boundaries.mjs       # 89 boundary polygons from d3-celestial → data/boundaries.json
 node scripts/build-tle.mjs              # ~150 visual satellites from CelesTrak → data/tle/visual.txt
+node scripts/build-asterisms.mjs        # Stellarium skycultures → data/asterisms/*.json
+pnpm prettier --write data/asterisms/*.json   # re-format the output of build-asterisms
 ```
 
 Each script fetches from an external URL and writes a committed data file. Internet access required.
 
-| Data file                                     | Source                        | Refresh cadence                             |
-| --------------------------------------------- | ----------------------------- | ------------------------------------------- |
-| `data/stars.json`                             | HYG Database (Hipparcos)      | Never (catalog is fixed)                    |
-| `data/constellations.json`                    | Stellarium v23.4              | Never (IAU stick figures are fixed)         |
-| `data/boundaries.json`                        | d3-celestial (IAU boundaries) | Never (boundaries are fixed)                |
-| `data/messier.json`                           | Messier catalog               | Never (catalog is fixed)                    |
-| `data/constellation-names/{en,zh,ar,el}.json` | Hand-curated translations     | Edit in place when translations change      |
-| `data/tle/visual.txt`                         | CelesTrak                     | Weekly or before demos (TLEs decay in days) |
+| Data file                                                                  | Source                                            | Refresh cadence                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------- |
+| `data/stars.json`                                                          | HYG Database (Hipparcos)                          | Never (catalog is fixed)                        |
+| `data/constellations.json`                                                 | Stellarium v23.4                                  | Never (IAU stick figures are fixed)             |
+| `data/boundaries.json`                                                     | d3-celestial (IAU boundaries)                     | Never (boundaries are fixed)                    |
+| `data/messier.json`                                                        | Messier catalog                                   | Never (catalog is fixed)                        |
+| `data/meteor-showers.json`                                                 | IMO annual calendar + Wikipedia radiant entries   | Hand-edited when shower list or radiants change |
+| `data/constellation-names/{en,zh,ar,el}.json`                              | Hand-curated translations                         | Edit in place when translations change          |
+| `data/asterisms/{chinese,indian,norse_edda,hawaiian_starlines,maori}.json` | Stellarium skycultures (CC-BY-SA 4.0 / CC-BY 4.0) | Rebuild when Stellarium upstream changes        |
+| `data/asterisms/western.json`                                              | `data/constellations.json` (Stellarium modern_st) | Rebuild whenever constellations.json changes    |
+| `data/tle/visual.txt`                                                      | CelesTrak                                         | Weekly or before demos (TLEs decay in days)     |
 
 The app also fetches TLE data at runtime from CelesTrak — the bundled file is a fallback for when that fetch fails. The service worker uses a network-first policy for CelesTrak requests so a cached TLE is only served when offline.
 
