@@ -1,6 +1,25 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 export { type SceneInitError, createViewer } from "./viewer";
-export { initCamera, setCameraView, setupTrackballControls, getCameraHeadingDeg } from "./camera";
+export {
+  initCamera,
+  setCameraView,
+  setCameraViewAnimated,
+  setupTrackballControls,
+  setupGestures,
+  getCameraHeadingDeg,
+  CAMERA_ANIM_DURATION_MS,
+  DRAG_INERTIA_DECAY_MS,
+} from "./camera";
+export type { GestureHandle, GestureOptions, AzAltPosition } from "./camera";
+export {
+  clampFov,
+  easeOutCubic,
+  inertiaDelta,
+  interpolateAzAlt,
+  FOV_MIN_DEG,
+  FOV_MAX_DEG,
+} from "./animation-math";
+export type { AzAlt } from "./animation-math";
 export { type StarLayer, createStarLayer } from "./stars";
 export { type Tooltip, createTooltip } from "./tooltip";
 export { type BodyLayer, createBodyLayer } from "./bodies";

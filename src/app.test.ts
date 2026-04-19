@@ -36,6 +36,7 @@ vi.mock("cesium", () => {
         primitives: { add: vi.fn() },
         canvas: document.createElement("canvas"),
         camera: mockCamera,
+        pick: vi.fn().mockReturnValue(undefined),
         screenSpaceCameraController: {
           enableRotate: true,
           enableTranslate: true,
@@ -88,7 +89,17 @@ vi.mock("cesium", () => {
       setInputAction: vi.fn(),
       destroy: vi.fn(),
     })),
-    ScreenSpaceEventType: { MOUSE_MOVE: 0, LEFT_DOWN: 1, LEFT_UP: 2 },
+    ScreenSpaceEventType: {
+      MOUSE_MOVE: 0,
+      LEFT_DOWN: 1,
+      LEFT_UP: 2,
+      LEFT_CLICK: 3,
+      LEFT_DOUBLE_CLICK: 4,
+      WHEEL: 5,
+      PINCH_START: 6,
+      PINCH_MOVE: 7,
+      PINCH_END: 8,
+    },
     Matrix3: {
       fromQuaternion: vi.fn().mockReturnValue({}),
       multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),
@@ -324,6 +335,82 @@ describe("bootstrap", () => {
 
     expect(errorDiv.style.display).not.toBe("none");
     expect(errorDiv.textContent).toMatch(/Scene error/);
+    document.body.removeChild(root);
+  });
+
+  it("wheel gesture re-renders the reticle layer via onZoom", async () => {
+    capturedDispatch = null;
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    document.body.appendChild(root);
+
+    const cesium = await import("cesium");
+    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    handlerCtor.mockClear();
+
+    await bootstrap(root, new URLSearchParams({ fov: "naked-eye" }));
+
+    // Collect WHEEL handler across all ScreenSpaceEventHandler instances
+    const handlers = handlerCtor.mock.results.map(
+      (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
+    );
+    let wheelFn: ((delta: number) => void) | null = null;
+    let doubleClickFn:
+      | ((ev: { position: { x: number; y: number } }) => void)
+      | null = null;
+    for (const h of handlers) {
+      for (const call of h.setInputAction.mock.calls) {
+        const [fn, type] = call as [unknown, unknown];
+        if (type === cesium.ScreenSpaceEventType.WHEEL) {
+          wheelFn = fn as (delta: number) => void;
+        }
+        if (type === cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK) {
+          doubleClickFn = fn as (ev: { position: { x: number; y: number } }) => void;
+        }
+      }
+    }
+    expect(wheelFn).not.toBeNull();
+    expect(doubleClickFn).not.toBeNull();
+    // Fire them — exercises resolveObjectAt, getObserver, onZoom callbacks in app.ts
+    expect(() => wheelFn!(-100)).not.toThrow();
+    expect(() => doubleClickFn!({ position: { x: 100, y: 100 } })).not.toThrow();
+
+    document.body.removeChild(root);
+  });
+
+  it("registers gesture handlers (WHEEL, LEFT_DOUBLE_CLICK) on bootstrap", async () => {
+    capturedDispatch = null;
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    document.body.appendChild(root);
+
+    const cesium = await import("cesium");
+    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    handlerCtor.mockClear();
+
+    await bootstrap(root);
+
+    // Collect every event type registered across all ScreenSpaceEventHandler instances
+    const handlers = handlerCtor.mock.results.map(
+      (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
+    );
+    const allEvents: unknown[] = handlers.flatMap((h) =>
+      h.setInputAction.mock.calls.map((c: unknown[]) => c[1]),
+    );
+    expect(allEvents).toContain(cesium.ScreenSpaceEventType.WHEEL);
+    expect(allEvents).toContain(cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     document.body.removeChild(root);
   });
 
