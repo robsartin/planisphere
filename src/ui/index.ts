@@ -46,6 +46,8 @@ export { createCommandPalette } from "./command-palette";
 export type { CommandPalette, CommandPaletteOptions } from "./command-palette";
 export { createNotebookWorkspace, NOTEBOOK_SCRATCH_STORAGE_KEY } from "./notebook-workspace";
 export type { NotebookWorkspace, NotebookWorkspaceOptions } from "./notebook-workspace";
+export { createEmailGateModal } from "./email-gate-modal";
+export type { EmailGateModal, EmailGateModalOptions } from "./email-gate-modal";
 export { buildPaletteResults, fuzzyScore } from "./palette-results";
 export type {
   PaletteResult,

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPanel } from "./panel";
+import { setUser } from "../features";
 import type { UIIntent } from "./index";
 
 describe("createPanel", () => {
@@ -8,6 +9,11 @@ describe("createPanel", () => {
 
   beforeEach(() => {
     container = document.createElement("div");
+    globalThis.localStorage?.clear();
+  });
+
+  afterEach(() => {
+    globalThis.localStorage?.clear();
   });
 
   it("returns an object with element, setContent, and setCollapsed", () => {
@@ -209,23 +215,24 @@ describe("createPanel", () => {
 
     it("renders the 🌃 icon while in planetarium mode", () => {
       const { element } = createPanel(container, vi.fn(), { mode: "planetarium" });
-      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
-      expect(btn.textContent).toBe("\u{1F303}");
+      const icon = element.querySelector<HTMLElement>("[data-testid='panel-mode-icon']")!;
+      expect(icon.textContent).toBe("\u{1F303}");
     });
 
     it("renders the 📓 icon while in notebook mode", () => {
       const { element } = createPanel(container, vi.fn(), { mode: "notebook" });
-      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
-      expect(btn.textContent).toBe("\u{1F4D3}");
+      const icon = element.querySelector<HTMLElement>("[data-testid='panel-mode-icon']")!;
+      expect(icon.textContent).toBe("\u{1F4D3}");
     });
 
     it("defaults the icon to 🌃 when no mode is provided (planetarium default)", () => {
       const { element } = createPanel(container, vi.fn());
-      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
-      expect(btn.textContent).toBe("\u{1F303}");
+      const icon = element.querySelector<HTMLElement>("[data-testid='panel-mode-icon']")!;
+      expect(icon.textContent).toBe("\u{1F303}");
     });
 
-    it("clicking in planetarium mode dispatches set-mode notebook", () => {
+    it("clicking in planetarium mode dispatches set-mode notebook (Pro user)", () => {
+      setUser("rob.sartin@gmail.com");
       const dispatch = vi.fn();
       const { element } = createPanel(container, dispatch, { mode: "planetarium" });
       const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
@@ -233,6 +240,39 @@ describe("createPanel", () => {
       expect(dispatch).toHaveBeenCalledWith({
         type: "set-mode",
         mode: "notebook",
+      } satisfies UIIntent);
+    });
+
+    it("clicking in planetarium mode invokes onProRequired instead of dispatching when non-Pro", () => {
+      const dispatch = vi.fn();
+      const onProRequired = vi.fn();
+      const { element } = createPanel(container, dispatch, {
+        mode: "planetarium",
+        onProRequired,
+      });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      btn.click();
+      expect(onProRequired).toHaveBeenCalledTimes(1);
+      expect(dispatch).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "set-mode" }) as unknown as UIIntent,
+      );
+    });
+
+    it("clicking in notebook mode ALWAYS dispatches set-mode planetarium (exit is free)", () => {
+      // Even a non-Pro user (e.g. edge case where they're somehow in notebook
+      // mode via stale URL) can always exit back to planetarium.
+      const dispatch = vi.fn();
+      const onProRequired = vi.fn();
+      const { element } = createPanel(container, dispatch, {
+        mode: "notebook",
+        onProRequired,
+      });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
+      btn.click();
+      expect(onProRequired).not.toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "set-mode",
+        mode: "planetarium",
       } satisfies UIIntent);
     });
 
@@ -249,12 +289,66 @@ describe("createPanel", () => {
 
     it("setMode updates the button icon", () => {
       const { element, setMode } = createPanel(container, vi.fn(), { mode: "planetarium" });
-      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-mode']")!;
-      expect(btn.textContent).toBe("\u{1F303}");
+      const icon = element.querySelector<HTMLElement>("[data-testid='panel-mode-icon']")!;
+      expect(icon.textContent).toBe("\u{1F303}");
       setMode("notebook");
-      expect(btn.textContent).toBe("\u{1F4D3}");
+      expect(icon.textContent).toBe("\u{1F4D3}");
       setMode("planetarium");
-      expect(btn.textContent).toBe("\u{1F303}");
+      expect(icon.textContent).toBe("\u{1F303}");
+    });
+  });
+
+  describe("mode-toggle Pro pill", () => {
+    beforeEach(() => {
+      globalThis.localStorage?.clear();
+    });
+
+    afterEach(() => {
+      globalThis.localStorage?.clear();
+    });
+
+    it("renders a 'Pro' pill inside the mode-toggle button when the user is not Pro", () => {
+      const { element } = createPanel(container, vi.fn());
+      const pill = element.querySelector<HTMLElement>("[data-testid='panel-mode-pro']");
+      expect(pill).not.toBeNull();
+      expect(pill!.textContent).toMatch(/pro/i);
+    });
+
+    it("does not render the 'Pro' pill when the user is Pro", () => {
+      setUser("rob.sartin@gmail.com");
+      const { element } = createPanel(container, vi.fn());
+      const pill = element.querySelector<HTMLElement>("[data-testid='panel-mode-pro']");
+      expect(pill).toBeNull();
+    });
+  });
+
+  describe("layout regressions (issue #228)", () => {
+    it("allows the header button group to wrap so the row of icons cannot force horizontal overflow", () => {
+      // Post-Phase-1 the header carries 7+ icon buttons. With PANEL_WIDTH
+      // fixed at 280px, a single non-wrapping row overflows and makes the
+      // panel appear wider at the top than at its body. The header row
+      // (or its btn group) must permit flex wrapping.
+      const { element } = createPanel(container);
+      const header = element.querySelector<HTMLElement>("[data-testid='panel-header']")!;
+      const btnGroup = header.children[1] as HTMLElement;
+      const headerWraps = header.style.flexWrap === "wrap";
+      const btnGroupWraps = btnGroup.style.flexWrap === "wrap";
+      expect(headerWraps || btnGroupWraps).toBe(true);
+    });
+
+    it("does not impose an overflow-y:auto that would render a spurious scrollbar on short content", () => {
+      // After Phase 1 the body content is short (search + location + view +
+      // fov). A panel-wide overflow-y:auto combined with max-height:80vh is
+      // sized for the pre-Phase-1 content and renders an unwanted scrollbar.
+      const { element } = createPanel(container);
+      expect(element.style.overflowY).not.toBe("auto");
+    });
+
+    it("does not clamp the panel to a viewport-relative max-height larger than its content", () => {
+      // Let block layout size the panel to its content; the old 80vh cap is
+      // left over from when the panel carried the events/time/layers UIs.
+      const { element } = createPanel(container);
+      expect(element.style.maxHeight).toBe("");
     });
   });
 

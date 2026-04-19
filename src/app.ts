@@ -86,8 +86,10 @@ import {
   createEmptySkyPopover,
   createOnboardingOverlay,
   createNotebookWorkspace,
+  createEmailGateModal,
   ONBOARDING_STORAGE_KEY,
 } from "./ui";
+import { isPro } from "./features";
 import type { OnboardingStep } from "./ui";
 import type {
   BottomHud,
@@ -1065,6 +1067,7 @@ export async function bootstrap(
   let bottomHud: BottomHud | null = null;
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
   let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
+  let emailGateModal: ReturnType<typeof createEmailGateModal> | null = null;
 
   // Intent handler
   function handleIntent(intent: UIIntent): void {
@@ -1167,6 +1170,13 @@ export async function bootstrap(
         break;
       }
       case "set-mode": {
+        // Notebook is a Pro feature (issue #224). Non-Pro users attempting to
+        // enter it are shown the email-gate modal instead of flipping mode.
+        // Exiting back to planetarium is always free.
+        if (intent.mode === "notebook" && !isPro()) {
+          emailGateModal?.open();
+          break;
+        }
         state = { ...state, mode: intent.mode };
         notebookWorkspace?.setVisible(intent.mode === "notebook");
         nightVisionPanel?.setMode(intent.mode);
@@ -1366,6 +1376,18 @@ export async function bootstrap(
   });
   document.body.appendChild(locationPicker.element);
 
+  // Email-gate modal (issue #224) — surfaced whenever a non-Pro user hits a
+  // Pro-gated action. Built before the panel/notebook so they can reference
+  // it via an onProRequired callback. On-grant behaviour is to re-dispatch a
+  // set-mode intent; by the time it fires, isPro() is true so the gate falls
+  // open.
+  emailGateModal = createEmailGateModal({
+    onGranted: () => {
+      handleIntent({ type: "set-mode", mode: "notebook" });
+    },
+  });
+  document.body.appendChild(emailGateModal.element);
+
   // Notebook workspace (milestone 2A of Plan 07, issue #216). Right-side shell
   // shown only when state.mode === "notebook". Content is a placeholder +
   // localStorage-backed scratch textarea; the real editor arrives in #219.
@@ -1374,6 +1396,9 @@ export async function bootstrap(
       href: globalThis.location.href,
       timeUtc: state.timeUtc,
     }),
+    onProRequired: () => {
+      emailGateModal?.open();
+    },
   });
   document.body.appendChild(notebookWorkspace.element);
   notebookWorkspace.setVisible(state.mode === "notebook");
@@ -1428,6 +1453,9 @@ export async function bootstrap(
         if (eventsDrawer?.isOpen()) eventsDrawer.close();
         if (settingsDrawer.isOpen()) settingsDrawer.close();
         tonightDrawer?.open();
+      },
+      onProRequired: () => {
+        emailGateModal?.open();
       },
       mode: state.mode,
     });
