@@ -21,6 +21,7 @@ export type PanelOptions = {
   onOpenHelp?: () => void;
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
+  onOpenTonight?: () => void;
 };
 
 export function createPanel(
@@ -80,6 +81,12 @@ export function createPanel(
   eventsBtn.title = "Upcoming events";
   applyButton(eventsBtn);
 
+  const tonightBtn = document.createElement("button");
+  tonightBtn.dataset.testid = "panel-tonight";
+  tonightBtn.textContent = "\u2640";
+  tonightBtn.title = "Tonight's sky";
+  applyButton(tonightBtn);
+
   const helpBtn = document.createElement("button");
   helpBtn.dataset.testid = "panel-help";
   helpBtn.textContent = "?";
@@ -101,6 +108,7 @@ export function createPanel(
   btnGroup.appendChild(nightVisionBtn);
   btnGroup.appendChild(copyLinkBtn);
   btnGroup.appendChild(eventsBtn);
+  btnGroup.appendChild(tonightBtn);
   btnGroup.appendChild(helpBtn);
   btnGroup.appendChild(settingsBtn);
   btnGroup.appendChild(toggleBtn);
@@ -129,6 +137,10 @@ export function createPanel(
 
   eventsBtn.addEventListener("click", () => {
     options.onOpenEvents?.();
+  });
+
+  tonightBtn.addEventListener("click", () => {
+    options.onOpenTonight?.();
   });
 
   settingsBtn.addEventListener("click", () => {

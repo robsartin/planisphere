@@ -22,6 +22,8 @@ export { createFovControls } from "./fov-controls";
 export { createEventsPanel } from "./events-panel";
 export { createEventsDrawer } from "./events-drawer";
 export type { EventsDrawer, EventsDrawerOptions } from "./events-drawer";
+export { createTonightDrawer } from "./tonight-drawer";
+export type { TonightDrawer, TonightDrawerOptions } from "./tonight-drawer";
 export type { HelpModal } from "./help-modal";
 export { createHelpModal } from "./help-modal";
 export { createBottomHud } from "./bottom-hud";

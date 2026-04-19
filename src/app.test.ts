@@ -214,6 +214,7 @@ let capturedPanelOptions: {
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
   onOpenHelp?: () => void;
+  onOpenTonight?: () => void;
 } | null = null;
 let settingsDrawerMock: {
   open: ReturnType<typeof vi.fn>;
@@ -231,6 +232,11 @@ let locationPickerMock: {
 const eventsDrawerSetEvents = vi.fn();
 const eventsDrawerOpen = vi.fn();
 
+// Captured tonight-drawer spies — same shape as events drawer. Tests assert
+// setBodies fires on observer/time changes and open() fires on panel click.
+const tonightDrawerSetBodies = vi.fn();
+const tonightDrawerOpen = vi.fn();
+
 // Mock UI modules — they exercise DOM which is fully covered in their own tests
 vi.mock("./ui", () => ({
   createPanel: vi.fn().mockImplementation(
@@ -241,6 +247,7 @@ vi.mock("./ui", () => ({
         onOpenEvents?: () => void;
         onOpenSettings?: () => void;
         onOpenHelp?: () => void;
+        onOpenTonight?: () => void;
       },
     ) => {
       capturedPanelOptions = options ?? null;
@@ -273,6 +280,23 @@ vi.mock("./ui", () => ({
       }),
       isOpen: vi.fn().mockImplementation(() => open),
       setEvents: eventsDrawerSetEvents,
+    };
+  }),
+  createTonightDrawer: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "tonight-drawer";
+    let open = false;
+    return {
+      element,
+      open: vi.fn().mockImplementation(() => {
+        open = true;
+        tonightDrawerOpen();
+      }),
+      close: vi.fn().mockImplementation(() => {
+        open = false;
+      }),
+      isOpen: vi.fn().mockImplementation(() => open),
+      setBodies: tonightDrawerSetBodies,
     };
   }),
   createHelpModal: vi.fn().mockReturnValue({
@@ -1111,6 +1135,131 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
+  it("mounts the tonight drawer on the document body", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    tonightDrawerSetBodies.mockClear();
+    tonightDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    expect(document.querySelector("[data-testid='tonight-drawer']")).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='tonight-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("tonight drawer is refreshed on set-time intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    tonightDrawerSetBodies.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = tonightDrawerSetBodies.mock.calls.length;
+    capturedDispatch!({ type: "set-time", time: new Date("2026-05-01T00:00:00Z") });
+    expect(tonightDrawerSetBodies.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='tonight-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("tonight drawer is refreshed on set-observer intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    tonightDrawerSetBodies.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = tonightDrawerSetBodies.mock.calls.length;
+    capturedDispatch!({ type: "set-observer", lat: 48.8, lon: 2.35 });
+    expect(tonightDrawerSetBodies.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='tonight-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("tonight drawer is refreshed on now intent", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    tonightDrawerSetBodies.mockClear();
+    Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = tonightDrawerSetBodies.mock.calls.length;
+    capturedDispatch!({ type: "now" });
+    expect(tonightDrawerSetBodies.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    vi.advanceTimersByTime(100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='tonight-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("tonight drawer is refreshed on show-trail intent", async () => {
+    capturedDispatch = null;
+    tonightDrawerSetBodies.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    const beforeCount = tonightDrawerSetBodies.mock.calls.length;
+    capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Mars" });
+    expect(tonightDrawerSetBodies.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("tonight drawer is refreshed on hide-trail intent", async () => {
+    capturedDispatch = null;
+    tonightDrawerSetBodies.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    capturedDispatch!({ type: "show-trail", objectKind: "body", id: "Mars" });
+    const beforeCount = tonightDrawerSetBodies.mock.calls.length;
+    capturedDispatch!({ type: "hide-trail" });
+    expect(tonightDrawerSetBodies.mock.calls.length).toBeGreaterThan(beforeCount);
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("panel's onOpenTonight callback opens the tonight drawer", async () => {
+    capturedDispatch = null;
+    capturedPanelOptions = null;
+    tonightDrawerOpen.mockClear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    expect(capturedPanelOptions).not.toBeNull();
+    expect(typeof capturedPanelOptions!.onOpenTonight).toBe("function");
+    capturedPanelOptions!.onOpenTonight!();
+    expect(tonightDrawerOpen).toHaveBeenCalled();
+
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='tonight-drawer']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
   it("side panel setContent is called without a layer-controls child (moved to drawer)", async () => {
     const ui = await import("./ui");
     const panelMock = ui.createPanel as unknown as ReturnType<typeof vi.fn>;
@@ -1132,6 +1281,8 @@ describe("handleIntent routing", () => {
     expect(uiContainer.querySelector("select[data-skyculture]")).toBeNull();
     expect(uiContainer.querySelector("input[data-mag='limit']")).toBeNull();
     expect(uiContainer.querySelector("input[data-opacity]")).toBeNull();
+    // Planet Info likewise now lives in the tonight drawer (milestone 1G).
+    expect(uiContainer.querySelector("[data-testid='planet-info-heading']")).toBeNull();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });

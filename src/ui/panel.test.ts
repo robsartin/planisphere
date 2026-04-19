@@ -144,6 +144,34 @@ describe("createPanel", () => {
     });
   });
 
+  describe("tonight button", () => {
+    it("renders a tonight (♀) button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-tonight']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("displays the ♀ icon", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-tonight']")!;
+      expect(btn.textContent).toBe("\u2640");
+    });
+
+    it("clicking the tonight button invokes the provided onOpenTonight callback", () => {
+      const onOpenTonight = vi.fn();
+      const { element } = createPanel(container, vi.fn(), { onOpenTonight });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-tonight']")!;
+      btn.click();
+      expect(onOpenTonight).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the tonight button is a no-op when no callback is provided", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-tonight']")!;
+      expect(() => btn.click()).not.toThrow();
+    });
+  });
+
   describe("settings button", () => {
     it("renders a settings button in the header", () => {
       const { element } = createPanel(container);
