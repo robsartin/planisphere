@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-export type { Panel } from "./panel";
+export type { Panel, PanelOptions } from "./panel";
 export { createPanel } from "./panel";
 export { createTimeControls } from "./time-controls";
 export type { TimeControls } from "./time-controls";
@@ -10,6 +10,8 @@ export { createPlanetInfo } from "./planet-info";
 export { createSearch } from "./search";
 export { createFovControls } from "./fov-controls";
 export { createEventsPanel } from "./events-panel";
+export type { HelpModal } from "./help-modal";
+export { createHelpModal } from "./help-modal";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import type { Language } from "../astro/constellation-names";

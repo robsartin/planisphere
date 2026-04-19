@@ -28,6 +28,17 @@ Copyright (c) 2013-2024 Shashwat Kandadai and Contributors
 License: MIT
 https://github.com/shashwatak/satellite-js
 
+marked
+Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/)
+Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+License: MIT
+https://github.com/markedjs/marked
+
+DOMPurify
+Copyright (c) 2024 Mario Heiderich (https://cure53.de/)
+License: Apache-2.0 OR MPL-2.0 (consumed under Apache-2.0)
+https://github.com/cure53/DOMPurify
+
 TLE data from CelesTrak (https://celestrak.org)
 Dr. T.S. Kelso. Used with attribution.
 

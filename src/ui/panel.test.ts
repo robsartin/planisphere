@@ -88,6 +88,34 @@ describe("createPanel", () => {
     });
   });
 
+  describe("help button", () => {
+    it("renders a help button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-help']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("displays the ? icon", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-help']")!;
+      expect(btn.textContent).toBe("?");
+    });
+
+    it("clicking the help button invokes the provided onOpenHelp callback", () => {
+      const onOpenHelp = vi.fn();
+      const { element } = createPanel(container, vi.fn(), { onOpenHelp });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-help']")!;
+      btn.click();
+      expect(onOpenHelp).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the help button is a no-op when no callback is provided", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-help']")!;
+      expect(() => btn.click()).not.toThrow();
+    });
+  });
+
   describe("copy-link button", () => {
     beforeEach(() => {
       Object.defineProperty(navigator, "clipboard", {
