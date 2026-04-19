@@ -7,6 +7,13 @@ import {
   computeUpcomingEvents,
 } from "./events";
 import type { CelestialEvent } from "./events";
+import { expectOk } from "../result";
+import { parseTle } from "../sat/tle";
+
+// Pinned ISS TLE from 2024-04-09 — same one used in passes.test.ts for determinism.
+const ISS_TLE = `ISS (ZARYA)
+1 25544U 98067A   24100.50000000  .00016717  00000-0  10270-3 0  9006
+2 25544  51.6400 208.9163 0002476 102.8574 355.4846 15.49909786447384`;
 
 describe("computeMeteorShowerPeaks", () => {
   it("returns events within the lookahead window only", () => {
@@ -179,5 +186,71 @@ describe("computeUpcomingEvents", () => {
     for (const e of result.value) {
       expect(e.when.getTime()).toBeGreaterThanOrEqual(now.getTime());
     }
+  });
+
+  it("includes ISS passes when satellite records are provided and passes exist", () => {
+    // Pin to 2024-04-10 so the pinned TLE is near its epoch; Denver, CO.
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter(
+      (e): e is Extract<CelestialEvent, { kind: "iss-pass" }> => e.kind === "iss-pass",
+    );
+    expect(issEvents.length).toBeGreaterThan(0);
+    for (const e of issEvents) {
+      expect(e.when).toBeInstanceOf(Date);
+      expect(typeof e.title).toBe("string");
+      expect(e.title).toMatch(/ISS/);
+      expect(e.peakAltDeg).toBeGreaterThan(0);
+      expect(e.peakAzDeg).toBeGreaterThanOrEqual(0);
+      expect(e.peakAzDeg).toBeLessThan(360);
+      expect(e.durationSec).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns no ISS passes when satellite records are omitted", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter((e) => e.kind === "iss-pass");
+    expect(issEvents).toHaveLength(0);
+  });
+
+  it("sets ISS event 'when' to the peak time (not the rise time) so Go-to jumps to the easiest viewing moment", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter(
+      (e): e is Extract<CelestialEvent, { kind: "iss-pass" }> => e.kind === "iss-pass",
+    );
+    expect(issEvents.length).toBeGreaterThan(0);
+    for (const e of issEvents) {
+      // The description lists a peak time in local-time HH:MM; parse it back out
+      // and confirm `when` matches. (Regression guard: we used to emit rise time.)
+      const m = /Peaks \d+° in the [A-Z]+ at (\d{2}:\d{2}) local/.exec(e.description);
+      expect(m).not.toBeNull();
+      if (m === null) continue;
+      const [peakH, peakM] = m[1]!.split(":").map(Number);
+      expect(e.when.getHours()).toBe(peakH);
+      expect(e.when.getMinutes()).toBe(peakM);
+    }
+  });
+
+  it("returns no ISS passes when no record matches ISS", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const hubbleOnly = `HUBBLE
+1 20580U 90037B   24100.50000000  .00001234  00000-0  56789-4 0  9005
+2 20580  28.4700 123.4567 0002345  67.8901 292.1098 15.09876543210987`;
+    const sats = expectOk(parseTle(hubbleOnly));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter((e) => e.kind === "iss-pass");
+    expect(issEvents).toHaveLength(0);
   });
 });

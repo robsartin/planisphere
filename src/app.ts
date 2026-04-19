@@ -546,10 +546,11 @@ export async function bootstrap(
   let cachedEvents: readonly CelestialEvent[] = [];
 
   function refreshEvents(s: AppState): void {
-    const result = computeUpcomingEvents(s.timeUtc, {
-      lat: s.observer.lat,
-      lon: s.observer.lon,
-    });
+    const result = computeUpcomingEvents(
+      s.timeUtc,
+      { lat: s.observer.lat, lon: s.observer.lon },
+      satelliteRecords,
+    );
     cachedEvents = result.ok ? result.value : [];
     eventsWrapper.replaceChildren(createEventsPanel(cachedEvents, handleIntent));
   }
