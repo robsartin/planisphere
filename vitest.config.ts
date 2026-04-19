@@ -11,13 +11,19 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: false,
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "worker/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "./coverage",
-      include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/main.ts", "src/env.d.ts", "src/**/index.ts"],
+      include: ["src/**/*.ts", "worker/**/*.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "worker/**/*.test.ts",
+        "src/main.ts",
+        "src/env.d.ts",
+        "src/**/index.ts",
+      ],
       thresholds: {
         // Project-wide floor
         lines: 85,
@@ -78,6 +84,16 @@ export default defineConfig({
           statements: 60,
           functions: 60,
           branches: 50,
+        },
+
+        // Cloudflare Worker (backend) — pure utilities in this slice; hold to
+        // the same bar as src/astro etc. Raise later if we add runtime code
+        // that's impractical to test under jsdom.
+        "worker/**": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 85,
         },
       },
     },

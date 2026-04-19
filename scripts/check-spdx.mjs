@@ -18,6 +18,7 @@ function findFiles(dir, ext, recursive) {
 
 const files = [
   ...findFiles("src", ".ts", true),
+  ...findFiles("worker", ".ts", true),
   ...findFiles("scripts", ".mjs", true),
   ...findFiles(".", ".ts", false),
 ];

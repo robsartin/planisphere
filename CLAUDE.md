@@ -64,6 +64,8 @@ src/
   state/     URL-synced app state
   result/    Result<T, E> + helpers
   app.ts     composition root
+worker/      Cloudflare Worker backend (Phase 2; see ADR 009, ADR 010).
+             Not importable from src/. src/ does not import Workers types.
 data/        bundled star, constellation, TLE data
 docs/
   specs/     design specs (source of truth)
