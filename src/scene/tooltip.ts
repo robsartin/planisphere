@@ -5,9 +5,25 @@ import type { AltAzStar } from "../astro";
 import type { CelestialBody } from "../astro";
 import type { VisibleSatellite } from "../sat";
 import type { VisibleMessier } from "../astro/messier";
+import type { VisibleConstellation } from "../astro/constellations";
 
 export type Tooltip = {
   destroy: () => void;
+};
+
+/** Structured representation of what was picked under the mouse.
+ *  Used for both hover rendering and the click-emit callback. */
+export type PickedObject =
+  | { readonly kind: "star"; readonly star: AltAzStar }
+  | { readonly kind: "body"; readonly body: CelestialBody }
+  | { readonly kind: "satellite"; readonly satellite: VisibleSatellite }
+  | { readonly kind: "messier"; readonly messier: VisibleMessier }
+  | { readonly kind: "constellation"; readonly constellation: VisibleConstellation };
+
+export type TooltipOptions = {
+  /** Invoked on left-click when an object is picked. The caller is responsible for
+   *  presenting any pinned UI (see `ui/object-cards-manager`). */
+  onObjectClicked?: (picked: PickedObject, screenX: number, screenY: number) => void;
 };
 
 function formatRa(raDeg: number): string {
@@ -97,6 +113,18 @@ function isVisibleMessier(obj: unknown): obj is VisibleMessier {
   );
 }
 
+function isVisibleConstellation(obj: unknown): obj is VisibleConstellation {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "centroid" in obj &&
+    "lines" in obj &&
+    "id" in obj &&
+    "name" in obj &&
+    typeof (obj as Record<string, unknown>).id === "string"
+  );
+}
+
 function formatMessier(obj: VisibleMessier): string {
   const label = obj.name.length > 0 ? `M${String(obj.m)} \u2014 ${obj.name}` : `M${String(obj.m)}`;
   return (
@@ -116,21 +144,37 @@ function formatSatellite(sat: VisibleSatellite): string {
   );
 }
 
-function pickHtml(
+function pickObject(
   viewer: { scene: { pick: (pos: Cartesian2) => unknown } },
   position: Cartesian2,
-): string | null {
+): PickedObject | null {
   const picked: { id?: unknown } | undefined = viewer.scene.pick(position) as
     | { id?: unknown }
     | undefined;
 
   if (!defined(picked) || picked === undefined) return null;
 
-  if (isAltAzStar(picked.id)) return formatStar(picked.id);
-  if (isCelestialBody(picked.id)) return formatBody(picked.id);
-  if (isVisibleSatellite(picked.id)) return formatSatellite(picked.id);
-  if (isVisibleMessier(picked.id)) return formatMessier(picked.id);
+  if (isAltAzStar(picked.id)) return { kind: "star", star: picked.id };
+  if (isCelestialBody(picked.id)) return { kind: "body", body: picked.id };
+  if (isVisibleSatellite(picked.id)) return { kind: "satellite", satellite: picked.id };
+  if (isVisibleMessier(picked.id)) return { kind: "messier", messier: picked.id };
+  if (isVisibleConstellation(picked.id)) return { kind: "constellation", constellation: picked.id };
   return null;
+}
+
+function pickHtml(picked: PickedObject): string {
+  switch (picked.kind) {
+    case "star":
+      return formatStar(picked.star);
+    case "body":
+      return formatBody(picked.body);
+    case "satellite":
+      return formatSatellite(picked.satellite);
+    case "messier":
+      return formatMessier(picked.messier);
+    case "constellation":
+      return `<strong>${picked.constellation.name}</strong><br>(constellation)`;
+  }
 }
 
 const HOVER_STYLE =
@@ -138,47 +182,22 @@ const HOVER_STYLE =
   "color:#fff;font:12px/1.4 monospace;padding:6px 10px;border-radius:4px;" +
   "border:1px solid rgba(255,255,255,0.2);white-space:nowrap;z-index:10";
 
-const PINNED_STYLE =
-  "position:absolute;pointer-events:auto;display:none;background:rgba(10,20,40,0.95);" +
-  "color:#fff;font:12px/1.4 monospace;padding:6px 10px 6px 10px;border-radius:4px;" +
-  "border:1px solid rgba(100,160,255,0.8);white-space:nowrap;z-index:11;box-shadow:0 0 8px rgba(100,160,255,0.3)";
-
-const CLOSE_BTN_STYLE =
-  "background:none;border:none;color:rgba(255,255,255,0.6);cursor:pointer;" +
-  "font:14px/1 monospace;padding:0 0 0 8px;vertical-align:top;float:right";
-
-export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
-  // Hover tooltip
+export function createTooltip(
+  viewer: Viewer,
+  container: HTMLElement,
+  options: TooltipOptions = {},
+): Tooltip {
+  // Hover tooltip only — pinned / card presentation now lives in ui/object-cards-manager.
   const hoverEl = document.createElement("div");
   hoverEl.style.cssText = HOVER_STYLE;
   container.appendChild(hoverEl);
 
-  // Pinned tooltip
-  const pinnedEl = document.createElement("div");
-  pinnedEl.style.cssText = PINNED_STYLE;
-  pinnedEl.dataset.pinned = "true";
-  container.appendChild(pinnedEl);
-
-  let isPinned = false;
-
-  function dismissPinned(): void {
-    isPinned = false;
-    pinnedEl.style.display = "none";
-    pinnedEl.innerHTML = "";
-  }
-
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 
-  // Hover handler
   handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
-    if (isPinned) {
-      hoverEl.style.display = "none";
-      return;
-    }
-
-    const html = pickHtml(viewer, movement.endPosition);
-    if (html !== null) {
-      hoverEl.innerHTML = html;
+    const picked = pickObject(viewer, movement.endPosition);
+    if (picked !== null) {
+      hoverEl.innerHTML = pickHtml(picked);
       hoverEl.style.display = "block";
       hoverEl.style.left = `${String(movement.endPosition.x + 14)}px`;
       hoverEl.style.top = `${String(movement.endPosition.y + 14)}px`;
@@ -187,38 +206,16 @@ export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
     }
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
-  // Click handler
   handler.setInputAction((movement: { position: Cartesian2 }) => {
-    const html = pickHtml(viewer, movement.position);
-
-    if (html === null) {
-      // Clicked empty space — dismiss pinned
-      dismissPinned();
-      return;
-    }
-
-    // Pin the tooltip
-    isPinned = true;
+    const picked = pickObject(viewer, movement.position);
+    if (picked === null) return;
     hoverEl.style.display = "none";
-
-    const closeBtn = document.createElement("button");
-    closeBtn.style.cssText = CLOSE_BTN_STYLE;
-    closeBtn.textContent = "\u00D7";
-    closeBtn.addEventListener("click", () => {
-      dismissPinned();
-    });
-
-    pinnedEl.innerHTML = html;
-    pinnedEl.appendChild(closeBtn);
-    pinnedEl.style.display = "block";
-    pinnedEl.style.left = `${String(movement.position.x + 14)}px`;
-    pinnedEl.style.top = `${String(movement.position.y + 14)}px`;
+    options.onObjectClicked?.(picked, movement.position.x, movement.position.y);
   }, ScreenSpaceEventType.LEFT_CLICK);
 
   function destroy(): void {
     handler.destroy();
     hoverEl.remove();
-    pinnedEl.remove();
   }
 
   return { destroy };

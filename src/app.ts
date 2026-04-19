@@ -48,8 +48,9 @@ import {
   createReticleLayer,
   setCameraView,
   getCameraHeadingDeg,
+  projectAltAzToScreen,
 } from "./scene";
-import type { AzAltPosition } from "./scene";
+import type { AzAltPosition, PickedObject } from "./scene";
 import type {
   StarLayer,
   BodyLayer,
@@ -79,8 +80,16 @@ import {
   createBottomHud,
   createCommandPalette,
   createSettingsDrawer,
+  createObjectCardsManager,
 } from "./ui";
-import type { BottomHud, EventsDrawer } from "./ui";
+import type {
+  BottomHud,
+  EventsDrawer,
+  ObjectCardsManager,
+  ObjectCardData,
+  ObjectPosition,
+  CardKey,
+} from "./ui";
 import type {
   CommandPalette,
   PaletteSources,
@@ -364,6 +373,56 @@ type ParsedData = {
   activeAsterisms: AsterismSet | null;
 };
 
+/** Live alt/az positions for every object currently visible in the sky — populated
+ *  on each rerender and consulted by the object-cards manager so open cards follow
+ *  their target objects as time advances. Keys are `objectKind + '|' + id`. */
+type LatestPositions = Map<string, ObjectPosition>;
+
+function positionKey(kind: string, id: string): string {
+  return `${kind}|${id}`;
+}
+
+function fillLatestFromVisible(
+  latest: LatestPositions,
+  visibleStars: ReturnType<typeof filterVisibleStars>,
+  bodies: ReturnType<typeof computeBodyPositions>,
+  visibleMessier: ReturnType<typeof filterVisibleMessier>,
+  visibleSats: ReturnType<typeof propagateSatellites> | null,
+  visibleConstellations: readonly { id: string; centroid: { alt: number; az: number } }[],
+): void {
+  latest.clear();
+  for (const s of visibleStars) {
+    const id = s.name ?? `HIP ${String(s.hip)}`;
+    latest.set(positionKey("star", id), { alt: s.alt, az: s.az, belowHorizon: s.alt <= 0 });
+  }
+  for (const b of bodies) {
+    latest.set(positionKey("body", b.id), { alt: b.alt, az: b.az, belowHorizon: b.alt <= 0 });
+  }
+  for (const m of visibleMessier) {
+    latest.set(positionKey("messier", `M${String(m.m)}`), {
+      alt: m.alt,
+      az: m.az,
+      belowHorizon: m.alt <= 0,
+    });
+  }
+  if (visibleSats) {
+    for (const sat of visibleSats) {
+      latest.set(positionKey("satellite", sat.name), {
+        alt: sat.alt,
+        az: sat.az,
+        belowHorizon: sat.alt <= 0,
+      });
+    }
+  }
+  for (const c of visibleConstellations) {
+    latest.set(positionKey("constellation", c.id), {
+      alt: c.centroid.alt,
+      az: c.centroid.az,
+      belowHorizon: c.centroid.alt <= 0,
+    });
+  }
+}
+
 let rerenderTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
@@ -384,10 +443,11 @@ function rerenderSatellites(
   lat: number,
   lon: number,
   time: Date,
-): void {
-  if (!data.satelliteRecords?.ok || !layers.satellite) return;
+): ReturnType<typeof propagateSatellites> | null {
+  if (!data.satelliteRecords?.ok || !layers.satellite) return null;
   const visibleSats = propagateSatellites(data.satelliteRecords.value, lat, lon, time, true);
   layers.satellite.update(visibleSats, lat, lon);
+  return visibleSats;
 }
 
 function updateConstellationLayer(
@@ -396,19 +456,26 @@ function updateConstellationLayer(
   visibleStars: ReturnType<typeof filterVisibleStars>,
   lat: number,
   lon: number,
-): void {
+): readonly { id: string; centroid: { alt: number; az: number } }[] {
   if (data.activeAsterisms !== null) {
     const visible = filterVisibleAsterisms(data.activeAsterisms, visibleStars);
     layers.constellation.update(visible, lat, lon);
-    return;
+    return visible;
   }
   if (data.constellations.ok) {
     const visible = filterVisibleConstellations(data.constellations.value, visibleStars);
     layers.constellation.update(visible, lat, lon);
+    return visible;
   }
+  return [];
 }
 
-function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
+function doRerender(
+  state: AppState,
+  layers: Layers,
+  data: ParsedData,
+  latest?: LatestPositions,
+): void {
   if (!data.stars.ok) return;
   const { observer, timeUtc } = state;
 
@@ -424,7 +491,13 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
   layers.body.update(bodies, observer.lat, observer.lon);
 
-  updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
+  const visibleConstellations = updateConstellationLayer(
+    layers,
+    data,
+    visibleStars,
+    observer.lat,
+    observer.lon,
+  );
 
   if (data.boundaries.ok) {
     const visibleBoundaries = filterVisibleBoundaries(
@@ -436,10 +509,11 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
   }
 
-  rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
+  const visibleSats = rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
 
+  let visibleMessier: ReturnType<typeof filterVisibleMessier> = [];
   if (data.messierObjects.ok) {
-    const visibleMessier = filterVisibleMessier(
+    visibleMessier = filterVisibleMessier(
       data.messierObjects.value,
       observer.lat,
       observer.lon,
@@ -466,6 +540,17 @@ function doRerender(state: AppState, layers: Layers, data: ParsedData): void {
   layers.ecliptic.setOpacity(state.opacity.ecliptic);
   layers.milkyWay.setOpacity(state.opacity.milkyWay);
   if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
+
+  if (latest !== undefined) {
+    fillLatestFromVisible(
+      latest,
+      visibleStars,
+      bodies,
+      visibleMessier,
+      visibleSats,
+      visibleConstellations,
+    );
+  }
 }
 
 /**
@@ -482,6 +567,7 @@ async function doRerenderWithWorker(
   worker: AstroWorkerClient,
   catalog: StarRecord[],
   capturedState: AppState,
+  latest?: LatestPositions,
 ): Promise<void> {
   if (!data.stars.ok) return;
   const { observer, timeUtc } = capturedState;
@@ -494,7 +580,7 @@ async function doRerenderWithWorker(
   const bodies = computeBodyPositions(observer.lat, observer.lon, timeUtc, true);
   layers.body.update(bodies, observer.lat, observer.lon);
 
-  rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
+  const visibleSats = rerenderSatellites(layers, data, observer.lat, observer.lon, timeUtc);
 
   const gridData = computeRaDecGrid(observer.lat, observer.lon, timeUtc);
   layers.grid.update(gridData, observer.lat, observer.lon);
@@ -515,8 +601,9 @@ async function doRerenderWithWorker(
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
   }
 
+  let visibleMessier: ReturnType<typeof filterVisibleMessier> = [];
   if (data.messierObjects.ok) {
-    const visibleMessier = filterVisibleMessier(
+    visibleMessier = filterVisibleMessier(
       data.messierObjects.value,
       observer.lat,
       observer.lon,
@@ -537,16 +624,24 @@ async function doRerenderWithWorker(
   if (layers.satellite) layers.satellite.setOpacity(capturedState.opacity.satelliteTrails * 0.3);
 
   // Wait for worker result, then update stars + constellations
+  let visibleStars: ReturnType<typeof filterVisibleStars> = [];
+  let visibleConstellations: readonly { id: string; centroid: { alt: number; az: number } }[] = [];
   try {
     const { altAzs, visibleIndices } = await workerPromise;
     // Check that state hasn't changed since we started (avoid stale updates)
     if (capturedState !== state) return;
-    const visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices, capturedState.magLimit);
+    visibleStars = buildAltAzStars(catalog, altAzs, visibleIndices, capturedState.magLimit);
     layers.star.update(visibleStars, observer.lat, observer.lon);
-    updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
+    visibleConstellations = updateConstellationLayer(
+      layers,
+      data,
+      visibleStars,
+      observer.lat,
+      observer.lon,
+    );
   } catch {
     // Worker failed — fall back to synchronous star computation
-    const visibleStars = filterVisibleStars(
+    visibleStars = filterVisibleStars(
       catalog,
       observer.lat,
       observer.lon,
@@ -554,7 +649,88 @@ async function doRerenderWithWorker(
       capturedState.magLimit,
     );
     layers.star.update(visibleStars, observer.lat, observer.lon);
-    updateConstellationLayer(layers, data, visibleStars, observer.lat, observer.lon);
+    visibleConstellations = updateConstellationLayer(
+      layers,
+      data,
+      visibleStars,
+      observer.lat,
+      observer.lon,
+    );
+  }
+
+  if (latest !== undefined) {
+    fillLatestFromVisible(
+      latest,
+      visibleStars,
+      bodies,
+      visibleMessier,
+      visibleSats,
+      visibleConstellations,
+    );
+  }
+}
+
+function findUpcomingEventForKey(
+  key: CardKey,
+  events: readonly CelestialEvent[],
+): { when: Date; viewAz: number; viewAlt: number } | undefined {
+  for (const e of events) {
+    if (key.objectKind === "satellite" && e.kind === "iss-pass" && key.id.startsWith("ISS")) {
+      return { when: e.when, viewAz: e.peakAzDeg, viewAlt: e.peakAltDeg };
+    }
+    if (
+      key.objectKind === "body" &&
+      e.kind === "conjunction" &&
+      (e.body1 === key.id || e.body2 === key.id) &&
+      e.viewAz !== undefined &&
+      e.viewAlt !== undefined
+    ) {
+      return { when: e.when, viewAz: e.viewAz, viewAlt: e.viewAlt };
+    }
+    if (
+      key.objectKind === "body" &&
+      key.id === "Moon" &&
+      e.kind === "lunar-eclipse" &&
+      e.viewAz !== undefined &&
+      e.viewAlt !== undefined
+    ) {
+      return { when: e.when, viewAz: e.viewAz, viewAlt: e.viewAlt };
+    }
+  }
+  return undefined;
+}
+
+function pickedToCardData(
+  picked: PickedObject,
+  observer: { lat: number; lon: number },
+  time: Date,
+): ObjectCardData {
+  switch (picked.kind) {
+    case "star":
+      return { kind: "star", star: picked.star };
+    case "body":
+      return { kind: "body", body: picked.body, observer, time };
+    case "satellite":
+      return { kind: "satellite", satellite: picked.satellite };
+    case "messier":
+      return { kind: "messier", messier: picked.messier };
+    case "constellation":
+      return { kind: "constellation", constellation: picked.constellation };
+  }
+}
+
+function idForCardData(data: ObjectCardData): string {
+  switch (data.kind) {
+    case "star":
+      return data.star.name ?? `HIP ${String(data.star.hip)}`;
+    case "body":
+      return data.body.id;
+    case "satellite":
+      return data.satellite.name;
+    case "messier":
+      return `M${String(data.messier.m)}`;
+    case "constellation":
+      return data.constellation.id;
   }
 }
 
@@ -668,8 +844,12 @@ export async function bootstrap(
   // Apply initial constellation name overrides based on language
   layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
 
+  // Live positions of every visible object, refreshed on every rerender. The
+  // object-cards manager consults this to follow pinned objects as time advances.
+  const latestPositions: LatestPositions = new Map();
+
   // Initial render (synchronous, no debounce — ensures immediate display)
-  doRerender(state, layers, data);
+  doRerender(state, layers, data, latestPositions);
 
   // Initialise worker for subsequent rerenders (falls back to sync if unavailable)
   const worker = tryCreateWorker();
@@ -682,10 +862,21 @@ export async function bootstrap(
       rerenderTimer = null;
       if (worker !== null) {
         // Worker path: star math off main thread
-        void doRerenderWithWorker(state, layers, data, worker, catalog, capturedState);
+        void doRerenderWithWorker(
+          state,
+          layers,
+          data,
+          worker,
+          catalog,
+          capturedState,
+          latestPositions,
+        ).then(() => {
+          objectCardsManager?.update();
+        });
       } else {
         // Fallback: synchronous (also used in test environment)
-        doRerender(capturedState, layers, data);
+        doRerender(capturedState, layers, data, latestPositions);
+        objectCardsManager?.update();
       }
     }, 50);
   }
@@ -727,10 +918,43 @@ export async function bootstrap(
     state.timeUtc,
   );
 
-  // Tooltip
+  // Object cards manager — floating cards pinned on click. Replaces the previous
+  // single pinned tooltip. The manager is created before the tooltip so the click
+  // callback can dispatch open-object-card intents into a live target.
+  //
+  // Pending card data: the tooltip's click callback stashes the freshly-picked
+  // ObjectCardData here, then dispatches an `open-object-card` intent. The intent
+  // handler pops this and feeds it to the manager. This keeps the intent shape
+  // URL-safe (just id + kind + coords) while preserving the typed data the card
+  // needs to render its initial content.
+  const pendingCardData = new Map<string, ObjectCardData>();
+  let objectCardsManager: ObjectCardsManager | null = null;
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
-    createTooltip(viewer, cesiumContainer);
+    objectCardsManager = createObjectCardsManager({
+      container: cesiumContainer,
+      dispatch: (intent) => {
+        handleIntent(intent);
+      },
+      projector: (alt, az) =>
+        projectAltAzToScreen(viewer.scene, alt, az, state.observer.lat, state.observer.lon),
+      resolver: (key: CardKey) => latestPositions.get(positionKey(key.objectKind, key.id)) ?? null,
+      getViewport: () => ({
+        width: cesiumContainer.clientWidth || window.innerWidth,
+        height: cesiumContainer.clientHeight || window.innerHeight,
+      }),
+      findUpcomingEvent: (key: CardKey) => findUpcomingEventForKey(key, cachedEvents),
+    });
+
+    createTooltip(viewer, cesiumContainer, {
+      onObjectClicked: (picked: PickedObject, screenX: number, screenY: number) => {
+        const cardData = pickedToCardData(picked, state.observer, state.timeUtc);
+        const objectKind = cardData.kind;
+        const id = idForCardData(cardData);
+        pendingCardData.set(positionKey(objectKind, id), cardData);
+        handleIntent({ type: "open-object-card", objectKind, id, screenX, screenY });
+      },
+    });
   }
 
   // Gesture polish (Plan 07 1J):
@@ -979,6 +1203,19 @@ export async function bootstrap(
       case "toggle-animation": {
         // Plan 08 / issue #136 will wire the actual play/pause animator.
         // TODO(#136): start/stop the time-advance loop here.
+        break;
+      }
+      case "open-object-card": {
+        if (objectCardsManager === null) break;
+        const key = positionKey(intent.objectKind, intent.id);
+        const data = pendingCardData.get(key);
+        if (data === undefined) break;
+        pendingCardData.delete(key);
+        objectCardsManager.open({
+          data,
+          screenX: intent.screenX,
+          screenY: intent.screenY,
+        });
         break;
       }
     }

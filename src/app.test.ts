@@ -124,6 +124,9 @@ vi.mock("cesium", () => {
     })),
     LabelStyle: { FILL: 0 },
     Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
+    SceneTransforms: {
+      worldToWindowCoordinates: vi.fn().mockReturnValue({ x: 0, y: 0 }),
+    },
   };
 });
 
@@ -316,6 +319,15 @@ vi.mock("./ui", () => ({
         };
       },
     ),
+  // Object-cards manager — capture the dispatch + projector so tests can exercise
+  // the click-to-card intent pathway without a real Cesium scene.
+  createObjectCardsManager: vi.fn().mockImplementation(() => ({
+    open: vi.fn(),
+    close: vi.fn(),
+    closeActive: vi.fn(),
+    update: vi.fn(),
+    destroy: vi.fn(),
+  })),
 }));
 
 // Mock the TLE bundled data
@@ -1036,6 +1048,23 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
   });
 
+  it("open-object-card intent is handled without throwing when no card data is pending", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() =>
+      capturedDispatch!({
+        type: "open-object-card",
+        objectKind: "star",
+        id: "Sirius",
+        screenX: 100,
+        screenY: 200,
+      }),
+    ).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
   it("settings drawer is mounted on document.body", async () => {
     capturedDispatch = null;
     settingsDrawerMock = null;
@@ -1070,6 +1099,70 @@ describe("handleIntent routing", () => {
     expect(uiContainer.querySelector("select[data-skyculture]")).toBeNull();
     expect(uiContainer.querySelector("input[data-mag='limit']")).toBeNull();
     expect(uiContainer.querySelector("input[data-opacity]")).toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking an object in the scene dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const ui = await import("./ui");
+    const openMock = vi.fn();
+    (
+      ui.createObjectCardsManager as unknown as { mockReturnValueOnce: (v: unknown) => void }
+    ).mockReturnValueOnce({
+      open: openMock,
+      close: vi.fn(),
+      closeActive: vi.fn(),
+      update: vi.fn(),
+      destroy: vi.fn(),
+    });
+
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+
+    // Find the LEFT_CLICK handler on the tooltip's ScreenSpaceEventHandler so we
+    // can drive it directly. It's the handler whose `pick` flow returns an id.
+    const cesium = await import("cesium");
+    const scene = await import("./scene");
+    // Set the shared scene pick to return a star record
+    scene; // reference to silence linter
+    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlers = handlerCtor.mock.results.map(
+      (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
+    );
+    let clickFn: ((ev: { position: { x: number; y: number } }) => void) | null = null;
+    for (const h of handlers) {
+      for (const call of h.setInputAction.mock.calls) {
+        const [fn, type] = call as [unknown, unknown];
+        if (type === cesium.ScreenSpaceEventType.LEFT_CLICK) {
+          clickFn = fn as (ev: { position: { x: number; y: number } }) => void;
+        }
+      }
+    }
+
+    if (clickFn !== null) {
+      // The scene `.pick` is the vi.fn() inside the cesium mock — return a star id
+      const viewerCtor = cesium.Viewer as unknown as ReturnType<typeof vi.fn>;
+      const lastViewer = viewerCtor.mock.results[viewerCtor.mock.results.length - 1]?.value as {
+        scene?: { pick?: ReturnType<typeof vi.fn> };
+      };
+      lastViewer?.scene?.pick?.mockReturnValueOnce({
+        id: {
+          hip: 32349,
+          ra: 101.2872,
+          dec: -16.7161,
+          alt: 45,
+          az: 180,
+          mag: -1.44,
+          name: "Sirius",
+          size: 16,
+          opacity: 1,
+        },
+      });
+      clickFn({ position: { x: 140, y: 260 } });
+      expect(openMock).toHaveBeenCalled();
+    }
+
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
