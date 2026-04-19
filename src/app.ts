@@ -921,13 +921,7 @@ export async function bootstrap(
         );
         if (entry !== undefined) {
           state = { ...state, view: { az: entry.az, alt: entry.alt } };
-          setCameraView(
-            viewer.camera,
-            state.observer.lat,
-            state.observer.lon,
-            entry.az,
-            entry.alt,
-          );
+          setCameraView(viewer.camera, state.observer.lat, state.observer.lon, entry.az, entry.alt);
           updateUrl(state);
         }
         break;
@@ -935,7 +929,9 @@ export async function bootstrap(
       case "copy-link": {
         // Fire-and-forget: clipboard is optional; failure is silent.
         const href = globalThis.location?.href ?? "";
-        const clipboard = navigator.clipboard as { writeText?: (s: string) => Promise<void> } | undefined;
+        const clipboard = navigator.clipboard as
+          | { writeText?: (s: string) => Promise<void> }
+          | undefined;
         if (clipboard !== undefined && typeof clipboard.writeText === "function") {
           void clipboard.writeText(href).catch(() => {
             // Clipboard access denied — nothing we can do.

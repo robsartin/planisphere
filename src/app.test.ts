@@ -241,21 +241,25 @@ vi.mock("./ui", () => ({
       destroy: vi.fn(),
     };
   }),
-  createCommandPalette: vi.fn().mockImplementation(
-    (opts: { getSources: () => unknown; dispatch: (i: unknown) => void; onRecentSelected: (e: unknown) => void }) => {
-      // Exercise the composition helpers (buildPaletteSources, loadRecents, recents merging)
-      // so coverage tracks them without needing a full palette DOM + keyboard integration test.
-      opts.getSources();
-      opts.onRecentSelected({ id: "probe", label: "Probe" });
-      opts.getSources();
-      return {
-        element: document.createElement("div"),
-        open: vi.fn(),
-        close: vi.fn(),
-        isOpen: vi.fn().mockReturnValue(false),
-      };
-    },
-  ),
+  createCommandPalette: vi
+    .fn()
+    .mockImplementation(
+      (opts: {
+        getSources: () => unknown;
+        dispatch: (i: unknown) => void;
+        onRecentSelected: (e: unknown) => void;
+      }) => {
+        opts.getSources();
+        opts.onRecentSelected({ id: "probe", label: "Probe" });
+        opts.getSources();
+        return {
+          element: document.createElement("div"),
+          open: vi.fn(),
+          close: vi.fn(),
+          isOpen: vi.fn().mockReturnValue(false),
+        };
+      },
+    ),
 }));
 
 // Mock the TLE bundled data
@@ -864,20 +868,20 @@ describe("handleIntent routing", () => {
     const mockOpen = vi.fn();
     const mockClose = vi.fn();
     let isOpen = false;
-    (ui.createCommandPalette as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
-      {
-        element: document.createElement("div"),
-        open: () => {
-          isOpen = true;
-          mockOpen();
-        },
-        close: () => {
-          isOpen = false;
-          mockClose();
-        },
-        isOpen: () => isOpen,
+    (
+      ui.createCommandPalette as unknown as { mockReturnValueOnce: (v: unknown) => void }
+    ).mockReturnValueOnce({
+      element: document.createElement("div"),
+      open: () => {
+        isOpen = true;
+        mockOpen();
       },
-    );
+      close: () => {
+        isOpen = false;
+        mockClose();
+      },
+      isOpen: () => isOpen,
+    });
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);

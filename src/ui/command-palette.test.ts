@@ -66,9 +66,7 @@ describe("createCommandPalette", () => {
     palette.open();
     expect(palette.isOpen()).toBe(true);
     expect(palette.element.style.display).not.toBe("none");
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     expect(input).not.toBeNull();
     expect(document.activeElement).toBe(input);
   });
@@ -81,9 +79,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "sir";
     input.dispatchEvent(new Event("input"));
     palette.close();
@@ -100,9 +96,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "sir";
     input.dispatchEvent(new Event("input"));
     const items = palette.element.querySelectorAll("[data-testid='palette-item']");
@@ -119,9 +113,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "sirius";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -137,9 +129,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "london";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -168,9 +158,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "night vision";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -185,13 +173,13 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     // Broad query: match multiple items
     input.value = "o";
     input.dispatchEvent(new Event("input"));
-    const selectedBefore = palette.element.querySelector("[data-testid='palette-item'][aria-selected='true']");
+    const selectedBefore = palette.element.querySelector(
+      "[data-testid='palette-item'][aria-selected='true']",
+    );
     expect(selectedBefore).not.toBeNull();
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     const allItems = palette.element.querySelectorAll("[data-testid='palette-item']");
@@ -210,9 +198,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(palette.isOpen()).toBe(false);
   });
@@ -241,9 +227,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "london";
     input.dispatchEvent(new Event("input"));
     const item = palette.element.querySelector<HTMLElement>("[data-testid='palette-item']")!;
@@ -262,14 +246,10 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "zzzzzzzz";
     input.dispatchEvent(new Event("input"));
-    expect(() =>
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" })),
-    ).not.toThrow();
+    expect(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }))).not.toThrow();
     expect(dispatch).not.toHaveBeenCalled();
   });
 
@@ -294,9 +274,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "copy link";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -314,9 +292,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "sirius";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -332,9 +308,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "london";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
@@ -364,9 +338,7 @@ describe("createCommandPalette", () => {
     });
     document.body.appendChild(palette.element);
     palette.open();
-    const input = palette.element.querySelector<HTMLInputElement>(
-      "[data-testid='palette-input']",
-    )!;
+    const input = palette.element.querySelector<HTMLInputElement>("[data-testid='palette-input']")!;
     input.value = "perseids";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
