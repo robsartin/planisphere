@@ -78,17 +78,28 @@ import {
   createEventsPanel,
   createHelpModal,
   createBottomHud,
+  createCommandPalette,
 } from "./ui";
 import type { BottomHud } from "./ui";
+import type {
+  CommandPalette,
+  PaletteSources,
+  PaletteObjectSource,
+  PaletteEventSource,
+  PaletteSettingSource,
+  PalettePlaceSource,
+  PaletteObjectType,
+} from "./ui";
 import { computeUpcomingEvents } from "./astro/events";
 import type { CelestialEvent } from "./astro/events";
 import type { UIIntent } from "./ui";
 import { buildSearchIndex, searchObjects } from "./astro/search";
-import type { SearchIndex } from "./astro/search";
+import type { SearchIndex, SearchResultType } from "./astro/search";
 import rawStars from "../data/stars.json";
 import rawConstellations from "../data/constellations.json";
 import rawBoundaries from "../data/boundaries.json";
 import rawMessier from "../data/messier.json";
+import rawCities from "../data/cities.json";
 import rawNamesEn from "../data/constellation-names/en.json";
 import rawNamesZh from "../data/constellation-names/zh.json";
 import rawNamesAr from "../data/constellation-names/ar.json";
@@ -135,6 +146,187 @@ function loadAsterismSet(id: SkycultureId): AsterismSet | null {
     return null;
   }
   return parsed.value;
+}
+
+type CityRecord = {
+  readonly name: string;
+  readonly country: string;
+  readonly lat: number;
+  readonly lon: number;
+};
+
+const RECENTS_STORAGE_KEY = "planisphere.palette.recents.v1";
+const RECENTS_MAX = 10;
+
+function mapSearchTypeToPaletteType(t: SearchResultType): PaletteObjectType {
+  // The existing search index only knows star/constellation/body/satellite.
+  // Messier isn't in the index yet, but we keep the union forward-compatible.
+  switch (t) {
+    case "star":
+      return "star";
+    case "constellation":
+      return "constellation";
+    case "body":
+      return "body";
+    case "satellite":
+      return "satellite";
+  }
+}
+
+function buildPaletteObjects(index: SearchIndex): PaletteObjectSource[] {
+  const out: PaletteObjectSource[] = [];
+  for (const entry of index.entries) {
+    out.push({ id: entry.name, label: entry.name, type: mapSearchTypeToPaletteType(entry.type) });
+  }
+  return out;
+}
+
+function buildPaletteEvents(events: readonly CelestialEvent[]): PaletteEventSource[] {
+  return events.map((e) => ({
+    id: `${e.kind}-${String(e.when.getTime())}`,
+    label: e.title,
+    description: e.description,
+    when: e.when,
+    ...(e.kind === "iss-pass"
+      ? { viewAz: e.peakAzDeg, viewAlt: e.peakAltDeg }
+      : e.viewAz !== undefined && e.viewAlt !== undefined
+        ? { viewAz: e.viewAz, viewAlt: e.viewAlt }
+        : {}),
+  }));
+}
+
+const CITIES_RAW = rawCities as readonly CityRecord[];
+
+function buildPalettePlaces(): PalettePlaceSource[] {
+  return CITIES_RAW.map((c) => ({
+    id: `${c.name}-${c.country}`,
+    label: c.name,
+    country: c.country,
+    lat: c.lat,
+    lon: c.lon,
+  }));
+}
+
+function buildPaletteSettings(): PaletteSettingSource[] {
+  return [
+    {
+      id: "toggle-night-vision",
+      label: "Toggle night vision",
+      hint: "Flip the red overlay on/off",
+      intent: { type: "toggle-night-vision" },
+    },
+    {
+      id: "copy-link",
+      label: "Copy link",
+      hint: "Copy this sky to clipboard",
+      intent: { type: "copy-link" },
+    },
+    {
+      id: "fov-naked",
+      label: "Naked-eye FOV",
+      hint: "Reticle preset: none",
+      intent: { type: "set-fov", preset: "off" },
+    },
+    {
+      id: "fov-binoculars",
+      label: "2\u00d7 binoculars FOV",
+      hint: "Reticle preset: binoculars",
+      intent: { type: "set-fov", preset: "binoculars" },
+    },
+    {
+      id: "fov-small-scope",
+      label: "Small telescope FOV",
+      hint: "Reticle preset: small scope",
+      intent: { type: "set-fov", preset: "small-scope" },
+    },
+    {
+      id: "lang-en",
+      label: "Language: English",
+      intent: { type: "set-language", language: "en" },
+    },
+    {
+      id: "lang-la",
+      label: "Language: Latin (IAU default)",
+      intent: { type: "set-language", language: "la" },
+    },
+    {
+      id: "now",
+      label: "Now (time + location)",
+      hint: "Jump to current time and geolocated observer",
+      intent: { type: "now" },
+    },
+  ];
+}
+
+function buildPaletteSources(
+  index: SearchIndex,
+  events: readonly CelestialEvent[],
+): Omit<PaletteSources, "recents"> {
+  return {
+    objects: buildPaletteObjects(index),
+    events: buildPaletteEvents(events),
+    places: buildPalettePlaces(),
+    settings: buildPaletteSettings(),
+  };
+}
+
+function loadRecents(): PaletteSettingSource[] {
+  try {
+    const raw = globalThis.localStorage?.getItem(RECENTS_STORAGE_KEY);
+    if (raw === null || raw === undefined) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: PaletteSettingSource[] = [];
+    for (const entry of parsed) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const e = entry as Record<string, unknown>;
+      if (typeof e.id !== "string" || typeof e.label !== "string") continue;
+      const rec: PaletteSettingSource = { id: e.id, label: e.label };
+      out.push(rec);
+    }
+    return out.slice(0, RECENTS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function persistRecents(recents: readonly PaletteSettingSource[]): void {
+  try {
+    const payload = recents.slice(0, RECENTS_MAX).map((r) => ({ id: r.id, label: r.label }));
+    globalThis.localStorage?.setItem(RECENTS_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Storage quota / disabled — ignore.
+  }
+}
+
+function setupCommandPalette(
+  getPaletteSources: () => Omit<PaletteSources, "recents">,
+  handleIntent: (intent: UIIntent) => void,
+): CommandPalette {
+  let recents: PaletteSettingSource[] = loadRecents();
+
+  const palette = createCommandPalette({
+    getSources: () => ({ ...getPaletteSources(), recents }),
+    dispatch: handleIntent,
+    onRecentSelected: (entry) => {
+      recents = [entry, ...recents.filter((r) => r.id !== entry.id)].slice(0, RECENTS_MAX);
+      persistRecents(recents);
+    },
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const isMod = e.metaKey || e.ctrlKey;
+    if (!isMod) return;
+    if (e.key !== "k" && e.key !== "K") return;
+    e.preventDefault();
+    if (palette.isOpen()) {
+      palette.close();
+    } else {
+      palette.open();
+    }
+  });
+
+  return palette;
 }
 
 type Layers = {
@@ -718,6 +910,39 @@ export async function bootstrap(
         updateUrl(state);
         break;
       }
+      case "pin-object": {
+        // The scene layer currently pins via click; from the palette we can't
+        // reach into the canvas picker directly, so we mirror the on-screen
+        // search's behavior: aim the camera at the object. The pinned tooltip
+        // stays a scene-level affordance (mouse click) until we expose a
+        // pin-by-id API on the scene layer.
+        const entry = searchIndex.entries.find(
+          (e) => e.name === intent.id || e.nameLower === intent.id.toLowerCase(),
+        );
+        if (entry !== undefined) {
+          state = { ...state, view: { az: entry.az, alt: entry.alt } };
+          setCameraView(
+            viewer.camera,
+            state.observer.lat,
+            state.observer.lon,
+            entry.az,
+            entry.alt,
+          );
+          updateUrl(state);
+        }
+        break;
+      }
+      case "copy-link": {
+        // Fire-and-forget: clipboard is optional; failure is silent.
+        const href = globalThis.location?.href ?? "";
+        const clipboard = navigator.clipboard as { writeText?: (s: string) => Promise<void> } | undefined;
+        if (clipboard !== undefined && typeof clipboard.writeText === "function") {
+          void clipboard.writeText(href).catch(() => {
+            // Clipboard access denied — nothing we can do.
+          });
+        }
+        break;
+      }
       case "now": {
         const now = new Date();
         state = { ...state, timeUtc: now };
@@ -798,6 +1023,13 @@ export async function bootstrap(
     };
     raf(tickCompass);
   }
+
+  // Command palette (⌘K / Ctrl+K) — bootstrap once, keyboard-triggered.
+  const palette = setupCommandPalette(
+    () => buildPaletteSources(searchIndex, cachedEvents),
+    handleIntent,
+  );
+  document.body.appendChild(palette.element);
 
   // Build UI panel
   let nightVisionPanel: ReturnType<typeof createPanel> | null = null;
