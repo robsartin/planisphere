@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Standalone Worker config for the Phase 2 API (auth, notebooks, Stripe webhooks).
+// The Pages SPA is still deployed via the top-level `wrangler.jsonc` against the
+// `dist/` static bundle — see ADR 009. Keeping the two configs separate means
+// `wrangler dev` / `wrangler deploy` for the Worker never touches the SPA build,
+// and the SPA deploy pipeline keeps its old shape.
+{
+  "name": "planisphere-api",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-04-16",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // D1 binding. The database ID below is a placeholder — before first deploy,
+  // run `wrangler d1 create planisphere-dev` (and a prod equivalent) and paste
+  // the returned UUID here. Local `wrangler dev` uses an in-memory SQLite
+  // instance automatically.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "planisphere-dev",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+
+  // Non-secret defaults. The real SESSION_SECRET must be set out-of-band with
+  //   wrangler secret put SESSION_SECRET
+  // (never committed). APP_ORIGIN is the client URL that magic-link callbacks
+  // redirect to; override per environment.
+  "vars": {
+    "APP_ORIGIN": "http://localhost:5173",
+    "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+}

@@ -39,6 +39,26 @@ Copyright (c) 2024 Mario Heiderich (https://cure53.de/)
 License: Apache-2.0 OR MPL-2.0 (consumed under Apache-2.0)
 https://github.com/cure53/DOMPurify
 
+@cloudflare/vitest-pool-workers (dev dependency)
+Copyright (c) Cloudflare, Inc.
+License: MIT
+https://github.com/cloudflare/workers-sdk
+
+@cloudflare/workers-types (dev dependency)
+Copyright (c) Cloudflare, Inc.
+License: MIT OR Apache-2.0 (consumed under Apache-2.0)
+https://github.com/cloudflare/workerd
+
+concurrently (dev dependency)
+Copyright (c) 2015 Kimmo Brunfeldt
+License: MIT
+https://github.com/open-cli-tools/concurrently
+
+wrangler (dev dependency)
+Copyright (c) Cloudflare, Inc.
+License: MIT OR Apache-2.0 (consumed under Apache-2.0)
+https://github.com/cloudflare/workers-sdk
+
 TLE data from CelesTrak (https://celestrak.org)
 Dr. T.S. Kelso. Used with attribution.
 
