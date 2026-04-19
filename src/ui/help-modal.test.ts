@@ -58,9 +58,7 @@ describe("createHelpModal", () => {
     const modal = createHelpModal();
     document.body.appendChild(modal.element);
     modal.open();
-    const btn = modal.element.querySelector<HTMLButtonElement>(
-      "[data-testid='help-modal-close']",
-    );
+    const btn = modal.element.querySelector<HTMLButtonElement>("[data-testid='help-modal-close']");
     expect(btn).not.toBeNull();
     btn!.click();
     expect(modal.isOpen()).toBe(false);
@@ -82,9 +80,7 @@ describe("createHelpModal", () => {
     const modal = createHelpModal();
     document.body.appendChild(modal.element);
     modal.open();
-    const content = modal.element.querySelector<HTMLElement>(
-      "[data-testid='help-modal-content']",
-    );
+    const content = modal.element.querySelector<HTMLElement>("[data-testid='help-modal-content']");
     content!.click();
     expect(modal.isOpen()).toBe(true);
   });
@@ -120,9 +116,7 @@ describe("createHelpModal", () => {
     const modal = createHelpModal();
     document.body.appendChild(modal.element);
     modal.open();
-    const content = modal.element.querySelector<HTMLElement>(
-      "[data-testid='help-modal-content']",
-    )!;
+    const content = modal.element.querySelector<HTMLElement>("[data-testid='help-modal-content']")!;
     const firstHtml = content.innerHTML;
     modal.close();
     modal.open();
