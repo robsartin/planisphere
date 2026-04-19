@@ -205,10 +205,6 @@ vi.mock("./ui", () => ({
     setCollapsed: vi.fn(),
     setNightVision: vi.fn(),
   }),
-  createTimeControls: vi.fn().mockImplementation((_time: unknown, dispatch: unknown) => {
-    capturedDispatch = dispatch as (intent: unknown) => void;
-    return { element: document.createElement("div"), setTime: vi.fn() };
-  }),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
   createLayerControls: vi.fn().mockReturnValue(document.createElement("div")),
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
@@ -221,6 +217,18 @@ vi.mock("./ui", () => ({
     open: vi.fn(),
     close: vi.fn(),
     isOpen: vi.fn().mockReturnValue(false),
+  }),
+  createBottomHud: vi.fn().mockImplementation((_initial: unknown, dispatch: unknown) => {
+    capturedDispatch = dispatch as (intent: unknown) => void;
+    const element = document.createElement("div");
+    element.dataset.testid = "bottom-hud";
+    return {
+      element,
+      setTime: vi.fn(),
+      setObserver: vi.fn(),
+      setCompass: vi.fn(),
+      destroy: vi.fn(),
+    };
   }),
 }));
 
@@ -339,6 +347,28 @@ describe("bootstrap", () => {
     expect(capturedDispatch).not.toBeNull();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  it("mounts the bottom HUD on the document body", async () => {
+    capturedDispatch = null;
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    document.body.appendChild(root);
+
+    await bootstrap(root);
+
+    expect(document.querySelector("[data-testid='bottom-hud']")).not.toBeNull();
+    expect(capturedDispatch).not.toBeNull();
+    document.body.removeChild(root);
+    document
+      .querySelectorAll("[data-testid='bottom-hud']")
+      .forEach((el) => el.parentNode?.removeChild(el));
   });
 });
 
@@ -649,6 +679,24 @@ describe("handleIntent routing", () => {
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     vi.useRealTimers();
+  });
+
+  it("open-location-picker intent is handled without throwing (stub)", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "open-location-picker" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("toggle-animation intent is handled without throwing (stub)", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "toggle-animation" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
   });
 
   it("set-skyculture back to 'western' removes sky param from URL", async () => {
