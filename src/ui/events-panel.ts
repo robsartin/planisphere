@@ -112,6 +112,12 @@ export function createEventsPanel(
       row.style.paddingBottom = "6px";
       row.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
 
+      // Grey out eclipsed ISS passes so the user can see the pass exists but knows
+      // the satellite itself will be invisible (in Earth's shadow at peak).
+      if (event.kind === "iss-pass" && event.eclipsed) {
+        row.style.opacity = "0.5";
+      }
+
       const titleRow = document.createElement("div");
       titleRow.style.display = "flex";
       titleRow.style.justifyContent = "space-between";
