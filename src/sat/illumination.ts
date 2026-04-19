@@ -107,8 +107,7 @@ export function computeIllumination(
 
   // Phase angle: angle between (sun→sat) and (observer→sat) vectors.
   const sunToSat = sub(satPosEci, sunPosEci);
-  const cosPhase =
-    dot(sunToSat, obsToSat) / (magnitudeVec(sunToSat) * magnitudeVec(obsToSat));
+  const cosPhase = dot(sunToSat, obsToSat) / (magnitudeVec(sunToSat) * magnitudeVec(obsToSat));
   const clamped = Math.max(-1, Math.min(1, cosPhase));
   const phaseDeg = Math.acos(clamped) * DEG;
 
@@ -123,8 +122,7 @@ export function computeIllumination(
   const cosP = Math.max(0, Math.cos(phaseDeg * RAD));
   const brightness = cosP + DIFFUSE_TERM;
 
-  const magnitude =
-    M0_ISS + 5 * Math.log10(rangeKm / 1000) - 2.5 * Math.log10(brightness);
+  const magnitude = M0_ISS + 5 * Math.log10(rangeKm / 1000) - 2.5 * Math.log10(brightness);
 
   return { eclipsed: false, magnitude, phaseDeg, rangeKm };
 }

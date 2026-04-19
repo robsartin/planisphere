@@ -1,5 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { propagate, gstime, eciToEcf, ecfToLookAngles, geodeticToEcf, ecfToEci } from "satellite.js";
+import {
+  propagate,
+  gstime,
+  eciToEcf,
+  ecfToLookAngles,
+  geodeticToEcf,
+  ecfToEci,
+} from "satellite.js";
 import type { EciVec3, Kilometer } from "satellite.js";
 import { Body, Equator, GeoVector, MakeTime, Observer, Horizon } from "astronomy-engine";
 import type { SatelliteRecord } from "./tle";
@@ -197,9 +204,7 @@ export function computeUpcomingPasses(
   }
 
   // Filter: require it to be dark enough at peak.
-  const darkShells = shells.filter(
-    (s) => sunAltDeg(lat, lon, s.peakTime) < SUN_BELOW_HORIZON_DEG,
-  );
+  const darkShells = shells.filter((s) => sunAltDeg(lat, lon, s.peakTime) < SUN_BELOW_HORIZON_DEG);
 
   // Annotate with illumination at peak. Passes where the propagator fails at peak are
   // dropped (should effectively never happen since we already have an alt/az at that time).
