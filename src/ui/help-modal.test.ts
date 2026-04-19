@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHelpModal } from "./help-modal";
 
 describe("createHelpModal", () => {
@@ -121,5 +121,37 @@ describe("createHelpModal", () => {
     modal.close();
     modal.open();
     expect(content.innerHTML).toBe(firstHtml);
+  });
+
+  it("renders a 'Replay tour' button when onReplayTour is provided", () => {
+    const onReplayTour = vi.fn();
+    const modal = createHelpModal({ onReplayTour });
+    document.body.appendChild(modal.element);
+    modal.open();
+    const btn = modal.element.querySelector<HTMLButtonElement>(
+      "[data-testid='help-modal-replay-tour']",
+    );
+    expect(btn).not.toBeNull();
+  });
+
+  it("clicking the 'Replay tour' button invokes onReplayTour and closes the modal", () => {
+    const onReplayTour = vi.fn();
+    const modal = createHelpModal({ onReplayTour });
+    document.body.appendChild(modal.element);
+    modal.open();
+    const btn = modal.element.querySelector<HTMLButtonElement>(
+      "[data-testid='help-modal-replay-tour']",
+    )!;
+    btn.click();
+    expect(onReplayTour).toHaveBeenCalledOnce();
+    expect(modal.isOpen()).toBe(false);
+  });
+
+  it("does NOT render a 'Replay tour' button when onReplayTour is not provided", () => {
+    const modal = createHelpModal();
+    document.body.appendChild(modal.element);
+    modal.open();
+    const btn = modal.element.querySelector("[data-testid='help-modal-replay-tour']");
+    expect(btn).toBeNull();
   });
 });

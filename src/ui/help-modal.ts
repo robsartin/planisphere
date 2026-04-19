@@ -10,6 +10,14 @@ export type HelpModal = {
   isOpen(): boolean;
 };
 
+export type HelpModalOptions = {
+  /** Optional callback: when provided, the modal renders a small "Replay tour"
+   *  button at the top that invokes this callback and then closes the modal.
+   *  Omitted by default so the API stays backward-compatible with callers that
+   *  don't yet wire the onboarding overlay. */
+  readonly onReplayTour?: () => void;
+};
+
 /**
  * Styles injected once into the document so the rendered markdown has
  * readable typography (links, headings, tables, code blocks) inside the
@@ -77,7 +85,7 @@ function injectStylesOnce(): void {
   stylesInjected = true;
 }
 
-export function createHelpModal(): HelpModal {
+export function createHelpModal(options: HelpModalOptions = {}): HelpModal {
   injectStylesOnce();
 
   const root = document.createElement("div");
@@ -108,14 +116,41 @@ export function createHelpModal(): HelpModal {
   panel.style.flexDirection = "column";
   panel.style.boxSizing = "border-box";
 
-  // Header with close button
+  // Header with close button (and optionally a "Replay tour" button)
   const header = document.createElement("div");
   header.style.display = "flex";
-  header.style.justifyContent = "flex-end";
+  header.style.justifyContent = "space-between";
   header.style.alignItems = "center";
   header.style.padding = "8px 12px";
   header.style.borderBottom = "1px solid rgba(255,255,255,0.15)";
   header.style.flexShrink = "0";
+  header.style.gap = "8px";
+
+  // Left side of the header: replay-tour button (only when onReplayTour is wired).
+  const headerLeft = document.createElement("div");
+  headerLeft.style.display = "flex";
+  headerLeft.style.alignItems = "center";
+  headerLeft.style.gap = "8px";
+
+  if (options.onReplayTour !== undefined) {
+    const replayBtn = document.createElement("button");
+    replayBtn.dataset.testid = "help-modal-replay-tour";
+    replayBtn.type = "button";
+    replayBtn.textContent = "Replay tour";
+    replayBtn.title = "Replay the first-load guided tour";
+    replayBtn.style.background = "rgba(255,255,255,0.08)";
+    replayBtn.style.border = "1px solid rgba(255,255,255,0.25)";
+    replayBtn.style.borderRadius = "6px";
+    replayBtn.style.color = TEXT_COLOR;
+    replayBtn.style.cursor = "pointer";
+    replayBtn.style.fontSize = "12px";
+    replayBtn.style.padding = "4px 10px";
+    replayBtn.addEventListener("click", () => {
+      doClose();
+      options.onReplayTour?.();
+    });
+    headerLeft.appendChild(replayBtn);
+  }
 
   const closeBtn = document.createElement("button");
   closeBtn.dataset.testid = "help-modal-close";
@@ -129,6 +164,7 @@ export function createHelpModal(): HelpModal {
   closeBtn.style.fontSize = "18px";
   closeBtn.style.lineHeight = "1";
   closeBtn.style.padding = "2px 10px";
+  header.appendChild(headerLeft);
   header.appendChild(closeBtn);
 
   // Scrollable content area
