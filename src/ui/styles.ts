@@ -4,7 +4,6 @@ export const PANEL_BG = "rgba(0, 0, 0, 0.85)";
 export const PANEL_BORDER = "1px solid rgba(255, 255, 255, 0.2)";
 export const PANEL_RADIUS = "8px";
 export const PANEL_WIDTH = "280px";
-export const PANEL_MAX_HEIGHT = "80vh";
 export const ACCENT_COLOR = "#00FF88";
 export const TEXT_COLOR = "#ffffff";
 export const FONT_SIZE = "13px";
