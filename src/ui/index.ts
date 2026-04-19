@@ -28,6 +28,11 @@ export type { HelpModal } from "./help-modal";
 export { createHelpModal } from "./help-modal";
 export { createBottomHud } from "./bottom-hud";
 export type { BottomHud } from "./bottom-hud";
+export { createLocationPickerOverlay } from "./location-picker-overlay";
+export type {
+  LocationPickerOverlay,
+  LocationPickerOverlayOptions,
+} from "./location-picker-overlay";
 export { createCommandPalette } from "./command-palette";
 export type { CommandPalette, CommandPaletteOptions } from "./command-palette";
 export { buildPaletteResults, fuzzyScore } from "./palette-results";

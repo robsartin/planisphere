@@ -221,6 +221,11 @@ let settingsDrawerMock: {
   close: ReturnType<typeof vi.fn>;
   isOpen: ReturnType<typeof vi.fn>;
 } | null = null;
+let locationPickerMock: {
+  open: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  isOpen: ReturnType<typeof vi.fn>;
+} | null = null;
 
 // Captured events-drawer setEvents spy — lets tests assert it was called when
 // `set-time` / `set-observer` / `now` intents fire.
@@ -323,6 +328,18 @@ vi.mock("./ui", () => ({
       setCompass: vi.fn(),
       destroy: vi.fn(),
     };
+  }),
+  createLocationPickerOverlay: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "location-picker";
+    const mock = {
+      element,
+      open: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+    };
+    locationPickerMock = mock;
+    return mock;
   }),
   createCommandPalette: vi
     .fn()
@@ -877,13 +894,29 @@ describe("handleIntent routing", () => {
     vi.useRealTimers();
   });
 
-  it("open-location-picker intent is handled without throwing (stub)", async () => {
+  it("open-location-picker intent invokes the overlay's open()", async () => {
     capturedDispatch = null;
+    locationPickerMock = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(() => capturedDispatch!({ type: "open-location-picker" })).not.toThrow();
+    expect(locationPickerMock).not.toBeNull();
+    capturedDispatch!({ type: "open-location-picker" });
+    expect(locationPickerMock!.open).toHaveBeenCalled();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  it("location picker overlay is mounted on the document body", async () => {
+    capturedDispatch = null;
+    locationPickerMock = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(document.querySelector("[data-testid='location-picker']")).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='location-picker']")
+      .forEach((el) => el.parentNode?.removeChild(el));
   });
 
   it("toggle-animation intent is handled without throwing (stub)", async () => {
