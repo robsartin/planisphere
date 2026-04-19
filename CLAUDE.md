@@ -131,4 +131,4 @@ Prettier after a rebase: edits can also introduce formatting divergence when mar
 - Don't skip the red-test step of TDD.
 - Don't commit lowered coverage thresholds.
 - Don't add a dependency without an ADR.
-- Don't introduce a backend, user accounts, or persistence beyond URL state in v1.
+- Don't introduce a backend, user accounts, or persistence beyond URL state in **v1 / Plan 07 Phase 1**. v1 is shipped; Phase 2 (Notebook / paid tier) explicitly lifts this restriction, scoped and justified by [ADR 009](docs/adr/009-backend-selection.md) (Cloudflare Workers + D1). Outside of Phase 2 work, the rule still applies — don't add a backend, a new persistence layer, or a user-accounts system without an ADR extending the scope.
