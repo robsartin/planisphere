@@ -179,24 +179,30 @@ export function buildPaletteResults(query: string, sources: PaletteSources): Pal
   const trimmed = query.trim();
 
   if (trimmed.length === 0) {
-    if (sources.recents.length > 0) {
-      return sources.recents.map((r) => ({
-        kind: "recent" as const,
-        id: r.id,
-        label: r.label,
-        ...(r.hint !== undefined ? { hint: r.hint } : {}),
-        ...(r.intent !== undefined ? { intent: r.intent } : {}),
-        score: 0,
-      }));
-    }
-    return sources.settings.map((a) => ({
-      kind: "action" as const,
-      id: a.id,
-      label: a.label,
-      ...(a.hint !== undefined ? { hint: a.hint } : {}),
-      ...(a.intent !== undefined ? { intent: a.intent } : {}),
+    // Merge recents (first) with settings as a "what can I do?" help list.
+    // Dedupe by id so a recent that aliases a setting (e.g. "copy-link") only
+    // appears once, under its recent kind.
+    const recentIds = new Set(sources.recents.map((r) => r.id));
+    const out: PaletteResult[] = sources.recents.map((r) => ({
+      kind: "recent" as const,
+      id: r.id,
+      label: r.label,
+      ...(r.hint !== undefined ? { hint: r.hint } : {}),
+      ...(r.intent !== undefined ? { intent: r.intent } : {}),
       score: 0,
     }));
+    for (const a of sources.settings) {
+      if (recentIds.has(a.id)) continue;
+      out.push({
+        kind: "action" as const,
+        id: a.id,
+        label: a.label,
+        ...(a.hint !== undefined ? { hint: a.hint } : {}),
+        ...(a.intent !== undefined ? { intent: a.intent } : {}),
+        score: 0,
+      });
+    }
+    return out;
   }
 
   const scored: PaletteResult[] = [];

@@ -64,6 +64,36 @@ describe("buildPaletteResults", () => {
     expect(results[0]!.label).toBe("Copy link");
   });
 
+  it("empty query merges recents with settings (not just one or the other)", () => {
+    const s = sources({
+      settings: [
+        { id: "toggle-night-vision", label: "Toggle night vision" },
+        { id: "now", label: "Now" },
+      ],
+      recents: [{ id: "copy-link", label: "Copy link" }],
+    });
+    const results = buildPaletteResults("", s);
+    // 1 recent + 2 settings = 3 total. (Regression guard: previously,
+    // empty-query with non-empty recents returned ONLY recents and hid settings.)
+    expect(results.length).toBe(3);
+    expect(results[0]!.kind).toBe("recent");
+    expect(results.slice(1).every((r) => r.kind === "action")).toBe(true);
+  });
+
+  it("empty query dedupes: a setting already in recents does not appear twice", () => {
+    const s = sources({
+      settings: [
+        { id: "copy-link", label: "Copy link" },
+        { id: "now", label: "Now" },
+      ],
+      recents: [{ id: "copy-link", label: "Copy link" }],
+    });
+    const results = buildPaletteResults("", s);
+    expect(results.length).toBe(2); // 1 recent (copy-link) + 1 non-overlapping setting (now)
+    const ids = results.map((r) => r.id);
+    expect(ids.filter((id) => id === "copy-link").length).toBe(1);
+  });
+
   it("ranks exact matches above prefix above substring", () => {
     const s = sources({
       objects: [
