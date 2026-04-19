@@ -141,7 +141,8 @@ export function createBottomHud(
   center.style.alignItems = "center";
   center.style.justifyContent = "center";
   center.style.cursor = "ew-resize";
-  center.title = "Drag to scrub time; ← / → to step by minute (Shift hour, Alt day); Space play/pause";
+  center.title =
+    "Drag to scrub time; ← / → to step by minute (Shift hour, Alt day); Space play/pause";
 
   const timeRow = document.createElement("div");
   timeRow.style.display = "flex";

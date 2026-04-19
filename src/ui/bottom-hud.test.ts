@@ -301,10 +301,7 @@ describe("createBottomHud", () => {
   describe("destroy", () => {
     it("removes global listeners so key events stop dispatching", () => {
       const localDispatch = vi.fn();
-      const h = createBottomHud(
-        { timeUtc: BASE_TIME, lat: 0, lon: 0 },
-        localDispatch,
-      );
+      const h = createBottomHud({ timeUtc: BASE_TIME, lat: 0, lon: 0 }, localDispatch);
       document.body.appendChild(h.element);
       h.destroy();
       if (h.element.parentNode) h.element.parentNode.removeChild(h.element);
