@@ -25,11 +25,11 @@ What you can see:
 
 ## Getting Started
 
-Open the Planisphere URL in any modern web browser. By default you are standing at **latitude 0°, longitude 0°** (the Gulf of Guinea, off the west coast of Africa) looking straight up at the zenith. The time defaults to April 15, 2026 at midnight UTC.
+Open the Planisphere URL in any modern web browser. By default you are standing at **latitude 0°, longitude 0°** (the Gulf of Guinea, off the west coast of Africa) looking straight up at the zenith. The time defaults to **right now** — whenever you load the page — so upcoming events and the sky are both tied to the present moment. (You can still pin a specific moment by putting a `t=` parameter in the URL.)
 
 The star chart renders immediately. After a moment, satellites appear — they are loaded from a live orbital data source, so they need a brief download.
 
-To make the chart useful for your own location and the current moment, open the control panel (top-right corner) and set your location and time. Or just click the **📍 Now** button to jump straight to "here and now" (see [Time](#time) below).
+To make the chart useful for your own location, open the control panel (top-right corner) and set your location. Or just click the **📍 Now** button to jump straight to "here and now" (see [Time](#time) below).
 
 ---
 
@@ -45,11 +45,14 @@ Below the header the panel contains (in order):
 
 1. Search box
 2. Time controls
-3. Location controls
-4. View Direction controls
-5. Telescope FOV reticle
-6. Layers + line opacity sliders + star magnitude filter + constellation-name language
-7. Planet Info
+3. **Upcoming Events** (celestial event alerts — conjunctions, lunar eclipses, meteor showers, ISS passes)
+4. Location controls
+5. View Direction controls
+6. Telescope FOV reticle
+7. Layers + line opacity sliders + star magnitude filter + constellation-name language + skyculture
+8. Planet Info
+
+Upcoming Events sits right under Time on purpose: "Go to" buttons on each event jump the time cursor, so keeping the two next to each other keeps the feedback visible. At typical panel heights it fits above the fold so you can see what's coming without scrolling.
 
 Each section is detailed below.
 
@@ -95,6 +98,47 @@ The step buttons keep keyboard focus after a click, so you can tap Enter repeate
 ![Time controls](./screenshots/time-controls.png)
 
 <!-- TODO: capture screenshot of the Time section showing date picker, step buttons, and Now / 📍 Now -->
+
+---
+
+## Upcoming Events
+
+Right below the Time section is **Upcoming Events** — a short list of noteworthy things happening in the sky from your current chart location, sorted by date. Collapse or expand the list with the ▾ / ▸ button on the section header.
+
+Four kinds of events show up here:
+
+- **Planetary conjunctions** — pairs of Solar System bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn) that come within about 5° of each other. Looks ahead 30 days.
+- **Lunar eclipses** — penumbral, partial, or total. Looks ahead one year.
+- **Meteor-shower peaks** — annual showers (Perseids, Geminids, etc.) at their yearly peak. Looks ahead one year.
+- **ISS passes** — upcoming International Space Station passes over your location. Looks ahead 48 hours. Requires your location to be set.
+
+Each row shows a colored title, the event's local date and time, and a short description. The title color hints at the kind — blue for conjunctions, orange for lunar eclipses, green for meteor showers, yellow for ISS passes.
+
+### Go to
+
+Every event has a **Go to** button. Click it to:
+
+1. Jump the chart's time to the event's peak moment.
+2. Aim the camera at whatever's worth looking at:
+   - **Conjunctions** — the midpoint between the two bodies.
+   - **Lunar eclipses** — the Moon. (If the Moon is below your horizon at peak, the view still rotates that way — you'll see empty sky where it would be.)
+   - **Meteor showers** — the radiant (the point the meteors appear to streak away from).
+   - **ISS passes** — the peak-altitude point of the pass.
+
+Meteor showers use **~03:00 on the peak day in your local time**, not midnight UTC — that's closer to when the radiant is highest for most observers under dark skies.
+
+### ISS pass details
+
+ISS rows carry extra information:
+
+- The title includes an **estimated visual magnitude at peak**, e.g. _"ISS pass — mag -3.1, peaks at 68°"_. Lower (more negative) numbers are brighter; anything brighter than about mag 0 is a very easy naked-eye pass.
+- Passes where the station is **in Earth's shadow** at peak are kept in the list but rendered at **50% opacity** so you can tell at a glance they're not visible. Their title reads _"ISS pass — in Earth's shadow (42° peak)"_ and the description calls out that the satellite won't be lit.
+
+If no events match the lookahead windows for your location, the section shows "No upcoming events."
+
+![Upcoming events panel](./screenshots/events-panel.png)
+
+<!-- TODO: capture screenshot of the Upcoming Events panel with at least one of each event kind, including a greyed-out eclipsed ISS pass -->
 
 ---
 
@@ -180,7 +224,7 @@ The **Mag ≤** slider controls how dim a star has to be before it drops out of 
 
 ### Constellation Names (language)
 
-The dropdown under **Constellation Names** sets the language used for constellation labels:
+The dropdown under **Constellation Names** sets the language used for constellation labels on the Western (IAU) asterism set:
 
 - **Latin** (default — e.g. _Ursa Major_)
 - **English** (_Great Bear_)
@@ -190,9 +234,30 @@ The dropdown under **Constellation Names** sets the language used for constellat
 
 Star names and planet names stay in their conventional English/Latin form regardless of this setting.
 
+Language overrides are only defined for the Western asterism set. If you change the language while viewing a non-Western skyculture, the **Skyculture** dropdown below snaps back to _Western (IAU)_ automatically — that's the only set whose constellation IDs the language files know how to rename. Switch back to a non-Western skyculture whenever you like; the labels there are always shown in the culture's own language.
+
+### Skyculture
+
+The **Skyculture** dropdown chooses which set of stick-figure asterisms is drawn on top of the star field. Every culture names and connects the stars differently, so this is a one-click way to see the same sky through a different tradition.
+
+Options:
+
+- **Western (IAU)** — the familiar 88 IAU constellations (default). Respects the Constellation Names language dropdown.
+- **Chinese (Xingguan) 星官** — Chinese star mansions / officials. Labels in Chinese.
+- **Indian (Vedic) वैदिक** — Vedic asterisms. Labels in Devanagari.
+- **Norse (Edda)** — figures from the Poetic and Prose Edda.
+- **Hawaiian Starlines** — the four Polynesian voyaging starlines.
+- **Māori** — Māori constellations. Labels in te reo Māori.
+
+Non-Western skycultures display names in the culture's own language — they don't use the Constellation Names language dropdown. When you pick one of these, the language dropdown stays where it is, but its effect is hidden until you go back to Western.
+
 ![Layers and opacity sliders](./screenshots/layers.png)
 
-<!-- TODO: capture screenshot of the Layers section with all toggles and sliders visible -->
+<!-- TODO: capture screenshot of the Layers section with all toggles, sliders, language, and skyculture dropdowns visible -->
+
+![Skyculture comparison](./screenshots/skyculture.png)
+
+<!-- TODO: capture screenshot comparing Western vs. one non-Western skyculture on the same sky -->
 
 ---
 
@@ -227,7 +292,7 @@ Click the button again to return to full color. The setting is preserved in the 
 
 Click the **🔗** button in the panel header to copy the current URL to your clipboard. The button briefly changes to "Copied!" to confirm.
 
-Because Planisphere keeps every setting in the URL (time, location, view direction, layers, opacities, magnitude limit, night vision, language, telescope FOV), the copied link reproduces the exact view you see when opened in any browser.
+Because Planisphere keeps every setting in the URL (time, location, view direction, layers, opacities, magnitude limit, night vision, language, skyculture, telescope FOV), the copied link reproduces the exact view you see when opened in any browser.
 
 ---
 
@@ -338,6 +403,7 @@ You can link directly to a specific sky view by adding parameters to the URL. Th
 | `mag`     | Star magnitude limit, 1.0–6.0           | `mag=4`                        |
 | `lang`    | Constellation-name language             | `lang=en`                      |
 | `fov`     | Telescope FOV reticle preset            | `fov=binoculars`               |
+| `sky`     | Skyculture / asterism set               | `sky=chinese`                  |
 | `nv`      | Night vision (`1` = on)                 | `nv=1`                         |
 
 **Layer names for the `layers` parameter:** `stars`, `planets`, `satellites`, `compass`, `deepSky`. Omit the parameter to show every layer; include it to show only the layers you list.
@@ -346,7 +412,11 @@ You can link directly to a specific sky view by adding parameters to the URL. Th
 
 **FOV preset ids for `fov`:** `off` (default), `naked-eye`, `binoculars`, `small-scope`, `large-scope`.
 
+**Skyculture ids for `sky`:** `western` (default), `chinese`, `indian`, `norse_edda`, `hawaiian_starlines`, `maori`.
+
 Opacity values are integers 0 (invisible) to 100 (full opacity). If you omit an opacity parameter, it uses the default shown on the slider.
+
+If you omit `t`, the chart opens at the current moment rather than a fixed date. Leave `t` out of shared links when you want the recipient to see "the sky right now from this location" instead of a specific instant.
 
 The easiest way to build a URL is just to set things how you want them in the UI and hit **🔗 Copy link**.
 
@@ -376,7 +446,7 @@ Tokyo, looking east at 30° altitude, faint stars filtered out:
 
 **Best time to see satellites** — Satellites are only visible when sunlight catches them. This happens in the hour or so after sunset or before sunrise, when the sky is dark but the satellite is still in sunlight high above you. During the middle of the night or the middle of the day, satellites are either in Earth's shadow or lost in the daytime glare.
 
-**Finding ISS passes** — Set your location, click **Now** to start at the current time, then click `+1m` repeatedly to step through the next hour. Watch for any satellite crossing your sky. The ISS is one of the brightest objects in the satellite layer. You can also type "ISS" into the search box to jump straight to it.
+**Finding ISS passes** — Set your location (📍 Now is the fastest way) and look at the **Upcoming Events** panel. Any ISS passes in the next 48 hours show up there with an estimated brightness and peak altitude. Click **Go to** on a pass to jump the chart to peak and aim the camera at the right spot. Passes rendered at 50% opacity are in Earth's shadow — real but invisible — so skip those and pick a brighter one. You can also type "ISS" into the search box to jump straight to the satellite itself.
 
 **Planning through an eyepiece** — Pick your telescope's FOV from the Telescope FOV dropdown, search for your target, click the search result (or click the object's name in Planet Info), and you'll see exactly what the eyepiece will frame.
 
