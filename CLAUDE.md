@@ -95,6 +95,28 @@ Treat that one-liner as the canonical pre-push gate. CI runs the same set; skipp
 
 If you're about to push and haven't run this full sequence, run it. If anything fails, fix it before pushing (don't push expecting CI to tell you).
 
+### Specifically for rebases / PR updates
+
+Running `pnpm test` is **not** the same as `pnpm test:cov`. The former skips the v8 coverage thresholds; CI runs the latter. Habit of typing `pnpm test` after a rebase is how coverage regressions leak to CI. Use `pnpm test:cov` for the pre-push gate, always.
+
+Rebasing a PR onto a moved `main` is where the pre-push gate matters most — more, not less, than on a fresh branch. The merge surface brings in code you didn't write: new switch cases, new intents, new rendering paths. Your original tests may have covered 100% of what you wrote, yet the rebased branch can fall below the `src/app.ts` branch-coverage gate because the new code needs new tests.
+
+**After every rebase, re-run the full canonical gate:**
+
+```
+pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:cov && pnpm build
+```
+
+If `test:cov` now fails on a threshold line like:
+
+```
+ERROR: Coverage for branches (69.66%) does not meet "src/app.ts" threshold (70%)
+```
+
+…don't lower the threshold. Open the coverage report (`coverage/lcov.info` or the HTML), find the newly-introduced branches that got in via the rebase, and add tests for them. Common pattern: a switch statement over a union got a new arm you didn't exercise — parameterise the nearest existing test to cover each arm.
+
+Prettier after a rebase: edits can also introduce formatting divergence when markers get resolved by hand. Always run `pnpm format:check` (not just `pnpm lint`) before force-pushing.
+
 ## Working style
 
 - Keep changes scoped. A bugfix doesn't need surrounding cleanup; a feature doesn't need speculative abstractions.
