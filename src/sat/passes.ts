@@ -1,18 +1,33 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { propagate, gstime, eciToEcf, ecfToLookAngles } from "satellite.js";
+import {
+  propagate,
+  gstime,
+  eciToEcf,
+  ecfToLookAngles,
+  geodeticToEcf,
+  ecfToEci,
+} from "satellite.js";
 import type { EciVec3, Kilometer } from "satellite.js";
-import { Body, Equator, MakeTime, Observer, Horizon } from "astronomy-engine";
+import { Body, Equator, GeoVector, MakeTime, Observer, Horizon } from "astronomy-engine";
 import type { SatelliteRecord } from "./tle";
+import { computeIllumination, type IlluminationInfo, type Vec3 } from "./illumination";
 
 export type IssPass = {
   readonly rise: Date;
-  readonly peak: { readonly time: Date; readonly altDeg: number; readonly azDeg: number };
+  readonly peak: {
+    readonly time: Date;
+    readonly altDeg: number;
+    readonly azDeg: number;
+    readonly illumination: IlluminationInfo;
+  };
   readonly set: Date;
   readonly satName: string;
 };
 
 const DEG = 180 / Math.PI;
 const STEP_SECONDS = 30;
+/** 1 astronomical unit in km, per IAU 2012 definition. */
+const AU_KM = 149_597_870.7;
 /** Civil twilight — the sun must be at least this far below the horizon (in degrees) for
  *  a pass to be considered observable. Not full astronomical darkness; it strikes a
  *  balance between "truly dark" and "usefully catches bright ISS passes at dusk/dawn". */
@@ -50,6 +65,42 @@ function sunAltDeg(lat: number, lon: number, time: Date): number {
   const observer = new Observer(lat, lon, 0);
   const eq = Equator(Body.Sun, astroTime, observer, true, true);
   return Horizon(astroTime, observer, eq.ra, eq.dec, "normal").altitude;
+}
+
+/** Satellite ECI position (km) at `time`, or null if the propagator failed. */
+function satEci(satrec: SatelliteRecord["satrec"], time: Date): Vec3 | null {
+  const posVel = propagate(satrec, time);
+  const p = posVel.position;
+  if (!p || !isValidVec3(p)) return null;
+  return { x: p.x, y: p.y, z: p.z };
+}
+
+/** Observer geocentric ECI position (km) for `lat,lon` on Earth's surface at `time`. */
+function observerEci(latRad: number, lonRad: number, time: Date): Vec3 {
+  const ecf = geodeticToEcf({ latitude: latRad, longitude: lonRad, height: 0 as Kilometer });
+  const gmst = gstime(time);
+  const eci = ecfToEci(ecf, gmst);
+  return { x: eci.x, y: eci.y, z: eci.z };
+}
+
+/** Geocentric sun position (km) at `time`, J2000 equatorial. Close enough to TEME for
+ *  shadow geometry (differences are ~tens of arcsec vs. Earth diameter ~0.004%). */
+function sunEci(time: Date): Vec3 {
+  const v = GeoVector(Body.Sun, time, true);
+  return { x: v.x * AU_KM, y: v.y * AU_KM, z: v.z * AU_KM };
+}
+
+function illuminationAt(
+  satrec: SatelliteRecord["satrec"],
+  latRad: number,
+  lonRad: number,
+  time: Date,
+): IlluminationInfo | null {
+  const sat = satEci(satrec, time);
+  if (!sat) return null;
+  const obs = observerEci(latRad, lonRad, time);
+  const sun = sunEci(time);
+  return computeIllumination(sat, obs, sun);
 }
 
 /**
@@ -90,7 +141,14 @@ export function computeUpcomingPasses(
   const endMs = startMs + lookaheadHours * 3600 * 1000;
   const stepMs = STEP_SECONDS * 1000;
 
-  const passes: IssPass[] = [];
+  type PassShell = {
+    rise: Date;
+    peakTime: Date;
+    peakAlt: number;
+    peakAz: number;
+    set: Date;
+  };
+  const shells: PassShell[] = [];
 
   let prevAlt: number | null = null;
   let prevTime: Date | null = null;
@@ -126,11 +184,12 @@ export function computeUpcomingPasses(
       } else if (inPass && prevAlt > 0 && look.alt <= 0) {
         const setTime = interpolateZeroCrossing(prevTime, prevAlt, time, look.alt);
         if (passRise !== null && passPeakTime !== null) {
-          passes.push({
+          shells.push({
             rise: passRise,
-            peak: { time: passPeakTime, altDeg: passPeakAlt, azDeg: passPeakAz },
+            peakTime: passPeakTime,
+            peakAlt: passPeakAlt,
+            peakAz: passPeakAz,
             set: setTime,
-            satName: record.name,
           });
         }
         inPass = false;
@@ -145,10 +204,24 @@ export function computeUpcomingPasses(
   }
 
   // Filter: require it to be dark enough at peak.
-  const darkPasses = passes.filter((p) => sunAltDeg(lat, lon, p.peak.time) < SUN_BELOW_HORIZON_DEG);
+  const darkShells = shells.filter((s) => sunAltDeg(lat, lon, s.peakTime) < SUN_BELOW_HORIZON_DEG);
 
-  darkPasses.sort((a, b) => a.rise.getTime() - b.rise.getTime());
-  return darkPasses;
+  // Annotate with illumination at peak. Passes where the propagator fails at peak are
+  // dropped (should effectively never happen since we already have an alt/az at that time).
+  const passes: IssPass[] = [];
+  for (const s of darkShells) {
+    const illum = illuminationAt(record.satrec, latRad, lonRad, s.peakTime);
+    if (!illum) continue;
+    passes.push({
+      rise: s.rise,
+      peak: { time: s.peakTime, altDeg: s.peakAlt, azDeg: s.peakAz, illumination: illum },
+      set: s.set,
+      satName: record.name,
+    });
+  }
+
+  passes.sort((a, b) => a.rise.getTime() - b.rise.getTime());
+  return passes;
 }
 
 /** Given two samples straddling alt = 0, linearly interpolate the crossing time. */

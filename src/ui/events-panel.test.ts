@@ -42,11 +42,28 @@ function makeIssPass(when: Date): CelestialEvent {
   return {
     kind: "iss-pass",
     when,
-    title: "ISS pass — peaks at 43° altitude",
+    title: "ISS pass — mag -1.8, peaks at 43°",
     description: "Peaks 43° in the SSE at 21:34 local, sets 21:38 local (4 min pass).",
     peakAltDeg: 43,
     peakAzDeg: 157,
     durationSec: 240,
+    eclipsed: false,
+    magnitudeAtPeak: -1.8,
+  };
+}
+
+function makeEclipsedIssPass(when: Date): CelestialEvent {
+  return {
+    kind: "iss-pass",
+    when,
+    title: "ISS pass — in Earth's shadow (22° peak)",
+    description:
+      "Peaks 22° in the N at 02:14 local, sets 02:18 local (4 min pass). Satellite is in Earth's shadow at peak — not visible.",
+    peakAltDeg: 22,
+    peakAzDeg: 0,
+    durationSec: 240,
+    eclipsed: true,
+    magnitudeAtPeak: null,
   };
 }
 
@@ -180,6 +197,30 @@ describe("createEventsPanel", () => {
     const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
     btn.click();
     expect(dispatch).toHaveBeenCalledWith({ type: "set-time", time: when });
+  });
+
+  it("renders eclipsed ISS passes at reduced opacity so users can see they exist but won't try to watch", () => {
+    const events = [makeEclipsedIssPass(new Date("2024-04-10T02:14:00Z"))];
+    const el = createEventsPanel(events, vi.fn());
+    const row = el.querySelector<HTMLElement>("[data-testid='event-row']")!;
+    expect(row).not.toBeNull();
+    // Expect a reduced opacity — anything < 1 signals "greyed out".
+    const opacityStr = row.style.opacity;
+    expect(opacityStr).not.toBe("");
+    const opacity = parseFloat(opacityStr);
+    expect(opacity).toBeLessThan(1);
+    expect(opacity).toBeGreaterThan(0);
+  });
+
+  it("renders lit (non-eclipsed) ISS passes at full opacity", () => {
+    const events = [makeIssPass(new Date("2024-04-10T04:00:00Z"))];
+    const el = createEventsPanel(events, vi.fn());
+    const row = el.querySelector<HTMLElement>("[data-testid='event-row']")!;
+    // Empty opacity string (browser default = 1) is acceptable; a value of exactly "1" also.
+    const opacityStr = row.style.opacity;
+    if (opacityStr !== "") {
+      expect(parseFloat(opacityStr)).toBe(1);
+    }
   });
 
   it("is collapsible via a toggle", () => {
