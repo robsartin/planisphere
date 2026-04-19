@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createNotebookWorkspace, NOTEBOOK_SCRATCH_STORAGE_KEY } from "./notebook-workspace";
+import { setUser } from "../features";
 
 describe("createNotebookWorkspace", () => {
   beforeEach(() => {
@@ -111,6 +112,12 @@ describe("createNotebookWorkspace", () => {
     const TEST_HREF = "http://localhost:5173/?lat=40.7&lon=-74&t=2026-08-12T04:30:00.000Z";
     const TEST_TIME = new Date("2026-08-12T04:30:00.000Z");
 
+    beforeEach(() => {
+      // Insert-link is a Pro feature; establish a Pro identity so the existing
+      // insertion-behavior assertions hit the Pro branch.
+      setUser("rob.sartin@gmail.com");
+    });
+
     function pad(n: number): string {
       return String(n).padStart(2, "0");
     }
@@ -176,6 +183,73 @@ describe("createNotebookWorkspace", () => {
       const { element } = createNotebookWorkspace({});
       const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']");
       expect(btn).toBeNull();
+    });
+  });
+
+  describe("insert link — Pro gating", () => {
+    const TEST_HREF = "http://localhost:5173/?lat=40.7&lon=-74&t=2026-08-12T04:30:00.000Z";
+    const TEST_TIME = new Date("2026-08-12T04:30:00.000Z");
+
+    it("shows a 'Pro' pill next to the Insert-link button when the user is not Pro", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const pill = element.querySelector<HTMLElement>("[data-testid='notebook-insert-link-pro']");
+      expect(pill).not.toBeNull();
+    });
+
+    it("does not show the 'Pro' pill when the user is Pro", () => {
+      setUser("rob.sartin@gmail.com");
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const pill = element.querySelector<HTMLElement>("[data-testid='notebook-insert-link-pro']");
+      expect(pill).toBeNull();
+    });
+
+    it("non-Pro click invokes onProRequired and does NOT modify the textarea", () => {
+      const onProRequired = vi.fn();
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+        onProRequired,
+      });
+      const textarea = element.querySelector<HTMLTextAreaElement>(
+        "[data-testid='notebook-scratch']",
+      )!;
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      textarea.value = "";
+      btn.click();
+      expect(onProRequired).toHaveBeenCalledTimes(1);
+      expect(textarea.value).toBe("");
+    });
+
+    it("Pro click inserts the link even when onProRequired is wired", () => {
+      setUser("rob.sartin@gmail.com");
+      const onProRequired = vi.fn();
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+        onProRequired,
+      });
+      const textarea = element.querySelector<HTMLTextAreaElement>(
+        "[data-testid='notebook-scratch']",
+      )!;
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      btn.click();
+      expect(onProRequired).not.toHaveBeenCalled();
+      expect(textarea.value).toContain(TEST_HREF);
+    });
+
+    it("non-Pro click with no onProRequired callback is a safe no-op", () => {
+      const { element } = createNotebookWorkspace({
+        getCurrentView: () => ({ href: TEST_HREF, timeUtc: TEST_TIME }),
+      });
+      const textarea = element.querySelector<HTMLTextAreaElement>(
+        "[data-testid='notebook-scratch']",
+      )!;
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='notebook-insert-link']")!;
+      textarea.value = "before";
+      expect(() => btn.click()).not.toThrow();
+      expect(textarea.value).toBe("before");
     });
   });
 

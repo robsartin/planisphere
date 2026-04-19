@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { isPro } from "../features";
 import {
   PANEL_BG,
   PANEL_BORDER,
@@ -27,6 +28,13 @@ export type PanelOptions = {
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
   onOpenTonight?: () => void;
+  /**
+   * Invoked when a non-Pro user clicks the mode-toggle while planetarium is
+   * the active mode (i.e. they're trying to enter Notebook). When supplied,
+   * the panel calls this instead of dispatching `set-mode` so the caller can
+   * open the email-gate modal. No-op fallback is safe.
+   */
+  onProRequired?: () => void;
   /** Current app mode — controls the 🌃/📓 toggle icon. Defaults to "planetarium". */
   mode?: AppMode;
 };
@@ -109,9 +117,35 @@ export function createPanel(
   let currentMode: AppMode = options.mode ?? "planetarium";
   const modeBtn = document.createElement("button");
   modeBtn.dataset.testid = "panel-mode";
-  modeBtn.textContent = currentMode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
   modeBtn.title = "Toggle Planetarium / Notebook";
   applyButton(modeBtn);
+  modeBtn.style.display = "inline-flex";
+  modeBtn.style.alignItems = "center";
+  modeBtn.style.gap = "4px";
+
+  const modeIcon = document.createElement("span");
+  modeIcon.dataset.testid = "panel-mode-icon";
+  modeIcon.textContent = currentMode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
+  modeBtn.appendChild(modeIcon);
+
+  // Pro pill: shown only when the current user isn't on the Pro allowlist.
+  // Discoverable but quiet — signals that Notebook mode is a paid feature
+  // without hiding the toggle (the CTA itself is a conversion surface).
+  if (!isPro()) {
+    const pill = document.createElement("span");
+    pill.dataset.testid = "panel-mode-pro";
+    pill.textContent = "Pro";
+    pill.style.background = "rgba(0,255,136,0.18)";
+    pill.style.border = "1px solid rgba(0,255,136,0.5)";
+    pill.style.borderRadius = "8px";
+    pill.style.color = "#00ff88";
+    pill.style.fontSize = "9px";
+    pill.style.fontWeight = "600";
+    pill.style.letterSpacing = "0.05em";
+    pill.style.padding = "0 5px";
+    pill.style.textTransform = "uppercase";
+    modeBtn.appendChild(pill);
+  }
 
   const toggleBtn = document.createElement("button");
   toggleBtn.dataset.testid = "panel-toggle";
@@ -164,6 +198,12 @@ export function createPanel(
 
   modeBtn.addEventListener("click", () => {
     const next: AppMode = currentMode === "planetarium" ? "notebook" : "planetarium";
+    // Gate entry into notebook mode for non-Pro users. Exit back to
+    // planetarium is always free.
+    if (next === "notebook" && !isPro()) {
+      options.onProRequired?.();
+      return;
+    }
     dispatch({ type: "set-mode", mode: next });
   });
 
@@ -219,7 +259,7 @@ export function createPanel(
 
   function setMode(mode: AppMode): void {
     currentMode = mode;
-    modeBtn.textContent = mode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
+    modeIcon.textContent = mode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
   }
 
   return { element: panel, setContent, setCollapsed, setNightVision, setMode };

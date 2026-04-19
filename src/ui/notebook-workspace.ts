@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { isPro } from "../features";
 import { PANEL_BG, PANEL_BORDER, TEXT_COLOR, FONT_FAMILY } from "./styles";
 
 /**
@@ -18,6 +19,12 @@ export type NotebookWorkspaceOptions = {
    * the cursor. Omitted in tests that don't care about the button.
    */
   getCurrentView?: () => { readonly href: string; readonly timeUtc: Date };
+  /**
+   * Invoked when a non-Pro user clicks a Pro-gated surface (currently just the
+   * Insert-link button). app.ts passes in a function that opens the email-gate
+   * modal. When omitted, Pro-gated clicks are a no-op — safe for tests.
+   */
+  onProRequired?: () => void;
 };
 
 export type NotebookWorkspace = {
@@ -132,13 +139,15 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   // getCurrentView callback is supplied so the notebook-alone test paths stay
   // dependency-free. Format: Markdown link `- [YYYY-MM-DD HH:MM](href)\n` so
   // a future slideshow parser can extract views as ordered list items.
+  // Gated behind isPro() — non-Pro users see a small "Pro" pill and an
+  // onProRequired callback fires on click (defense in depth; the mode-toggle
+  // is also gated upstream so non-Pro users rarely reach the notebook).
   let insertLinkBtn: HTMLButtonElement | null = null;
   if (options.getCurrentView !== undefined) {
     const getCurrentView = options.getCurrentView;
     insertLinkBtn = document.createElement("button");
     insertLinkBtn.type = "button";
     insertLinkBtn.dataset.testid = "notebook-insert-link";
-    insertLinkBtn.textContent = "\u2192 Insert link to this view";
     insertLinkBtn.style.background = "rgba(255,255,255,0.08)";
     insertLinkBtn.style.border = "1px solid rgba(255,255,255,0.2)";
     insertLinkBtn.style.borderRadius = "4px";
@@ -148,8 +157,35 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     insertLinkBtn.style.fontSize = "12px";
     insertLinkBtn.style.padding = "6px 10px";
     insertLinkBtn.style.alignSelf = "flex-start";
+    insertLinkBtn.style.display = "inline-flex";
+    insertLinkBtn.style.alignItems = "center";
+    insertLinkBtn.style.gap = "6px";
+
+    const label = document.createElement("span");
+    label.textContent = "\u2192 Insert link to this view";
+    insertLinkBtn.appendChild(label);
+
+    if (!isPro()) {
+      const pill = document.createElement("span");
+      pill.dataset.testid = "notebook-insert-link-pro";
+      pill.textContent = "Pro";
+      pill.style.background = "rgba(0,255,136,0.18)";
+      pill.style.border = "1px solid rgba(0,255,136,0.5)";
+      pill.style.borderRadius = "10px";
+      pill.style.color = "#00ff88";
+      pill.style.fontSize = "10px";
+      pill.style.fontWeight = "600";
+      pill.style.letterSpacing = "0.05em";
+      pill.style.padding = "1px 7px";
+      pill.style.textTransform = "uppercase";
+      insertLinkBtn.appendChild(pill);
+    }
 
     insertLinkBtn.addEventListener("click", () => {
+      if (!isPro()) {
+        options.onProRequired?.();
+        return;
+      }
       const view = getCurrentView();
       const pad = (n: number): string => String(n).padStart(2, "0");
       const d = view.timeUtc;
