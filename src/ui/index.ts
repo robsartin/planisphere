@@ -47,6 +47,8 @@ export type {
 } from "./palette-results";
 export { createObjectCard } from "./object-card";
 export type { ObjectCard, ObjectCardData, ObjectCardProps } from "./object-card";
+export { createEmptySkyPopover } from "./empty-sky-popover";
+export type { EmptySkyPopover, EmptySkyPopoverOptions } from "./empty-sky-popover";
 export { createObjectCardsManager } from "./object-cards-manager";
 export type {
   ObjectCardsManager,
@@ -85,6 +87,13 @@ export type UIIntent =
       type: "open-object-card";
       objectKind: "star" | "body" | "satellite" | "messier" | "constellation";
       id: string;
+      screenX: number;
+      screenY: number;
+    }
+  | {
+      type: "open-empty-sky-popover";
+      alt: number;
+      az: number;
       screenX: number;
       screenY: number;
     };

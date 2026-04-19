@@ -238,7 +238,7 @@ describe("createTooltip", () => {
     expect(call[2]).toBe(200);
   });
 
-  it("clicking empty space does NOT invoke onObjectClicked", () => {
+  it("clicking empty space invokes onObjectClicked with null + screen coords", () => {
     const container = document.createElement("div");
     const viewer = makeMockViewer();
     const onObjectClicked = vi.fn();
@@ -248,8 +248,23 @@ describe("createTooltip", () => {
       position: { x: number; y: number };
     }) => void;
     mockPick.mockReturnValueOnce(undefined);
-    clickCallback({ position: { x: 200, y: 200 } });
-    expect(onObjectClicked).not.toHaveBeenCalled();
+    clickCallback({ position: { x: 200, y: 400 } });
+    expect(onObjectClicked).toHaveBeenCalledOnce();
+    const call = onObjectClicked.mock.calls[0] as [unknown, number, number];
+    expect(call[0]).toBeNull();
+    expect(call[1]).toBe(200);
+    expect(call[2]).toBe(400);
+  });
+
+  it("does not throw on empty-sky click without an onObjectClicked handler", () => {
+    const container = document.createElement("div");
+    const viewer = makeMockViewer();
+    createTooltip(viewer as never, container);
+    const clickCallback = mockSetInputAction.mock.calls[1]![0] as (movement: {
+      position: { x: number; y: number };
+    }) => void;
+    mockPick.mockReturnValueOnce(undefined);
+    expect(() => clickCallback({ position: { x: 10, y: 20 } })).not.toThrow();
   });
 
   it("clicking a constellation label invokes onObjectClicked with kind='constellation'", () => {

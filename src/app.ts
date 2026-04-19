@@ -49,6 +49,7 @@ import {
   setCameraView,
   getCameraHeadingDeg,
   projectAltAzToScreen,
+  screenToAltAz,
 } from "./scene";
 import type { AzAltPosition, PickedObject } from "./scene";
 import type {
@@ -82,10 +83,12 @@ import {
   createTonightDrawer,
   createObjectCardsManager,
   createLocationPickerOverlay,
+  createEmptySkyPopover,
 } from "./ui";
 import type {
   BottomHud,
   EventsDrawer,
+  EmptySkyPopover,
   ObjectCardsManager,
   ObjectCardData,
   ObjectPosition,
@@ -931,6 +934,7 @@ export async function bootstrap(
   // needs to render its initial content.
   const pendingCardData = new Map<string, ObjectCardData>();
   let objectCardsManager: ObjectCardsManager | null = null;
+  let emptySkyPopover: EmptySkyPopover | null = null;
   const cesiumContainer = document.getElementById("cesium-container");
   if (cesiumContainer) {
     objectCardsManager = createObjectCardsManager({
@@ -948,8 +952,43 @@ export async function bootstrap(
       findUpcomingEvent: (key: CardKey) => findUpcomingEventForKey(key, cachedEvents),
     });
 
+    // Empty-sky popover — small floating card + reticle shown when the user
+    // clicks a patch of sky with nothing in it. Created alongside the object-cards
+    // manager so we can route both pick and no-pick clicks from the tooltip layer.
+    emptySkyPopover = createEmptySkyPopover({
+      dispatch: (intent) => {
+        handleIntent(intent);
+      },
+      initialFov: state.fov,
+    });
+    cesiumContainer.appendChild(emptySkyPopover.element);
+
     createTooltip(viewer, cesiumContainer, {
-      onObjectClicked: (picked: PickedObject, screenX: number, screenY: number) => {
+      onObjectClicked: (picked: PickedObject | null, screenX: number, screenY: number) => {
+        if (picked === null) {
+          // Empty-sky click: compute alt/az for the clicked direction and dispatch
+          // the open-empty-sky-popover intent. Close any existing object card — a
+          // click on empty sky replaces the pinned card with the empty-sky popover.
+          const dir = screenToAltAz(
+            viewer.scene,
+            screenX,
+            screenY,
+            state.observer.lat,
+            state.observer.lon,
+          );
+          if (dir === null) return;
+          objectCardsManager?.closeActive();
+          handleIntent({
+            type: "open-empty-sky-popover",
+            alt: dir.alt,
+            az: dir.az,
+            screenX,
+            screenY,
+          });
+          return;
+        }
+        // Clicking an object replaces the empty-sky popover with the object card.
+        emptySkyPopover?.close();
         const cardData = pickedToCardData(picked, state.observer, state.timeUtc);
         const objectKind = cardData.kind;
         const id = idForCardData(cardData);
@@ -1202,6 +1241,10 @@ export async function bootstrap(
           screenX: intent.screenX,
           screenY: intent.screenY,
         });
+        break;
+      }
+      case "open-empty-sky-popover": {
+        emptySkyPopover?.open(intent.alt, intent.az, intent.screenX, intent.screenY);
         break;
       }
     }
