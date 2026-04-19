@@ -24,8 +24,15 @@ export { createEventsDrawer } from "./events-drawer";
 export type { EventsDrawer, EventsDrawerOptions } from "./events-drawer";
 export { createTonightDrawer } from "./tonight-drawer";
 export type { TonightDrawer, TonightDrawerOptions } from "./tonight-drawer";
-export type { HelpModal } from "./help-modal";
+export type { HelpModal, HelpModalOptions } from "./help-modal";
 export { createHelpModal } from "./help-modal";
+export { createOnboardingOverlay, ONBOARDING_STORAGE_KEY } from "./onboarding-overlay";
+export type {
+  OnboardingOverlay,
+  OnboardingOverlayOptions,
+  OnboardingStep,
+  OnboardingStepPosition,
+} from "./onboarding-overlay";
 export { createBottomHud } from "./bottom-hud";
 export type { BottomHud } from "./bottom-hud";
 export { createLocationPickerOverlay } from "./location-picker-overlay";
