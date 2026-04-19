@@ -7,6 +7,8 @@ import {
   computeUpcomingEvents,
 } from "./events";
 import type { CelestialEvent } from "./events";
+import { computeBodyPositions } from "./bodies";
+import { raDecToAltAz } from "./coords";
 import { expectOk } from "../result";
 import { parseTle } from "../sat/tle";
 
@@ -307,5 +309,129 @@ describe("computeUpcomingEvents", () => {
     const issEvents = result.value.filter((e) => e.kind === "iss-pass");
     // At least one pass overall; none of them were silently removed.
     expect(issEvents.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------- View-direction enrichment for non-ISS events ----------
+
+/**
+ * Azimuthal midpoint on a circle: the "short-arc" midpoint accounting for
+ * wrap-around at 0°/360°. Returns value in [0, 360).
+ */
+function azMidpointDeg(a: number, b: number): number {
+  let diff = b - a;
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+  const mid = a + diff / 2;
+  return ((mid % 360) + 360) % 360;
+}
+
+describe("computeConjunctions — view direction", () => {
+  it("emits viewAz/viewAlt at the midpoint of the two bodies' alt/az at the peak instant", () => {
+    // 30-day window starting Jan 1 2026 — known to contain multiple conjunctions.
+    const now = new Date("2026-01-01T00:00:00Z");
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeConjunctions(now, 30, observer);
+    expect(events.length).toBeGreaterThan(0);
+    for (const e of events) {
+      expect(typeof e.viewAz).toBe("number");
+      expect(typeof e.viewAlt).toBe("number");
+      // Rebuild the bodies at `when`, find the two involved; view should match midpoint.
+      const positions = computeBodyPositions(observer.lat, observer.lon, e.when, false);
+      const p1 = positions.find((p) => p.id === e.body1);
+      const p2 = positions.find((p) => p.id === e.body2);
+      expect(p1).toBeDefined();
+      expect(p2).toBeDefined();
+      if (!p1 || !p2) continue;
+      const expectedAlt = (p1.alt + p2.alt) / 2;
+      const expectedAz = azMidpointDeg(p1.az, p2.az);
+      expect(e.viewAlt).toBeCloseTo(expectedAlt, 3);
+      expect(e.viewAz).toBeCloseTo(expectedAz, 3);
+    }
+  });
+
+  it("still emits a view direction when bodies are below the horizon at peak", () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeConjunctions(now, 30, observer);
+    expect(events.length).toBeGreaterThan(0);
+    for (const e of events) {
+      expect(Number.isFinite(e.viewAz)).toBe(true);
+      expect(Number.isFinite(e.viewAlt)).toBe(true);
+      expect(e.viewAz).toBeGreaterThanOrEqual(0);
+      expect(e.viewAz).toBeLessThan(360);
+      expect(e.viewAlt).toBeGreaterThanOrEqual(-90);
+      expect(e.viewAlt).toBeLessThanOrEqual(90);
+    }
+  });
+});
+
+describe("computeLunarEclipses — view direction", () => {
+  it("emits viewAz/viewAlt equal to the Moon's alt/az at the peak instant", () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeLunarEclipses(now, 365, observer);
+    expect(events.length).toBeGreaterThan(0);
+    for (const e of events) {
+      expect(typeof e.viewAz).toBe("number");
+      expect(typeof e.viewAlt).toBe("number");
+      const positions = computeBodyPositions(observer.lat, observer.lon, e.when, false);
+      const moon = positions.find((p) => p.id === "Moon");
+      expect(moon).toBeDefined();
+      if (!moon) continue;
+      expect(e.viewAlt).toBeCloseTo(moon.alt, 3);
+      expect(e.viewAz).toBeCloseTo(moon.az, 3);
+    }
+  });
+});
+
+describe("computeMeteorShowerPeaks — observer-local time + radiant view", () => {
+  it("shifts `when` to roughly local night (within ±3h of local 03:00 on the peak day) for a western-hemisphere observer", () => {
+    const now = new Date("2026-06-01T00:00:00Z");
+    // Denver: lon ≈ -105 → ~7h behind UTC.
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeMeteorShowerPeaks(now, 365, observer);
+    expect(events.length).toBeGreaterThan(0);
+    for (const e of events) {
+      // Peak day local calendar date should match the canonical shower peak day.
+      // We shift ~3h after local midnight, so the local date should equal the
+      // canonical peak day (shifted from midnight UTC by -7h then +3h = -4h;
+      // local-time displayed to Denver observer on peak day early morning).
+      // Simpler check: local hour should be between midnight and ~6 AM.
+      const localHour = (e.when.getUTCHours() + observer.lon / 15 + 24) % 24;
+      expect(localHour).toBeGreaterThanOrEqual(0);
+      expect(localHour).toBeLessThan(6);
+    }
+  });
+
+  it("still returns entries for all canonical showers within a 1-year window", () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeMeteorShowerPeaks(now, 365, observer);
+    const ids = new Set(events.map((e) => e.showerId));
+    for (const id of [
+      "quadrantids",
+      "lyrids",
+      "eta-aquariids",
+      "perseids",
+      "orionids",
+      "leonids",
+      "geminids",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+
+  it("emits viewAz/viewAlt pointing at the shower's radiant (RA/Dec → Alt/Az) at the adjusted `when`", () => {
+    const now = new Date("2026-06-01T00:00:00Z");
+    const observer = { lat: 39.74, lon: -104.99 };
+    const events = computeMeteorShowerPeaks(now, 365, observer);
+    const perseids = events.find((e) => e.showerId === "perseids");
+    expect(perseids).toBeDefined();
+    if (!perseids) return;
+    // Perseid radiant: RA ≈ 03h04m = 46.0°, Dec ≈ +58°.
+    const expected = raDecToAltAz(46.0, 58.0, observer.lat, observer.lon, perseids.when);
+    expect(perseids.viewAlt).toBeCloseTo(expected.alt, 3);
+    expect(perseids.viewAz).toBeCloseTo(expected.az, 3);
   });
 });

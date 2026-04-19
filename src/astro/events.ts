@@ -8,6 +8,8 @@ import {
 } from "astronomy-engine";
 import { ok, type Result } from "../result";
 import rawMeteorShowers from "../../data/meteor-showers.json";
+import { computeBodyPositions } from "./bodies";
+import { raDecToAltAz } from "./coords";
 import type { SatelliteRecord } from "../sat/tle";
 import { computeUpcomingPasses, isIssRecord, type IssPass } from "../sat/passes";
 
@@ -20,6 +22,8 @@ type MeteorShowerRecord = {
   readonly peakMonth: number; // 1..12
   readonly peakDay: number; // 1..31
   readonly zhr: number; // zenith hourly rate (approximate)
+  readonly raDeg: number; // radiant right ascension (degrees)
+  readonly decDeg: number; // radiant declination (degrees)
 };
 
 const METEOR_SHOWERS = rawMeteorShowers as readonly MeteorShowerRecord[];
@@ -47,6 +51,11 @@ export type ConjunctionEvent = {
   readonly body1: string;
   readonly body2: string;
   readonly separationDeg: number;
+  /** Azimuth (degrees, 0..360) to aim the camera at the midpoint of the two bodies.
+   *  Populated when an observer is supplied; omitted otherwise. */
+  readonly viewAz?: number;
+  /** Altitude (degrees, -90..90) to aim the camera; midpoint of the two bodies. */
+  readonly viewAlt?: number;
 };
 
 export type LunarEclipseEvent = {
@@ -56,6 +65,11 @@ export type LunarEclipseEvent = {
   readonly description: string;
   readonly eclipseKind: "penumbral" | "partial" | "total";
   readonly obscuration: number;
+  /** Azimuth (degrees, 0..360) of the Moon at peak obscuration. Below-horizon values
+   *  are kept — the user will see "sky where the Moon would be". */
+  readonly viewAz?: number;
+  /** Altitude (degrees, -90..90) of the Moon at peak obscuration. */
+  readonly viewAlt?: number;
 };
 
 export type MeteorShowerEvent = {
@@ -66,6 +80,10 @@ export type MeteorShowerEvent = {
   readonly showerId: string;
   readonly showerName: string;
   readonly zhr: number;
+  /** Azimuth (degrees) of the shower's radiant at `when`. */
+  readonly viewAz?: number;
+  /** Altitude (degrees) of the shower's radiant at `when`. */
+  readonly viewAlt?: number;
 };
 
 export type IssPassEvent = {
@@ -95,27 +113,65 @@ export type EventsError = { readonly kind: "unknown"; readonly message: string }
 
 // ---------- Meteor showers ----------
 
-/** Return upcoming meteor-shower peaks within `lookaheadDays` of `now`. */
-export function computeMeteorShowerPeaks(now: Date, lookaheadDays: number): MeteorShowerEvent[] {
+/**
+ * Shift from the IMO-listed "UTC midnight on the peak day" to a more useful local
+ * viewing instant near the radiant's highest point for most observers: roughly 03:00
+ * local time on the peak day at the observer's longitude.
+ *
+ * When no observer is supplied we fall back to the raw UTC midnight (preserves the
+ * original behavior for callers that don't care about a viewing-ready time).
+ */
+function meteorPeakTime(
+  year: number,
+  month: number,
+  day: number,
+  observer: ObserverInput | undefined,
+): number {
+  const baseUtc = Date.UTC(year, month - 1, day, 0, 0, 0);
+  if (!observer) return baseUtc;
+  // Shift so the local clock reads ~03:00 on the peak day.
+  const shiftHours = -observer.lon / 15 + 3;
+  return baseUtc + shiftHours * 3600 * 1000;
+}
+
+/**
+ * Return upcoming meteor-shower peaks within `lookaheadDays` of `now`.
+ *
+ * When `observer` is supplied, `when` is shifted from midnight UTC to roughly 03:00
+ * local time on the peak day and `viewAz/viewAlt` point at the radiant at that instant.
+ */
+export function computeMeteorShowerPeaks(
+  now: Date,
+  lookaheadDays: number,
+  observer?: ObserverInput,
+): MeteorShowerEvent[] {
   const horizon = now.getTime() + lookaheadDays * 24 * 3600 * 1000;
   const nowYear = now.getUTCFullYear();
   const events: MeteorShowerEvent[] = [];
 
   for (const s of METEOR_SHOWERS) {
     // Try current year first; if already past, roll forward to next year.
-    let peak = Date.UTC(nowYear, s.peakMonth - 1, s.peakDay, 0, 0, 0);
+    let peak = meteorPeakTime(nowYear, s.peakMonth, s.peakDay, observer);
     if (peak < now.getTime()) {
-      peak = Date.UTC(nowYear + 1, s.peakMonth - 1, s.peakDay, 0, 0, 0);
+      peak = meteorPeakTime(nowYear + 1, s.peakMonth, s.peakDay, observer);
     }
     if (peak > horizon) continue;
+
+    const when = new Date(peak);
+    const view =
+      observer !== undefined
+        ? raDecToAltAz(s.raDeg, s.decDeg, observer.lat, observer.lon, when)
+        : undefined;
+
     events.push({
       kind: "meteor-shower-peak",
-      when: new Date(peak),
+      when,
       title: `${s.name} meteor shower peak`,
       description: `Expect up to ~${s.zhr} meteors per hour at peak under dark skies.`,
       showerId: s.id,
       showerName: s.name,
       zhr: s.zhr,
+      ...(view !== undefined ? { viewAz: view.az, viewAlt: view.alt } : {}),
     });
   }
 
@@ -125,8 +181,18 @@ export function computeMeteorShowerPeaks(now: Date, lookaheadDays: number): Mete
 
 // ---------- Lunar eclipses ----------
 
-/** Return lunar eclipses within `lookaheadDays` of `now`. */
-export function computeLunarEclipses(now: Date, lookaheadDays: number): LunarEclipseEvent[] {
+/**
+ * Return lunar eclipses within `lookaheadDays` of `now`.
+ *
+ * When `observer` is supplied, each event carries `viewAz/viewAlt` pointing at the
+ * Moon at the peak obscuration instant. Below-horizon values are preserved — the user
+ * still sees "where the Moon would be" rather than a stale upward-default view.
+ */
+export function computeLunarEclipses(
+  now: Date,
+  lookaheadDays: number,
+  observer?: ObserverInput,
+): LunarEclipseEvent[] {
   const horizon = now.getTime() + lookaheadDays * 24 * 3600 * 1000;
   const events: LunarEclipseEvent[] = [];
 
@@ -136,19 +202,30 @@ export function computeLunarEclipses(now: Date, lookaheadDays: number): LunarEcl
     const t = info.peak.date.getTime();
     if (t > horizon) break;
     if (t >= now.getTime()) {
+      const when = info.peak.date;
+      const view = observer !== undefined ? moonAltAz(observer.lat, observer.lon, when) : undefined;
       events.push({
         kind: "lunar-eclipse",
-        when: info.peak.date,
+        when,
         title: `Lunar eclipse (${info.kind})`,
         description: `${capitalize(info.kind)} lunar eclipse; peak obscuration ${(info.obscuration * 100).toFixed(0)}%.`,
         eclipseKind: info.kind as "penumbral" | "partial" | "total",
         obscuration: info.obscuration,
+        ...(view !== undefined ? { viewAz: view.az, viewAlt: view.alt } : {}),
       });
     }
     info = NextLunarEclipse(info.peak);
   }
 
   return events;
+}
+
+function moonAltAz(lat: number, lon: number, time: Date): { alt: number; az: number } {
+  const positions = computeBodyPositions(lat, lon, time, false);
+  const moon = positions.find((p) => p.id === "Moon");
+  // Moon is always present in BODY_CONFIGS, so this fallback is unreachable in practice.
+  if (!moon) return { alt: 0, az: 0 };
+  return { alt: moon.alt, az: moon.az };
 }
 
 function capitalize(s: string): string {
@@ -172,9 +249,17 @@ function angularSeparationDeg(b1: Body, b2: Body, date: Date): number {
  * in angular separation that drop below CONJUNCTION_THRESHOLD_DEG, then refine with a
  * small golden-section / parabolic narrowing over the 3-sample bracket.
  *
+ * When `observer` is supplied, each event carries `viewAz/viewAlt` — the angular midpoint
+ * of the two bodies' horizontal positions at the peak instant. Bodies may be below the
+ * horizon; the midpoint is still emitted (user sees daylight sky in that case).
+ *
  * This is approximate — good for UI display, not for precision ephemerides.
  */
-export function computeConjunctions(now: Date, lookaheadDays: number): ConjunctionEvent[] {
+export function computeConjunctions(
+  now: Date,
+  lookaheadDays: number,
+  observer?: ObserverInput,
+): ConjunctionEvent[] {
   const events: ConjunctionEvent[] = [];
   const startMs = now.getTime();
   const endMs = startMs + lookaheadDays * 24 * 3600 * 1000;
@@ -204,14 +289,20 @@ export function computeConjunctions(now: Date, lookaheadDays: number): Conjuncti
 
         // Refine within [prev.t, next.t] to pinpoint the minimum.
         const refined = refineMinimum(a.body, b.body, prev.t, next.t);
+        const when = new Date(refined.t);
+        const view =
+          observer !== undefined
+            ? conjunctionMidpointAltAz(a.id, b.id, observer.lat, observer.lon, when)
+            : undefined;
         events.push({
           kind: "conjunction",
-          when: new Date(refined.t),
+          when,
           title: `${a.id} – ${b.id} conjunction`,
           description: `${a.id} and ${b.id} appear within ${refined.sep.toFixed(1)}° of each other.`,
           body1: a.id,
           body2: b.id,
           separationDeg: refined.sep,
+          ...(view !== undefined ? { viewAz: view.az, viewAlt: view.alt } : {}),
         });
       }
     }
@@ -219,6 +310,33 @@ export function computeConjunctions(now: Date, lookaheadDays: number): Conjuncti
 
   events.sort((x, y) => x.when.getTime() - y.when.getTime());
   return events;
+}
+
+/**
+ * Angular midpoint of two bodies' horizontal positions at `time`, for the observer's
+ * location. Returns `undefined` if either body is missing from `computeBodyPositions`.
+ *
+ * Altitude is the arithmetic mean; azimuth uses the short-arc mean on the 0°/360° circle.
+ */
+function conjunctionMidpointAltAz(
+  id1: string,
+  id2: string,
+  lat: number,
+  lon: number,
+  time: Date,
+): { alt: number; az: number } | undefined {
+  const positions = computeBodyPositions(lat, lon, time, false);
+  const p1 = positions.find((p) => p.id === id1);
+  const p2 = positions.find((p) => p.id === id2);
+  if (!p1 || !p2) return undefined;
+  const alt = (p1.alt + p2.alt) / 2;
+  // Short-arc azimuth midpoint.
+  let diff = p2.az - p1.az;
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+  const rawAz = p1.az + diff / 2;
+  const az = ((rawAz % 360) + 360) % 360;
+  return { alt, az };
 }
 
 /** Iterative parabolic / bisection refinement for the minimum separation in [lo, hi]. */
@@ -344,9 +462,9 @@ export function computeUpcomingEvents(
   observer?: ObserverInput,
   satelliteRecords?: readonly SatelliteRecord[],
 ): Result<CelestialEvent[], EventsError> {
-  const conjunctions = computeConjunctions(now, DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS);
-  const eclipses = computeLunarEclipses(now, DEFAULT_LOOKAHEAD_ECLIPSE_DAYS);
-  const showers = computeMeteorShowerPeaks(now, DEFAULT_LOOKAHEAD_SHOWER_DAYS);
+  const conjunctions = computeConjunctions(now, DEFAULT_LOOKAHEAD_CONJUNCTION_DAYS, observer);
+  const eclipses = computeLunarEclipses(now, DEFAULT_LOOKAHEAD_ECLIPSE_DAYS, observer);
+  const showers = computeMeteorShowerPeaks(now, DEFAULT_LOOKAHEAD_SHOWER_DAYS, observer);
 
   const issEvents: IssPassEvent[] = [];
   if (observer && satelliteRecords) {
