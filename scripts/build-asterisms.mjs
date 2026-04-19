@@ -5,11 +5,23 @@
 //
 // - data/asterisms/western.json: derived from the existing data/constellations.json
 //   (Western/IAU 88 stick figures, public-domain lines from Stellarium modern_st).
-// - data/asterisms/chinese.json: derived from Stellarium's "chinese" skyculture
-//   (Xingguan system, 283+ traditional Chinese asterisms). Stellarium skyculture
-//   data is CC-BY-SA 4.0 — attribution is in NOTICE and ADR 007.
+// - data/asterisms/<culture>.json for non-Western skycultures, derived from
+//   Stellarium's skyculture dataset at master. Stellarium skyculture data is
+//   CC-BY-SA 4.0 (or CC-BY 4.0 for some cultures) — attributions are in NOTICE
+//   and ADR 007.
 //
-// Usage: node scripts/build-asterisms.mjs
+// Currently bundled non-Western cultures:
+//   - chinese (CC-BY-SA 4.0)            traditional Xingguan system
+//   - indian  (CC-BY-SA 4.0)            Vedic / Nakshatra sky
+//   - norse_edda (CC-BY 4.0)            Germanic/Norse, reconstructed from Eddic texts
+//   - hawaiian_starlines (CC-BY-SA 4.0) Polynesian navigation starlines
+//   - maori (CC-BY-SA 4.0)              Māori whānau o ngā whetū (small but distinctive)
+//
+// Usage:
+//   node scripts/build-asterisms.mjs
+//   pnpm prettier --write data/asterisms/*.json
+//
+// (Run Prettier afterwards to keep the committed JSON files formatted.)
 //
 // Output JSON shape (matches parseAsterismSet in src/astro/skycultures.ts):
 //   { id, name, constellations: [ { id, name, lines: [[hip, hip, ...]] } ] }
@@ -17,10 +29,29 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
-const STELLARIUM_CHINESE_URL =
-  "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/chinese/index.json";
+const STELLARIUM_BASE =
+  "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures";
+
+/**
+ * Non-Western cultures to fetch and normalize from Stellarium.
+ * displayName is what the planisphere UI shows in the skyculture dropdown.
+ * Each entry's constellations[].lines are polylines of HIP star ids.
+ */
+const STELLARIUM_CULTURES = [
+  { id: "chinese", stellariumId: "chinese", displayName: "Chinese (Xingguan)" },
+  { id: "indian", stellariumId: "indian", displayName: "Indian (Vedic)" },
+  { id: "norse_edda", stellariumId: "norse_edda", displayName: "Norse (Edda)" },
+  {
+    id: "hawaiian_starlines",
+    stellariumId: "hawaiian_starlines",
+    displayName: "Hawaiian Starlines",
+  },
+  { id: "maori", stellariumId: "maori", displayName: "Māori" },
+];
 
 function writeJson(path, data) {
+  // Compact form; run `pnpm prettier --write data/asterisms/*.json` after the
+  // build to reshape the output into the committed form.
   writeFileSync(path, JSON.stringify(data));
 }
 
@@ -50,18 +81,20 @@ function buildWestern() {
   };
 }
 
-// ---- Chinese (from Stellarium) ----
-// Stellarium format: { constellations: [ { id, lines, common_name: { english, native, pronounce } } ] }
-// We prefer `native` (Chinese characters) for the display name, fall back to english.
-async function buildChinese() {
-  console.log(`Fetching Stellarium Chinese skyculture: ${STELLARIUM_CHINESE_URL}`);
-  const resp = await fetch(STELLARIUM_CHINESE_URL);
+// ---- Generic Stellarium skyculture normalizer ----
+// Stellarium format per culture: { constellations: [ { id, lines, common_name: { english, native, pronounce } } ] }
+// We prefer `native` for the display name (renders in the culture's script),
+// falling back to english, then id.
+async function buildStellariumCulture({ id, stellariumId, displayName }) {
+  const url = `${STELLARIUM_BASE}/${stellariumId}/index.json`;
+  console.log(`Fetching Stellarium ${stellariumId} skyculture: ${url}`);
+  const resp = await fetch(url);
   if (!resp.ok) {
-    throw new Error(`Failed to fetch chinese skyculture: ${resp.status}`);
+    throw new Error(`Failed to fetch ${stellariumId} skyculture: ${resp.status}`);
   }
   const raw = await resp.json();
   if (!Array.isArray(raw.constellations)) {
-    throw new Error("Expected 'constellations' array in chinese skyculture");
+    throw new Error(`Expected 'constellations' array in ${stellariumId} skyculture`);
   }
   const constellations = [];
   for (const c of raw.constellations) {
@@ -80,11 +113,7 @@ async function buildChinese() {
       c.id;
     constellations.push({ id: c.id, name, lines });
   }
-  return {
-    id: "chinese",
-    name: "Chinese (Xingguan)",
-    constellations,
-  };
+  return { id, name: displayName, constellations };
 }
 
 async function main() {
@@ -96,11 +125,12 @@ async function main() {
     `Wrote ${western.constellations.length} Western asterisms to data/asterisms/western.json`,
   );
 
-  const chinese = await buildChinese();
-  writeJson("data/asterisms/chinese.json", chinese);
-  console.log(
-    `Wrote ${chinese.constellations.length} Chinese asterisms to data/asterisms/chinese.json`,
-  );
+  for (const culture of STELLARIUM_CULTURES) {
+    const set = await buildStellariumCulture(culture);
+    const path = `data/asterisms/${culture.id}.json`;
+    writeJson(path, set);
+    console.log(`Wrote ${set.constellations.length} ${culture.id} asterisms to ${path}`);
+  }
 }
 
 await main();

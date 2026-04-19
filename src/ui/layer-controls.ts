@@ -15,7 +15,11 @@ const LANGUAGE_LABELS: Record<Language, string> = {
 
 const SKYCULTURE_LABELS: Record<SkycultureId, string> = {
   western: "Western (IAU)",
-  chinese: "Chinese (Xingguan)",
+  chinese: "Chinese (Xingguan) 星官",
+  indian: "Indian (Vedic) वैदिक",
+  norse_edda: "Norse (Edda)",
+  hawaiian_starlines: "Hawaiian Starlines",
+  maori: "Māori",
 };
 
 type LayerDef = {

@@ -50,17 +50,45 @@ corresponding national-language astronomical literature) and are released
 as part of this project under the Apache 2.0 license.
 
 ---
-Alternate-skyculture asterism data (data/asterisms/chinese.json) is derived
-from the Stellarium project's "chinese" skyculture
-(https://github.com/Stellarium/stellarium/tree/master/skycultures/chinese),
-licensed under Creative Commons Attribution-ShareAlike 4.0 International
-(CC-BY-SA 4.0). Original authors: Karrie Berglund (Digitalis Education
-Solutions), Sun Shuwei. Source references include Yi Shitong, "Chinese
-and Western Contrast Star Chart and Catalogue 1950.0" (Beijing: Science
-Press, 1981) and the imperial-era "Complete Studies of Astronomical"
-(儀象考成, 1756).
+Alternate-skyculture asterism data (data/asterisms/*.json, excluding
+western.json) is derived from the Stellarium project's skyculture dataset
+(https://github.com/Stellarium/stellarium/tree/master/skycultures). Each
+included culture is normalized from its upstream index.json into the
+planisphere's polyline-of-HIP-ids format by scripts/build-asterisms.mjs;
+data is not hand-edited.
+
+- data/asterisms/chinese.json — from skycultures/chinese, licensed under
+  Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA 4.0).
+  Original authors: Karrie Berglund (Digitalis Education Solutions), Sun
+  Shuwei. Source references include Yi Shitong, "Chinese and Western
+  Contrast Star Chart and Catalogue 1950.0" (Beijing: Science Press, 1981)
+  and the imperial-era "Complete Studies of Astronomical" (儀象考成, 1756).
+
+- data/asterisms/indian.json — from skycultures/indian, licensed under
+  CC-BY-SA 4.0. Original authors: Tanmoy Saha and contributors from the
+  sanskrit-coders community (https://github.com/sanskrit-coders), notably
+  Vishvas Vasuki. Represents the Vedic / Nakshatra sky.
+
+- data/asterisms/norse_edda.json — from skycultures/norse_edda, licensed
+  under Creative Commons Attribution 4.0 International (CC-BY 4.0).
+  Original author: Jakob Eyermann, consulting with Susanne M. Hoffmann,
+  with constellations partly drawn from Jonas Persson's "Norse" sky
+  culture. Reconstructs Germanic/Norse asterisms from the Poetic and
+  Prose Eddas and related sources.
+
+- data/asterisms/hawaiian_starlines.json — from
+  skycultures/hawaiian_starlines, licensed under CC-BY-SA 4.0. Master
+  navigator: Mau Piailug of Satawal, passed to Nainoa Thompson; sky
+  culture contributed in 2017 by Darren Kamalu, Christopher Blake, and
+  students of Kamehameha Schools Kapalama (Honolulu, Hawai'i) — Jonah
+  Apo, Nicholas Koanui, Brenden Aila, and the Celestial Navigation class.
+  Used for Polynesian voyaging aboard Hōkūle'a.
+
+- data/asterisms/maori.json — from skycultures/maori, licensed under
+  CC-BY-SA 4.0. Original author: Dan Smale. Covers a small set of
+  traditional Māori whānau o ngā whetū (star groupings).
 
 The Western asterism set (data/asterisms/western.json) mirrors the
 stick-figure lines from data/constellations.json (Stellarium modern_st,
 public domain) and is provided as a selectable skyculture in the same
-bundled format as the Chinese set.
+bundled format as the Stellarium-derived sets.
