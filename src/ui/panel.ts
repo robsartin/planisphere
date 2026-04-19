@@ -19,6 +19,7 @@ export type Panel = {
 
 export type PanelOptions = {
   onOpenHelp?: () => void;
+  onOpenEvents?: () => void;
 };
 
 export function createPanel(
@@ -72,6 +73,12 @@ export function createPanel(
   copyLinkBtn.title = "Copy link";
   applyButton(copyLinkBtn);
 
+  const eventsBtn = document.createElement("button");
+  eventsBtn.dataset.testid = "panel-events";
+  eventsBtn.textContent = "\u{1F4C5}";
+  eventsBtn.title = "Upcoming events";
+  applyButton(eventsBtn);
+
   const helpBtn = document.createElement("button");
   helpBtn.dataset.testid = "panel-help";
   helpBtn.textContent = "?";
@@ -86,6 +93,7 @@ export function createPanel(
 
   btnGroup.appendChild(nightVisionBtn);
   btnGroup.appendChild(copyLinkBtn);
+  btnGroup.appendChild(eventsBtn);
   btnGroup.appendChild(helpBtn);
   btnGroup.appendChild(toggleBtn);
 
@@ -109,6 +117,10 @@ export function createPanel(
 
   helpBtn.addEventListener("click", () => {
     options.onOpenHelp?.();
+  });
+
+  eventsBtn.addEventListener("click", () => {
+    options.onOpenEvents?.();
   });
 
   copyLinkBtn.addEventListener("click", () => {
