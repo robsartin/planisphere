@@ -2,7 +2,9 @@
 
 Planisphere is a static single-page application with no backend. All computation runs in the browser. This document describes the module structure, data flow, layer model, worker offload, TLE loading strategy, and the post-v1 feature subsystems.
 
-The v1 baseline design lives in `docs/specs/2026-04-15-planisphere-v1-design.md`. Everything in this file reflects the current state of the repo, including features added since v1 (star colors, Milky Way, Messier, search, planet info, RA/Dec grid + ecliptic, boundaries, view direction controls, trackball camera, Web Worker, fast RA/Dec math, PWA/service worker, copy-link, night vision, magnitude filter, "Now" button, object trails, multi-language constellation names, telescope FOV reticle, upcoming-celestial-events panel, ISS pass predictions with illumination, alternate skycultures).
+The v1 baseline design lives in `docs/specs/2026-04-15-planisphere-v1-design.md`. Everything in this file reflects the current state of the repo, including features added since v1 (star colors, Milky Way, Messier, search, planet info, RA/Dec grid + ecliptic, boundaries, view direction controls, trackball camera, Web Worker, fast RA/Dec math, PWA/service worker, copy-link, night vision, magnitude filter, "Now" button, object trails, multi-language constellation names, telescope FOV reticle, upcoming-celestial-events panel, ISS pass predictions with illumination, alternate skycultures, in-app help modal).
+
+Plan 07 (`docs/plans/2026-04-19-07-ux-transformation.md`) then reshaped the chrome entirely: the always-on side panel that used to carry Time / Events / Layers / Planet Info has been replaced by an ambient bottom HUD, four icon-rail drawers (events / settings / tonight's sky / help), a ⌘K command palette, click-to-pin object cards, and an empty-sky reticle popover. The computation layers in `astro/` and `sat/` are unchanged — Phase 1 is purely a UI / chrome refactor. See [UX architecture](#ux-architecture) below.
 
 ## Module dependency graph
 
@@ -17,8 +19,8 @@ graph TD
     sat["sat/<br/>TLE + SGP4"]
     passes["sat/passes<br/>pass detection"]
     illum["sat/illumination<br/>umbra + magnitude"]
-    scene["scene/<br/>CesiumJS rendering"]
-    ui["ui/<br/>controls + intents<br/>(incl. events panel)"]
+    scene["scene/<br/>CesiumJS rendering<br/>(incl. project, animation-math)"]
+    ui["ui/<br/>HUD, drawers, palette,<br/>object cards, overlays"]
     workers["workers/<br/>astro Web Worker"]
     result["result/<br/>Result&lt;T,E&gt; helpers"]
 
@@ -60,17 +62,17 @@ graph TD
 
 Per-module summary of what lives where. Filenames omit the `.ts` extension; each module also has a `*.test.ts` sibling.
 
-| Module         | Files                                                                                                                                                                                                                                                                         | Responsibility                                                                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/result/`  | `result`                                                                                                                                                                                                                                                                      | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                |
-| `src/state/`   | `state`                                                                                                                                                                                                                                                                       | `AppState`, URL parse/serialize, defaults.                                                                                                             |
-| `src/astro/`   | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search`, `skycultures`, `events` | Pure astronomy math. No DOM, no Cesium, no `Worker`. `events` composes the upcoming-events list (reaches into `sat/passes` for ISS passes).            |
-| `src/sat/`     | `fetch`, `tle`, `propagate`, `passes`, `illumination`                                                                                                                                                                                                                         | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az, per-satellite pass detection, umbra/magnitude model.    |
-| `src/scene/`   | `viewer`, `camera`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                                                | CesiumJS primitives, one `create*Layer` factory per visual layer, camera setup, hover tooltip.                                                         |
-| `src/ui/`      | `panel`, `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `events-panel`, `styles`                                                                                                                           | DOM controls, `UIIntent` union, layout/styles. `events-panel` renders upcoming events and dispatches `set-time` / `set-view` from each Go-to button.   |
-| `src/workers/` | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                                          | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.            |
-| `src/app.ts`   | —                                                                                                                                                                                                                                                                             | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild. |
-| `src/main.ts`  | —                                                                                                                                                                                                                                                                             | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                          |
+| Module         | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Responsibility                                                                                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/result/`  | `result`                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                                                                                                                                 |
+| `src/state/`   | `state`                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `AppState`, URL parse/serialize, defaults.                                                                                                                                                                                                                              |
+| `src/astro/`   | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search`, `skycultures`, `events`                                                                                                                                                                              | Pure astronomy math. No DOM, no Cesium, no `Worker`. `events` composes the upcoming-events list (reaches into `sat/passes` for ISS passes).                                                                                                                             |
+| `src/sat/`     | `fetch`, `tle`, `propagate`, `passes`, `illumination`                                                                                                                                                                                                                                                                                                                                                                                                      | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az, per-satellite pass detection, umbra/magnitude model.                                                                                                                     |
+| `src/scene/`   | `viewer`, `camera`, `animation-math`, `project`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                                                                                                                                                                                                | CesiumJS primitives, one `create*Layer` factory per visual layer, camera + gesture setup, screen↔sky projection. `animation-math` is pure (FOV clamp, ease-out cubic, az/alt lerp, drag-inertia integral); `project` exposes `projectAltAzToScreen` / `screenToAltAz`. |
+| `src/ui/`      | **Chrome:** `bottom-hud`, `drawer`, `events-drawer`, `settings-drawer`, `tonight-drawer`, `help-modal`, `markdown`, `command-palette`, `palette-results`, `location-picker-overlay`, `empty-sky-popover`, `object-card`, `object-cards-manager`, `panel`, `styles`. **Legacy controls** (still rendered inside `panel`): `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `events-panel`. | DOM chrome + controls, `UIIntent` union, layout/styles. After Plan 07 the drawers / palette / cards are the primary surfaces; the legacy `panel` still hosts search / view / location / FOV and wires the icon-rail buttons through to the drawers.                     |
+| `src/workers/` | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                                                                                                                                                                                                                       | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.                                                                                                                             |
+| `src/app.ts`   | —                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild.                                                                                                                  |
+| `src/main.ts`  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                                                                                                                                           |
 
 ## Data flow
 
@@ -244,30 +246,207 @@ Only fields that differ from their default are written to the URL, so a freshly-
 
 Parse and serialize are pure and returned as `Result<AppState, StateParseError>`; `handleIntent` in `app.ts` is the only place that re-serializes back into the URL (via `history.replaceState`).
 
+**Phase 1 adds no new URL params.** Every Phase 1 surface (drawers, cards, palette, popover) is session-local by design — open drawers and pinned cards don't survive a reload. The palette's recents list is the single non-URL persistence introduced, and it lives in `localStorage` (`planisphere.palette.recents.v1`), deliberately outside the shareable-snapshot contract.
+
 ## Intents
 
-The UI never mutates `AppState` directly. It emits a typed `UIIntent` (see `src/ui/index.ts`) that the composition root handles:
+The UI never mutates `AppState` directly. It emits a typed `UIIntent` (see `src/ui/index.ts`) that the composition root handles. Plan 07 grew the union from thirteen to twenty variants; rather than print the full `ts` union, the table below groups them by what they drive.
 
-```ts
-type UIIntent =
-  | { type: "set-time"; time: Date }
-  | { type: "set-observer"; lat: number; lon: number }
-  | { type: "toggle-layer"; layer: keyof LayerVisibility }
-  | { type: "set-opacity"; layer: keyof LayerOpacity; value: number }
-  | { type: "set-view"; az: number; alt: number }
-  | { type: "toggle-night-vision" }
-  | { type: "set-mag-limit"; value: number }
-  | { type: "show-trail"; objectKind: "body"; id: string }
-  | { type: "hide-trail" }
-  | { type: "set-language"; language: Language }
-  | { type: "set-skyculture"; id: SkycultureId }
-  | { type: "set-fov"; preset: FovPresetId }
-  | { type: "now" };
-```
+| Intent                      | Fields                                   | Updates state? | Handler behaviour (`src/app.ts::handleIntent`)                                                                                                                 |
+| --------------------------- | ---------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `set-time`                  | `time: Date`                             | yes            | Rerender sky, refresh tonight + events drawers, rebuild search index, rerender trail, update HUD + URL.                                                        |
+| `set-observer`              | `lat`, `lon`                             | yes            | Reset camera, rerender, refresh tonight + events, rebuild search index, rerender trail, update HUD + URL.                                                      |
+| `toggle-layer`              | `layer: keyof LayerVisibility`           | yes            | Flip a visibility flag (stars/planets/satellites/compass/deepSky); no full rerender, just `applyLayerVisibility`.                                              |
+| `set-opacity`               | `layer: keyof LayerOpacity`, `value`     | yes            | Push opacity straight into the corresponding layer (no recompute).                                                                                             |
+| `set-view`                  | `az`, `alt`                              | yes            | `setCameraView` + URL.                                                                                                                                         |
+| `toggle-night-vision`       | —                                        | yes            | Toggle `<body>.night-vision` class; mirror to legacy side panel.                                                                                               |
+| `set-mag-limit`             | `value`                                  | yes            | Rerender (star filter runs inside `buildAltAzStars`).                                                                                                          |
+| `show-trail` / `hide-trail` | `objectKind`, `id` / —                   | no (ephemeral) | Drive `TrailLayer`; refresh tonight drawer so its active-row chevron flips.                                                                                    |
+| `set-language`              | `language`                               | yes            | Language implies Western skyculture — `activeAsterisms` is reset to null, name overrides reloaded, rerender.                                                   |
+| `set-skyculture`            | `id`                                     | yes            | Load alt asterism set (or null for Western), rerender.                                                                                                         |
+| `set-fov`                   | `preset`                                 | yes            | Push preset into `ReticleLayer`.                                                                                                                               |
+| `now`                       | —                                        | yes            | Set `timeUtc = new Date()` immediately, then try `navigator.geolocation`; on success dispatch an observer update.                                              |
+| `open-location-picker`      | —                                        | no             | Open the location-picker overlay (Plan 07 1B).                                                                                                                 |
+| `toggle-animation`          | —                                        | no             | Stub for Plan 08 / issue #136 (time-advance loop). Currently no-op with a `TODO` comment.                                                                      |
+| `pin-object`                | `id: string`                             | yes            | Palette-triggered aim: look up the object in the search index and `set-view` to its az/alt. Distinct from the scene-level click → card flow.                   |
+| `copy-link`                 | —                                        | no             | Fire-and-forget `navigator.clipboard.writeText(location.href)`.                                                                                                |
+| `open-object-card`          | `objectKind`, `id`, `screenX`, `screenY` | no             | Pop pending `ObjectCardData` stashed by the tooltip click callback and hand it to `ObjectCardsManager.open`. See [Click → scene pick → card flow](#card-flow). |
+| `open-empty-sky-popover`    | `alt`, `az`, `screenX`, `screenY`        | no             | Open the `EmptySkyPopover` at the click point with the direction vector recovered by `screenToAltAz`.                                                          |
 
-`show-trail` / `hide-trail` are ephemeral — the current trail selection lives as a local variable in `bootstrap()` and is not serialised to the URL. The `now` intent additionally asks for the browser's geolocation; if it resolves, it also fires a `set-observer`-equivalent update.
+`show-trail` / `hide-trail` are ephemeral — the current trail selection lives as a local variable in `bootstrap()` and is not serialised to the URL. Neither are any of the drawer / card / popover intents: **Phase 1 deliberately introduced no new URL params**. Open drawers and pinned cards reset on reload, which matches the "URL is shareable sky snapshot, not session transcript" principle of v1.
 
 `set-language` and `set-skyculture` interact: non-Western skycultures ship their own native constellation names, so changing the language implicitly forces `skyculture = "western"` — otherwise the "Chinese" or "Māori" labels would be silently replaced by Latin translations that don't exist in those sets. The reverse isn't symmetric: selecting a non-Western skyculture keeps the language value as-is (it simply ceases to affect the currently-rendered labels until the user switches back to Western).
+
+## UX architecture
+
+Plan 07 replaced the v1 "one big side panel" layout with a composed set of chrome surfaces. Each surface has a single job and a mutually-exclusive open/close contract enforced in `src/app.ts`. The sky (Cesium canvas) is the primary surface; every other surface floats over it.
+
+### Chrome surfaces
+
+```mermaid
+graph TD
+    subgraph Sky["Sky (Cesium canvas, always visible)"]
+        canvas["Star / body / satellite /<br/>Messier / constellation layers"]
+        reticle["Reticle SVG (FOV preset)"]
+    end
+
+    subgraph Persistent["Persistent chrome"]
+        hud["Bottom HUD<br/>(src/ui/bottom-hud.ts)<br/>time · location chip · compass"]
+        rail["Legacy side panel 'icon rail'<br/>(src/ui/panel.ts)<br/>📅 events · ⚙ settings · ♀ tonight · ? help"]
+    end
+
+    subgraph Drawers["Icon-rail drawers — at most one open at a time"]
+        evDrawer["Events drawer<br/>(ui/events-drawer.ts)"]
+        setDrawer["Settings drawer<br/>(ui/settings-drawer.ts)"]
+        tonDrawer["Tonight drawer<br/>(ui/tonight-drawer.ts)"]
+        help["Help modal<br/>(ui/help-modal.ts)"]
+    end
+
+    subgraph Floating["Object-level surfaces"]
+        cards["Object cards (multi)<br/>(ui/object-card.ts<br/>+ object-cards-manager.ts)"]
+        empty["Empty-sky popover (single)<br/>(ui/empty-sky-popover.ts)"]
+    end
+
+    subgraph Modal["Full-screen modals"]
+        palette["Command palette (⌘K)<br/>(ui/command-palette.ts<br/>+ palette-results.ts)"]
+        locpick["Location picker overlay<br/>(ui/location-picker-overlay.ts)"]
+        onboarding["Onboarding overlay<br/>TODO(#200): first-load tour"]
+    end
+
+    hud -->|open-location-picker| locpick
+    rail --> evDrawer
+    rail --> setDrawer
+    rail --> tonDrawer
+    rail --> help
+    canvas -->|left-click pick| cards
+    canvas -->|left-click empty sky| empty
+    palette -->|pin-object / set-view / set-observer| canvas
+```
+
+The rail lives in the legacy `src/ui/panel.ts` — its `PanelOptions` were extended in Phase 1 with `onOpenEvents`, `onOpenSettings`, and `onOpenTonight` callbacks that `app.ts` wires to the respective drawers. The side-panel tray below the rail still hosts the search box, location inputs, view inputs, and FOV picker; those were **not** moved into drawers because they benefit from always-visible keyboard focus.
+
+**Onboarding**: `TODO(#200)` — the first-load guided tour from Plan 07 milestone 1I is not yet in `main` at the time of this pass. When it lands it fills the "Modal" slot above and fires one time on a fresh visit (tracked in `localStorage`). This document should be refreshed then; for now every other surface is live.
+
+### One-drawer-at-a-time coordination pattern
+
+The drawers are peers — they all dock to the right edge at roughly the same width, so having two open simultaneously would overlap and confuse focus. There is no central "which drawer is active" state; instead, each open callback on the legacy panel explicitly closes the others immediately before opening its own drawer. The list lives in `src/app.ts`:
+
+```ts
+onOpenEvents: () => {
+  if (helpModal.isOpen()) helpModal.close();
+  if (settingsDrawer.isOpen()) settingsDrawer.close();
+  if (tonightDrawer?.isOpen()) tonightDrawer.close();
+  eventsDrawer?.open();
+},
+// ...symmetric onOpenSettings / onOpenTonight / onOpenHelp
+```
+
+`createDrawer`'s `onClose` hook isn't used for mutual exclusion; it's a future extension point if the coordination ever needs to sync externally (e.g. update a rail icon's "pressed" state).
+
+The object cards and empty-sky popover don't participate in drawer mutual exclusion — they're canvas-anchored and serve a different purpose. However, `app.ts` does enforce a pair-wise exclusion between them: clicking a pickable object closes the empty-sky popover, and clicking empty sky closes the active (most-recent) object card. Multiple object cards can coexist; only the active (top-most) one is replaced by the next click.
+
+### `src/ui/drawer.ts` — the shared primitive
+
+All three drawers (events, settings, tonight) are thin compositions over `createDrawer`. The API is deliberately small so any future right-edge panel picks it up for free:
+
+```ts
+createDrawer({ side, width, onClose?, initialContent? }) =>
+  { element, open(content), close(), isOpen() }
+```
+
+- **`side`** — `"left"` or `"right"`. Every drawer shipped in Phase 1 is right-edged; left is reserved.
+- **`width`** — `number` → `${n}px`, or any CSS length string. Set to `"320px"` for settings and `360` for events + tonight — the narrower settings drawer gives the collapsible section headers more visual weight.
+- **`onClose`** — fires on any close (explicit, Escape, backdrop click). Currently unused but wired through.
+- **`initialContent`** — the content element is set at creation time so the host (`events-drawer`, `tonight-drawer`, `settings-drawer`) can mutate its children while the drawer is closed (e.g. `setEvents(...)` re-renders into a hidden drawer, so opening it is instant on the first click).
+
+DOM shape: `element > [backdrop, panel]`; `panel > [header (× close button), body (user content)]`. Escape keydown and backdrop click both fire `close()`. The `panel.style.display` toggle is used rather than `visibility` so layout doesn't reserve space while hidden; a future animation pass can hook `transform: translateX(...)` on the panel without the test IDs changing.
+
+`events-drawer` and `tonight-drawer` prefix every inner `data-testid='drawer-*'` with their own kind (`events-drawer-close`, `tonight-drawer-backdrop`, etc.) so Vitest queries can address a specific drawer without cross-talk on a page that has all three drawers mounted at once.
+
+### `src/scene/project.ts` — the sky↔screen bridge
+
+Object cards have to live in screen coordinates (they're `position: absolute` DOM elements over the Cesium canvas) but the objects they follow live in alt/az. `src/scene/project.ts` is the single place in the codebase that converts between the two:
+
+- **`projectAltAzToScreen(scene, alt, az, lat, lon)`** — called once per card per rerender from `ObjectCardsManager.update()`. Uses the same `altAzToCartesian` helper as the star layer so projection is pixel-consistent with the billboard the user clicked. Returns `null` if Cesium can't project (point behind camera) and `onScreen: false` if projection succeeds but the pixel is outside the canvas — cards react to both by hiding themselves off-screen without destroying DOM.
+- **`screenToAltAz(scene, screenX, screenY, lat, lon)`** — the inverse: builds a pick ray with `camera.getPickRay`, rotates it into the observer's ENU frame (inverse of `eastNorthUpToFixedFrame`), then reads `alt = asin(up)` / `az = atan2(east, north)`. Used **only** by the empty-sky popover path — when a click hits no billboard, `app.ts` calls this to turn the pixel into a direction that the popover displays (and can later hand back to `set-view`).
+
+Both functions are scene-level; neither the `ui/` nor the `astro/` modules depend on them directly. `app.ts` threads them into the `ObjectCardsManager.projector` and the tooltip click callback respectively.
+
+### Click → scene pick → intent → card flow <a id="card-flow"></a>
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Tooltip as scene/tooltip
+    participant App as app.ts
+    participant Manager as ui/object-cards-manager
+    participant Card as ui/object-card
+
+    User->>Tooltip: left-click on star billboard
+    Tooltip->>Tooltip: ScreenSpaceEventHandler picks primitive<br/>(star | body | satellite | messier | constellation)
+    Tooltip->>App: onObjectClicked(picked, screenX, screenY)
+    App->>App: pickedToCardData(picked, observer, time)
+    App->>App: stash in pendingCardData map
+    App->>App: handleIntent({ type: "open-object-card",<br/> objectKind, id, screenX, screenY })
+    App->>App: pop pendingCardData[key]
+    App->>Manager: open({ data, screenX, screenY })
+    Manager->>Manager: look up upcoming event for key (optional)
+    Manager->>Card: createObjectCard({ data, screen, viewport, ... })
+    Card->>User: render card anchored at click point
+    Note over App,Manager: on every rerender,<br/>fillLatestFromVisible() writes each<br/>visible object's alt/az into a Map
+    App->>Manager: update() after each debounced rerender
+    Manager->>Manager: for each card,<br/>resolver(key) → alt/az → projector → screen
+    Manager->>Card: update({ screenX, screenY, belowHorizon })
+```
+
+The **pendingCardData map** is the reason `open-object-card` carries only the lightweight `objectKind` / `id` / screen coordinates instead of the full `ObjectCardData`: intents are meant to be URL-safe plain data, but the card needs the typed object (a full `AltAzStar` with RA/Dec/mag, or a `VisibleMessier` with its symbol) to render. The click callback stashes the typed data behind the key, the intent carries the key, the handler pops the data. This keeps the intent union shape boring and the card content rich.
+
+The **empty-sky variant** is simpler — there's nothing to pin, so `app.ts` passes `alt` / `az` / `screenX` / `screenY` straight through the intent:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Tooltip as scene/tooltip
+    participant Project as scene/project
+    participant App as app.ts
+    participant Popover as ui/empty-sky-popover
+
+    User->>Tooltip: left-click on empty sky
+    Tooltip->>App: onObjectClicked(null, screenX, screenY)
+    App->>Project: screenToAltAz(scene, x, y, lat, lon)
+    Project-->>App: { alt, az } (or null)
+    App->>App: objectCardsManager.closeActive()
+    App->>App: handleIntent({ type: "open-empty-sky-popover",<br/> alt, az, screenX, screenY })
+    App->>Popover: open(alt, az, screenX, screenY)
+    Popover->>User: render reticle + card with direction readout + FOV picker
+```
+
+### Command palette
+
+`src/ui/command-palette.ts` is the modal; `src/ui/palette-results.ts` is its pure scoring engine. The modal owns its own DOM and keyboard navigation (arrow-up/down to highlight, Enter to execute, Escape to close); `app.ts` owns the global ⌘K / Ctrl+K keybinding that toggles it.
+
+Four result kinds are ranked in a single flat list:
+
+| Kind     | Source                                                                                                                            | Execute → dispatch                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `object` | `buildPaletteObjects(searchIndex)` — every entry in the live search index (named stars, constellations, bodies, satellites).      | `pin-object` (aims the camera via a reverse lookup against the search index).  |
+| `event`  | `buildPaletteEvents(cachedEvents)` — the same `CelestialEvent[]` the events drawer shows.                                         | `set-time` + (if the event has a `viewAz`/`viewAlt`) `set-view`.               |
+| `place`  | `buildPalettePlaces()` — `data/cities.json` (the same bundled file the location-picker overlay uses).                             | `set-observer`.                                                                |
+| `action` | `buildPaletteSettings()` — a hand-curated list of toggles (night vision, copy link, FOV presets, language = en / la, now).        | Whatever `intent` the entry declares (e.g. `{ type: "toggle-night-vision" }`). |
+| `recent` | `localStorage[planisphere.palette.recents.v1]` — last 10 selected ids (of any other kind), persisted in `app.ts::persistRecents`. | Dispatches the attached intent if one was stored; otherwise is decorative.     |
+
+**Scoring** (`fuzzyScore`, in `palette-results.ts`):
+
+    exact (case-insensitive)  > prefix  > substring  > character-subsequence  > no match
+                 ~10 000          ~1 000     ~100                ~10               0
+
+Shorter labels beat longer ones at the same tier; earlier substring positions beat later. Ties within a score tier are broken by source priority (`recent > action > object > event > place`) — actions win because a power user typing "night" probably wants the night-vision toggle, not a dim star whose name happens to contain "night".
+
+**Empty query** falls back to recents (if any), then to the full settings list so the palette doubles as a "what can I do here?" hint. The result list is capped at 20 entries.
+
+Recents are stored as `{ id, label }` only; the intent is _not_ persisted (recents survive refreshes but the intent union may evolve, so re-emitting a stale intent is unsafe). When the user picks a `recent` whose `id` still matches a settings entry, the handler dispatches the current `intent` from that setting. If the setting has been removed, the recent becomes a no-op — an acceptable failure mode.
 
 ## Web Worker for star math
 
@@ -390,11 +569,11 @@ IMO lists annual peak dates as UTC midnight on the peak day. A user in New York 
 
 `data/meteor-showers.json` grew an `raDeg` / `decDeg` pair per shower so the view-aim calculation can point at the radiant at the computed `when`. Attribution for the peak dates, ZHR values, and radiant coordinates is in `NOTICE` (IMO calendar + Wikipedia "List of meteor showers").
 
-### Events panel UI (`src/ui/events-panel.ts`)
+### Events UI — `events-panel.ts` inside the Events drawer
 
-`createEventsPanel(events, dispatch)` renders a collapsible list. Each row shows the title, local-formatted date, and description, plus a Go-to button. The `viewFromEvent` helper extracts the view direction: `peakAzDeg/peakAltDeg` for ISS passes, `viewAz/viewAlt` for every other kind that has them populated. When a direction is available, Go-to dispatches both `set-time` (the event's `when`) and `set-view`; otherwise it only dispatches `set-time` and the camera stays wherever it was. Eclipsed ISS passes are rendered at 50 % opacity and keep their title prefixed "in Earth's shadow" so the user can see they exist but knows the satellite itself will be invisible.
+`createEventsPanel(events, dispatch)` in `src/ui/events-panel.ts` renders a collapsible list. Each row shows the title, local-formatted date, and description, plus a Go-to button. The `viewFromEvent` helper extracts the view direction: `peakAzDeg/peakAltDeg` for ISS passes, `viewAz/viewAlt` for every other kind that has them populated. When a direction is available, Go-to dispatches both `set-time` (the event's `when`) and `set-view`; otherwise it only dispatches `set-time` and the camera stays wherever it was. Eclipsed ISS passes are rendered at 50 % opacity and keep their title prefixed "in Earth's shadow" so the user can see they exist but knows the satellite itself will be invisible.
 
-The events list is cached in `app.ts` and refreshed only on `set-time`, `set-observer`, and `now` — not on layer / opacity / view changes — because those intents don't move the horizon of "what events are coming up".
+After Plan 07 this list no longer lives in the always-on side panel — it's hosted inside **the Events drawer** (`src/ui/events-drawer.ts`, a thin wrapper over `createDrawer`). The events list is cached in `app.ts::cachedEvents` and pushed into the drawer via `setEvents(cachedEvents)` whenever a `set-time` / `set-observer` / `now` intent fires — **not** on layer / opacity / view changes, because those intents don't move the horizon of "what events are coming up". The drawer re-renders its inner content whether open or closed, so the first tap on 📅 is always instant.
 
 ## ISS passes and illumination (`src/sat/`)
 
@@ -426,15 +605,11 @@ with `m0 = −1.8` (empirical ISS value from Heavens-Above / Mike McCants tables
 
 `src/astro/search.ts` builds a single flat `SearchIndex` over named stars, constellations (keyed by a representative star's alt/az), solar-system bodies, and satellite names. For each entry it caches alt/az at the current observer/time so filtering can be done in a single pass. `src/ui/search.ts` emits a `set-view` intent with the chosen entry's az/alt when the user picks a result; above-horizon targets aim the camera directly, below-horizon ones are still listed but disabled. The index is rebuilt whenever observer or time changes (`rebuildSearchIndex` in `app.ts`).
 
-## Click-to-identify and the planet info panel
+## Click-to-identify, object cards, and the Tonight drawer
 
-`src/scene/tooltip.ts` attaches a Cesium `ScreenSpaceEventHandler` that picks the primitive under the cursor on hover, formats a tooltip (name, magnitude, RA/Dec, Alt/Az, satellite altitude/velocity, Moon phase, etc.), and positions it with absolute CSS. `src/ui/planet-info.ts` renders a collapsible planet/Moon/Sun panel in the control tray:
+`src/scene/tooltip.ts` attaches a Cesium `ScreenSpaceEventHandler` that picks the primitive under the cursor. On **hover** it formats a transient tooltip (name, magnitude, RA/Dec, Alt/Az, satellite altitude/velocity, Moon phase, etc.) positioned with absolute CSS. On **click** it invokes the `onObjectClicked(picked, screenX, screenY)` callback that `app.ts` wires to the object-cards manager (or the empty-sky popover if `picked` is `null`); see [Click → scene pick → card flow](#card-flow).
 
-- Current Alt/Az.
-- Rise and set times, computed by `src/astro/rise-set.ts`.
-- Below-horizon indicator.
-- A clickable name — above-horizon bodies dispatch `set-view` so the camera swings to them.
-- A "Show path" / "Hide path" toggle — dispatches `show-trail` / `hide-trail` intents that drive the trail layer.
+`src/ui/planet-info.ts` is the per-body readout — current Alt/Az, rise / set times (from `src/astro/rise-set.ts`), below-horizon indicator, a clickable name that dispatches `set-view`, and a "Show path" / "Hide path" toggle driving `show-trail` / `hide-trail`. It used to render into the always-on side panel; after Plan 07 it is hosted inside **the Tonight drawer** (`src/ui/tonight-drawer.ts`), which is refreshed on every `set-time` / `set-observer` / `show-trail` / `hide-trail` / `now` intent so tapping ♀ always shows current values.
 
 ## Object trails
 
@@ -446,12 +621,40 @@ with `m0 = −1.8` (empirical ISS value from Heavens-Above / Mike McCants tables
 
 ## View direction and trackball camera
 
-`src/scene/camera.ts` exposes two functions:
+`src/scene/camera.ts` exposes four entry points:
 
-- `setCameraView(camera, lat, lon, az, alt)` — used at boot and whenever the user picks a view preset, clicks a planet-info name, or drops a search result; clamps `alt` to `[0°, 89.9°]` to avoid gimbal lock at the zenith.
-- `setupTrackballControls(viewer)` — disables Cesium's default camera controls and installs a pointer-drag handler that rotates the camera around the observer using quaternion deltas. Drag gestures are clamped into the same range. The observer position is fixed at 1.7 m above the ground (`const height = 1.7`), matching a human looking up.
+- **`setCameraView(camera, lat, lon, az, alt)`** — snap the camera to a direction. Used at boot and whenever the user picks a view preset, clicks a planet-info name, or drops a search result; clamps `alt` to `[0°, 89.9°]` to avoid gimbal lock at the zenith.
+- **`setCameraViewAnimated(..., durationMs)`** — the same, but tweened with `easeOutCubic` from `animation-math.ts`, picking the shortest azimuthal arc via `interpolateAzAlt` so a 350°→10° transition crosses 0°, not 180°. Used by the double-tap centering gesture.
+- **`setupTrackballControls(viewer)`** — disables Cesium's default camera controls and installs a pointer-drag handler that rotates the camera around the observer using quaternion deltas. Drag gestures are clamped into the same range. The observer position is fixed at 1.7 m above the ground (`const height = 1.7`), matching a human looking up. After the drag ends, a rolling-velocity estimate kicks off **inertia** via `inertiaDelta` from `animation-math.ts` (linear decay over `DRAG_INERTIA_DECAY_MS = 800 ms`); starting a new drag bumps an `inertiaToken` that cancels the running animation.
+- **`setupGestures(viewer, options)`** — the Plan 07 1J additions on top of the trackball: scroll-wheel zoom (multiplicative `WHEEL_ZOOM_FACTOR = 1.0015` per unit of wheel delta, clamped to `[FOV_MIN_DEG=1, FOV_MAX_DEG=120]` by `clampFov`), pinch-to-zoom (Cesium PINCH events; finger-separation ratio maps to FOV change), and double-click/tap to center — if the pick resolves to an object, animate to its az/alt; otherwise animate back to the zenith.
 
-The current view is mirrored to `AppState.view` so the URL preserves the exact camera direction.
+Zoom changes the camera's vertical FOV (`frustum.fovy`) but is **not** serialised to the URL — the FOV preset in `AppState.fov` drives the reticle, not the camera. A separately-tunable camera zoom would be its own URL param and its own ADR. The `onZoom` callback in `GestureOptions` is used by `app.ts` to re-render the reticle layer so its on-screen radius matches the new vFOV.
+
+The current view direction is mirrored to `AppState.view` so the URL preserves the exact camera direction (heading + pitch).
+
+### `src/scene/animation-math.ts` — pure helpers
+
+Framework-free math extracted so the gesture/animation tests stay deterministic: `easeOutCubic(t)`, `interpolateAzAlt(from, to, t)` (shortest-arc azimuth), `inertiaDelta(v0, elapsedMs, decayMs)` (closed-form integral of a linearly-decaying velocity), `clampFov(deg)`. The module has no DOM, Cesium, or astronomy-engine imports and can be unit-tested in pure jsdom/Vitest.
+
+## Ambient bottom HUD
+
+`src/ui/bottom-hud.ts` replaces the v1 side-panel Time section with a persistent bar across the bottom of the viewport. Three elements:
+
+1. **Time readout** — local + UTC, updated on every `set-time` / `set-observer` / `now` intent via `setTime(d)` from `app.ts`.
+2. **Location chip** (`📍 lat, lon`) — a button that fires `{ type: "open-location-picker" }`, which opens the fullscreen location-picker overlay (see below).
+3. **Compass** — cardinal + numeric heading, updated on every animation-frame from `getCameraHeadingDeg(viewer.camera)` because Cesium's camera does not emit a change event.
+
+The HUD **fades out to `IDLE_OPACITY = 0.2` after 2 seconds of inactivity** and returns to full opacity on pointer move / keyboard activity, so it doesn't compete with the sky for attention during passive viewing. Arrow-key scrubbing is wired directly in this module: Left/Right steps `timeUtc` by 1 minute, Shift+Arrow by 1 hour, Alt+Arrow by 1 day (pixel-to-ms scrubbing on drag uses `SCRUB_MS_PER_PIXEL = 60_000 ms/px`). Keystrokes targeting input / textarea / contenteditable elements are ignored so the HUD doesn't steal focus from text fields.
+
+## Location picker overlay
+
+`src/ui/location-picker-overlay.ts` is a modal the user opens by tapping the HUD's location chip (or via `open-location-picker`). It offers three ways to set the observer:
+
+1. **📍 Use my location** — calls `navigator.geolocation.getCurrentPosition` and dispatches `set-observer` on success.
+2. **Numeric lat / lon inputs** — clamped to `[-90, 90]` and `[-180, 180]` with inline validation.
+3. **Quick-pick grid** — the first 24 entries of the bundled `data/cities.json` file; tapping any entry dispatches `set-observer` and closes the overlay. The same city list feeds the command palette's `place` results — one dataset, two surfaces.
+
+On narrow viewports (`max-width: 520px`) the centered panel expands to a full-screen sheet so the grid + inputs stay reachable. Styles are injected once per document (idempotent in jsdom).
 
 ## Night vision
 
@@ -459,7 +662,19 @@ A global CSS class `night-vision` on `<body>` applies a sepia/saturate/brightnes
 
 ## Magnitude filter
 
-The Layers panel has a single slider (1.0–6.0, default 6.0) that sets `AppState.magLimit`. `filterVisibleStars` in `src/astro/visibility.ts` rejects stars with `mag > magLimit` before passing them to the scene layer; the worker receives the full catalog and the filter is applied in `buildAltAzStars` after the worker returns. Serialised to the URL as `mag`.
+A single slider (1.0–6.0, default 6.0) — now rendered inside the Settings drawer's **Filters** section — sets `AppState.magLimit`. `filterVisibleStars` in `src/astro/visibility.ts` rejects stars with `mag > magLimit` before passing them to the scene layer; the worker receives the full catalog and the filter is applied in `buildAltAzStars` after the worker returns. Serialised to the URL as `mag`.
+
+## Settings drawer
+
+`src/ui/settings-drawer.ts` is the ⚙ drawer opened from the icon rail. It wraps `createDrawer` and composes five existing `createXxxSection` factories from `src/ui/layer-controls.ts` into four collapsible sections — **Visibility** (the five `layers` toggles), **Opacity** (the six `opacity` sliders), **Filters** (magnitude), and **Display** (constellation name language + skyculture). Only one section is expanded at a time; the user's last choice is persisted to `localStorage` under `SETTINGS_SECTION_STORAGE_KEY = "planisphere.settings.lastSection.v1"` so returning users land on the section they last touched.
+
+The section contents are always live — the drawer owns one long-lived DOM tree rather than rebuilding on open — so dispatch handlers stay wired across open/close cycles and the inputs retain focus/keyboard state as drawer visibility flips.
+
+## In-app help modal
+
+`src/ui/help-modal.ts` is the ? modal from the icon rail. It renders `docs/user-guide.md` (imported as `?raw`) through `src/ui/markdown.ts`, which pipes the text through `marked.parse` → relative-path rewrite (`./screenshots/...` → `/screenshots/...` so images resolve against the SPA root) → `DOMPurify.sanitize`. DOMPurify runs even on our own bundled markdown so any future source (URL-provided, user-authored) flows through the same safe path.
+
+The modal is a separate surface from the drawers — it opens over the full viewport and is mutually exclusive with the drawers (see [One-drawer-at-a-time](#one-drawer-at-a-time-coordination-pattern)).
 
 ## "Now" button and geolocation
 
