@@ -22,7 +22,7 @@ export {
 export type { AzAlt } from "./animation-math";
 export { type StarLayer, createStarLayer } from "./stars";
 export { type Tooltip, type TooltipOptions, type PickedObject, createTooltip } from "./tooltip";
-export { type ScreenProjection, projectAltAzToScreen } from "./project";
+export { type ScreenProjection, type AltAz, projectAltAzToScreen, screenToAltAz } from "./project";
 export { type BodyLayer, createBodyLayer } from "./bodies";
 export {
   type ConstellationLayer,

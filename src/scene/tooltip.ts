@@ -21,9 +21,11 @@ export type PickedObject =
   | { readonly kind: "constellation"; readonly constellation: VisibleConstellation };
 
 export type TooltipOptions = {
-  /** Invoked on left-click when an object is picked. The caller is responsible for
-   *  presenting any pinned UI (see `ui/object-cards-manager`). */
-  onObjectClicked?: (picked: PickedObject, screenX: number, screenY: number) => void;
+  /** Invoked on left-click. `picked` is the object under the cursor, or `null`
+   *  when the click landed on empty sky (no billboard / line / label hit).
+   *  The caller is responsible for presenting any pinned UI
+   *  (see `ui/object-cards-manager` for picks, `ui/empty-sky-popover` for nulls). */
+  onObjectClicked?: (picked: PickedObject | null, screenX: number, screenY: number) => void;
 };
 
 function formatRa(raDeg: number): string {
@@ -208,7 +210,6 @@ export function createTooltip(
 
   handler.setInputAction((movement: { position: Cartesian2 }) => {
     const picked = pickObject(viewer, movement.position);
-    if (picked === null) return;
     hoverEl.style.display = "none";
     options.onObjectClicked?.(picked, movement.position.x, movement.position.y);
   }, ScreenSpaceEventType.LEFT_CLICK);
