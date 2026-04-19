@@ -84,7 +84,10 @@ import {
   createObjectCardsManager,
   createLocationPickerOverlay,
   createEmptySkyPopover,
+  createOnboardingOverlay,
+  ONBOARDING_STORAGE_KEY,
 } from "./ui";
+import type { OnboardingStep } from "./ui";
 import type {
   BottomHud,
   EventsDrawer,
@@ -1255,8 +1258,51 @@ export async function bootstrap(
     document.body.classList.add("night-vision");
   }
 
+  // Onboarding overlay (milestone 1I, issue #200) — multi-step first-load tour.
+  // Created before the help modal so we can pass its `replay()` into the help
+  // modal's `onReplayTour` option.
+  const onboardingSteps: readonly OnboardingStep[] = [
+    {
+      title: "Tap a star or planet to pin it",
+      body: "Click any object in the sky to open a card with its details. Click empty sky to see where you're looking.",
+      selector: "#cesium-container",
+      position: "center",
+    },
+    {
+      title: "Drag the time bar to move through time",
+      body: "The bottom bar shows the current time. Drag it left or right to scrub, or use the ← / → arrow keys.",
+      selector: "[data-testid='hud-scrub']",
+      position: "top",
+    },
+    {
+      title: "Explore with the top-right icons",
+      body: "Tap \u2699 for layer settings, \u{1F4C5} for upcoming events, \u2640 for tonight's planets, and ? for help.",
+      selector: "[data-testid='panel-header']",
+      position: "left",
+    },
+    {
+      title: "Change where you're viewing from",
+      body: "Tap the \u{1F4CD} location chip in the bottom-left to pick a city, enter coordinates, or use your device location.",
+      selector: "[data-testid='hud-location']",
+      position: "top",
+    },
+    {
+      title: "Press \u2318K (Ctrl+K) to jump anywhere",
+      body: "The command palette searches stars, planets, events, and places — and lets you run any setting from the keyboard.",
+      position: "center",
+    },
+  ];
+  const onboardingOverlay = createOnboardingOverlay({ steps: onboardingSteps });
+  document.body.appendChild(onboardingOverlay.element);
+
   // Help modal — created once at bootstrap, appended to <body> so it overlays everything.
-  const helpModal = createHelpModal();
+  // Wires a "Replay tour" button into the modal header so users can re-run the
+  // onboarding after dismissing it.
+  const helpModal = createHelpModal({
+    onReplayTour: () => {
+      onboardingOverlay.replay();
+    },
+  });
   document.body.appendChild(helpModal.element);
 
   // Events drawer — slide-in surface holding the upcoming-events list (replaces
@@ -1384,6 +1430,22 @@ export async function bootstrap(
     uiContainer.appendChild(fovEl);
 
     panel.setContent(uiContainer);
+  }
+
+  // First-load onboarding tour — start after a small delay so Cesium has a
+  // chance to paint before the dimmed overlay comes up. Skipped when the user
+  // has previously dismissed the tour (persisted in localStorage).
+  const onboardingFlag = (() => {
+    try {
+      return globalThis.localStorage?.getItem(ONBOARDING_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  })();
+  if (onboardingFlag !== "dismissed") {
+    setTimeout(() => {
+      onboardingOverlay.start();
+    }, 500);
   }
 }
 

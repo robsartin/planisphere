@@ -250,6 +250,13 @@ let locationPickerMock: {
   close: ReturnType<typeof vi.fn>;
   isOpen: ReturnType<typeof vi.fn>;
 } | null = null;
+let onboardingOverlayMock: {
+  start: ReturnType<typeof vi.fn>;
+  replay: ReturnType<typeof vi.fn>;
+  dismiss: ReturnType<typeof vi.fn>;
+  isActive: ReturnType<typeof vi.fn>;
+} | null = null;
+let capturedHelpModalOptions: { onReplayTour?: () => void } | null = null;
 
 // Captured events-drawer setEvents spy — lets tests assert it was called when
 // `set-time` / `set-observer` / `now` intents fire.
@@ -323,11 +330,14 @@ vi.mock("./ui", () => ({
       setBodies: tonightDrawerSetBodies,
     };
   }),
-  createHelpModal: vi.fn().mockReturnValue({
-    element: document.createElement("div"),
-    open: vi.fn(),
-    close: vi.fn(),
-    isOpen: vi.fn().mockReturnValue(false),
+  createHelpModal: vi.fn().mockImplementation((options?: { onReplayTour?: () => void }) => {
+    capturedHelpModalOptions = options ?? null;
+    return {
+      element: document.createElement("div"),
+      open: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+    };
   }),
   createSettingsDrawer: vi.fn().mockImplementation(() => {
     const element = document.createElement("div");
@@ -408,6 +418,20 @@ vi.mock("./ui", () => ({
         isOpen: vi.fn().mockReturnValue(false),
       };
     }),
+  createOnboardingOverlay: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "onboarding-overlay";
+    const mock = {
+      element,
+      start: vi.fn(),
+      replay: vi.fn(),
+      dismiss: vi.fn(),
+      isActive: vi.fn().mockReturnValue(false),
+    };
+    onboardingOverlayMock = mock;
+    return mock;
+  }),
+  ONBOARDING_STORAGE_KEY: "planisphere.onboarding.v1",
 }));
 
 // Mock the TLE bundled data
@@ -1521,6 +1545,79 @@ describe("handleIntent routing", () => {
     expect(openMock).toHaveBeenCalled();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  it("mounts the onboarding overlay on the document body", async () => {
+    capturedDispatch = null;
+    onboardingOverlayMock = null;
+    globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(document.querySelector("[data-testid='onboarding-overlay']")).not.toBeNull();
+    expect(onboardingOverlayMock).not.toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("starts the onboarding overlay on first load (flag not set) after a small delay", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    onboardingOverlayMock = null;
+    globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(onboardingOverlayMock).not.toBeNull();
+    // Not started yet — bootstrap defers start() by ~500ms so the scene can paint.
+    expect(onboardingOverlayMock!.start).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(600);
+    expect(onboardingOverlayMock!.start).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("does NOT start the onboarding overlay when the dismissed flag is set", async () => {
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    onboardingOverlayMock = null;
+    globalThis.localStorage?.setItem("planisphere.onboarding.v1", "dismissed");
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(onboardingOverlayMock).not.toBeNull();
+    vi.advanceTimersByTime(1000);
+    expect(onboardingOverlayMock!.start).not.toHaveBeenCalled();
+    globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("passes an onReplayTour callback into createHelpModal that invokes overlay.replay()", async () => {
+    capturedDispatch = null;
+    onboardingOverlayMock = null;
+    capturedHelpModalOptions = null;
+    globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(capturedHelpModalOptions).not.toBeNull();
+    expect(typeof capturedHelpModalOptions!.onReplayTour).toBe("function");
+    capturedHelpModalOptions!.onReplayTour!();
+    expect(onboardingOverlayMock).not.toBeNull();
+    expect(onboardingOverlayMock!.replay).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
   });
 
   it("Ctrl+K / Cmd+K opens the command palette via the global keydown handler", async () => {
