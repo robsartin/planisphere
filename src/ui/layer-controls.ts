@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { applyBaseText, ACCENT_COLOR, GAP } from "./styles";
+import { applyBaseText, ACCENT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import { LANGUAGES, type Language } from "../astro/constellation-names";
@@ -50,113 +50,117 @@ const LINE_LAYERS: LineDef[] = [
   { key: "milkyWay", label: "Milky Way", defaultPct: 30 },
 ];
 
-export function createLayerControls(
-  initialVisibility: LayerVisibility,
-  initialOpacity: LayerOpacity,
+function appendToggleRow(
+  section: HTMLElement,
+  layer: LayerDef,
+  initialChecked: boolean,
   dispatch: (intent: UIIntent) => void,
-  initialMagLimit = 6.0,
-  initialLanguage: Language = "la",
-  initialSkyculture: SkycultureId = "western",
+): void {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.justifyContent = "space-between";
+  row.style.marginBottom = "6px";
+
+  const lbl = document.createElement("label");
+  lbl.style.display = "flex";
+  lbl.style.alignItems = "center";
+  lbl.style.gap = "6px";
+  lbl.style.cursor = "pointer";
+  applyBaseText(lbl);
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.dataset.layer = layer.key;
+  checkbox.checked = initialChecked;
+  checkbox.style.accentColor = ACCENT_COLOR;
+  checkbox.style.width = "16px";
+  checkbox.style.height = "16px";
+
+  lbl.appendChild(checkbox);
+  lbl.appendChild(document.createTextNode(layer.label));
+  row.appendChild(lbl);
+  section.appendChild(row);
+
+  checkbox.addEventListener("change", () => {
+    dispatch({ type: "toggle-layer", layer: layer.key });
+  });
+}
+
+function appendOpacityRow(
+  section: HTMLElement,
+  ld: LineDef,
+  initialValue: number,
+  dispatch: (intent: UIIntent) => void,
+): void {
+  const row = document.createElement("div");
+  row.dataset.opacityRow = ld.key;
+  row.style.marginBottom = "6px";
+
+  const lbl = document.createElement("div");
+  lbl.textContent = ld.label;
+  applyBaseText(lbl);
+  lbl.style.fontSize = "12px";
+  lbl.style.marginBottom = "2px";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.dataset.opacity = ld.key;
+  slider.min = "0";
+  slider.max = "100";
+  slider.step = "1";
+  slider.value = String(Math.round(initialValue * 100));
+  slider.style.width = "100%";
+  slider.style.accentColor = ACCENT_COLOR;
+
+  slider.addEventListener("input", () => {
+    const value = Number(slider.value) / 100;
+    dispatch({ type: "set-opacity", layer: ld.key, value });
+  });
+
+  row.appendChild(lbl);
+  row.appendChild(slider);
+  section.appendChild(row);
+}
+
+/**
+ * Build a simple container holding one visibility checkbox per toggle layer.
+ * Shared by the legacy side-panel composer and the 1E settings drawer.
+ */
+export function createVisibilitySection(
+  visibility: LayerVisibility,
+  dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const visibility = { ...initialVisibility };
-
   const section = document.createElement("div");
-  section.style.marginBottom = GAP;
-
-  // Layers heading
-  const layersHeading = document.createElement("div");
-  layersHeading.textContent = "Layers";
-  layersHeading.style.fontWeight = "bold";
-  layersHeading.style.marginBottom = GAP;
-  applyBaseText(layersHeading);
-  section.appendChild(layersHeading);
-
-  // Build each toggle layer row (stars, planets, satellites, compass)
   for (const layer of TOGGLE_LAYERS) {
-    const row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.justifyContent = "space-between";
-    row.style.marginBottom = "6px";
-
-    const lbl = document.createElement("label");
-    lbl.style.display = "flex";
-    lbl.style.alignItems = "center";
-    lbl.style.gap = "6px";
-    lbl.style.cursor = "pointer";
-    applyBaseText(lbl);
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.dataset.layer = layer.key;
-    checkbox.checked = visibility[layer.key];
-    checkbox.style.accentColor = ACCENT_COLOR;
-    checkbox.style.width = "16px";
-    checkbox.style.height = "16px";
-
-    const labelText = document.createTextNode(layer.label);
-
-    lbl.appendChild(checkbox);
-    lbl.appendChild(labelText);
-    row.appendChild(lbl);
-    section.appendChild(row);
-
-    checkbox.addEventListener("change", () => {
-      visibility[layer.key] = checkbox.checked;
-      dispatch({ type: "toggle-layer", layer: layer.key });
-    });
+    appendToggleRow(section, layer, visibility[layer.key], dispatch);
   }
+  return section;
+}
 
-  // Line Layers heading
-  const lineHeading = document.createElement("div");
-  lineHeading.textContent = "Line Layers";
-  lineHeading.style.fontWeight = "bold";
-  lineHeading.style.marginTop = "8px";
-  lineHeading.style.marginBottom = GAP;
-  applyBaseText(lineHeading);
-  section.appendChild(lineHeading);
-
-  // Build each line-layer opacity slider (no toggle, slider to 0 = off)
+/**
+ * Build a container of opacity sliders — one per line layer.
+ * Shared by the legacy composer and the 1E settings drawer.
+ */
+export function createOpacitySection(
+  opacity: LayerOpacity,
+  dispatch: (intent: UIIntent) => void,
+): HTMLElement {
+  const section = document.createElement("div");
   for (const ld of LINE_LAYERS) {
-    const row = document.createElement("div");
-    row.dataset.opacityRow = ld.key;
-    row.style.marginBottom = "6px";
-
-    const lbl = document.createElement("div");
-    lbl.textContent = ld.label;
-    applyBaseText(lbl);
-    lbl.style.fontSize = "12px";
-    lbl.style.marginBottom = "2px";
-
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.dataset.opacity = ld.key;
-    slider.min = "0";
-    slider.max = "100";
-    slider.step = "1";
-    slider.value = String(Math.round(initialOpacity[ld.key] * 100));
-    slider.style.width = "100%";
-    slider.style.accentColor = ACCENT_COLOR;
-
-    slider.addEventListener("input", () => {
-      const value = Number(slider.value) / 100;
-      dispatch({ type: "set-opacity", layer: ld.key, value });
-    });
-
-    row.appendChild(lbl);
-    row.appendChild(slider);
-    section.appendChild(row);
+    appendOpacityRow(section, ld, opacity[ld.key], dispatch);
   }
+  return section;
+}
 
-  // Magnitude limit slider
-  const magHeading = document.createElement("div");
-  magHeading.textContent = "Star Filter";
-  magHeading.style.fontWeight = "bold";
-  magHeading.style.marginTop = "8px";
-  magHeading.style.marginBottom = GAP;
-  applyBaseText(magHeading);
-  section.appendChild(magHeading);
-
+/**
+ * Build the magnitude-filter slider with its live-updating label.
+ */
+export function createMagnitudeFilterSection(
+  initialMagLimit: number,
+  dispatch: (intent: UIIntent) => void,
+): HTMLElement {
+  const section = document.createElement("div");
   const magRow = document.createElement("div");
   magRow.style.marginBottom = "6px";
 
@@ -186,74 +190,76 @@ export function createLayerControls(
   magRow.appendChild(magLabel);
   magRow.appendChild(magSlider);
   section.appendChild(magRow);
+  return section;
+}
 
-  // Language dropdown (constellation label language)
-  const langHeading = document.createElement("div");
-  langHeading.textContent = "Constellation Names";
-  langHeading.style.fontWeight = "bold";
-  langHeading.style.marginTop = "8px";
-  langHeading.style.marginBottom = GAP;
-  applyBaseText(langHeading);
-  section.appendChild(langHeading);
+/**
+ * Build the constellation-names language dropdown.
+ */
+export function createLanguageSection(
+  initialLanguage: Language,
+  dispatch: (intent: UIIntent) => void,
+): HTMLElement {
+  const section = document.createElement("div");
+  const row = document.createElement("div");
+  row.style.marginBottom = "6px";
 
-  const langRow = document.createElement("div");
-  langRow.style.marginBottom = "6px";
-
-  const langSelect = document.createElement("select");
-  langSelect.dataset.language = "";
-  langSelect.style.width = "100%";
-  applyBaseText(langSelect);
-  langSelect.style.fontSize = "12px";
+  const select = document.createElement("select");
+  select.dataset.language = "";
+  select.style.width = "100%";
+  applyBaseText(select);
+  select.style.fontSize = "12px";
 
   for (const code of LANGUAGES) {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = LANGUAGE_LABELS[code];
     if (code === initialLanguage) option.selected = true;
-    langSelect.appendChild(option);
+    select.appendChild(option);
   }
 
-  langSelect.addEventListener("change", () => {
-    const value = langSelect.value as Language;
+  select.addEventListener("change", () => {
+    const value = select.value as Language;
     dispatch({ type: "set-language", language: value });
   });
 
-  langRow.appendChild(langSelect);
-  section.appendChild(langRow);
+  row.appendChild(select);
+  section.appendChild(row);
+  return section;
+}
 
-  // Skyculture dropdown (asterism stick-figure set)
-  const skyHeading = document.createElement("div");
-  skyHeading.textContent = "Skyculture";
-  skyHeading.style.fontWeight = "bold";
-  skyHeading.style.marginTop = "8px";
-  skyHeading.style.marginBottom = GAP;
-  applyBaseText(skyHeading);
-  section.appendChild(skyHeading);
+/**
+ * Build the asterism-stick-figure skyculture dropdown.
+ */
+export function createSkycultureSection(
+  initialSkyculture: SkycultureId,
+  dispatch: (intent: UIIntent) => void,
+): HTMLElement {
+  const section = document.createElement("div");
+  const row = document.createElement("div");
+  row.style.marginBottom = "6px";
 
-  const skyRow = document.createElement("div");
-  skyRow.style.marginBottom = "6px";
-
-  const skySelect = document.createElement("select");
-  skySelect.dataset.skyculture = "";
-  skySelect.style.width = "100%";
-  applyBaseText(skySelect);
-  skySelect.style.fontSize = "12px";
+  const select = document.createElement("select");
+  select.dataset.skyculture = "";
+  select.style.width = "100%";
+  applyBaseText(select);
+  select.style.fontSize = "12px";
 
   for (const id of SKYCULTURES) {
     const option = document.createElement("option");
     option.value = id;
     option.textContent = SKYCULTURE_LABELS[id];
     if (id === initialSkyculture) option.selected = true;
-    skySelect.appendChild(option);
+    select.appendChild(option);
   }
 
-  skySelect.addEventListener("change", () => {
-    const value = skySelect.value as SkycultureId;
+  select.addEventListener("change", () => {
+    const value = select.value as SkycultureId;
     dispatch({ type: "set-skyculture", id: value });
   });
 
-  skyRow.appendChild(skySelect);
-  section.appendChild(skyRow);
-
+  row.appendChild(select);
+  section.appendChild(row);
   return section;
 }
+

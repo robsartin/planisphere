@@ -4,7 +4,17 @@ export { createPanel } from "./panel";
 export { createTimeControls } from "./time-controls";
 export type { TimeControls } from "./time-controls";
 export { createLocationControls } from "./location-controls";
-export { createLayerControls } from "./layer-controls";
+export {
+  createVisibilitySection,
+  createOpacitySection,
+  createMagnitudeFilterSection,
+  createLanguageSection,
+  createSkycultureSection,
+} from "./layer-controls";
+export type { Drawer, DrawerOptions, DrawerSide } from "./drawer";
+export { createDrawer } from "./drawer";
+export type { SettingsDrawer, SettingsDrawerOptions } from "./settings-drawer";
+export { createSettingsDrawer, SETTINGS_SECTION_STORAGE_KEY } from "./settings-drawer";
 export { createViewControls } from "./view-controls";
 export { createPlanetInfo } from "./planet-info";
 export { createSearch } from "./search";

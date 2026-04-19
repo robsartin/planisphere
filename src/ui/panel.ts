@@ -20,6 +20,7 @@ export type Panel = {
 export type PanelOptions = {
   onOpenHelp?: () => void;
   onOpenEvents?: () => void;
+  onOpenSettings?: () => void;
 };
 
 export function createPanel(
@@ -85,9 +86,15 @@ export function createPanel(
   helpBtn.title = "Help";
   applyButton(helpBtn);
 
+  const settingsBtn = document.createElement("button");
+  settingsBtn.dataset.testid = "panel-settings";
+  settingsBtn.textContent = "\u2699";
+  settingsBtn.title = "Settings";
+  applyButton(settingsBtn);
+
   const toggleBtn = document.createElement("button");
   toggleBtn.dataset.testid = "panel-toggle";
-  toggleBtn.textContent = "⚙";
+  toggleBtn.textContent = "\u2212";
   toggleBtn.title = "Toggle panel";
   applyButton(toggleBtn);
 
@@ -95,6 +102,7 @@ export function createPanel(
   btnGroup.appendChild(copyLinkBtn);
   btnGroup.appendChild(eventsBtn);
   btnGroup.appendChild(helpBtn);
+  btnGroup.appendChild(settingsBtn);
   btnGroup.appendChild(toggleBtn);
 
   header.appendChild(title);
@@ -121,6 +129,10 @@ export function createPanel(
 
   eventsBtn.addEventListener("click", () => {
     options.onOpenEvents?.();
+  });
+
+  settingsBtn.addEventListener("click", () => {
+    options.onOpenSettings?.();
   });
 
   copyLinkBtn.addEventListener("click", () => {
@@ -150,13 +162,13 @@ export function createPanel(
   toggleBtn.addEventListener("click", () => {
     collapsed = !collapsed;
     body.style.display = collapsed ? "none" : "";
-    toggleBtn.textContent = collapsed ? "⚙" : "×";
+    toggleBtn.textContent = collapsed ? "\u002B" : "\u2212";
   });
 
   function setCollapsed(value: boolean): void {
     collapsed = value;
     body.style.display = value ? "none" : "";
-    toggleBtn.textContent = value ? "⚙" : "×";
+    toggleBtn.textContent = value ? "\u002B" : "\u2212";
   }
 
   function setContent(child: HTMLElement): void {
