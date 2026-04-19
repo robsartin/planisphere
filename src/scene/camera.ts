@@ -8,6 +8,7 @@ import {
   ScreenSpaceEventType,
 } from "cesium";
 import type { Camera, Viewer } from "cesium";
+import { clampFov, easeOutCubic, inertiaDelta, interpolateAzAlt } from "./animation-math";
 
 export function initCamera(camera: Camera, lat: number, lon: number): void {
   setCameraView(camera, lat, lon, 0, 89.9);
@@ -44,6 +45,181 @@ export function setCameraView(
   });
 }
 
+/** Duration (ms) used for the animated double-tap camera transitions. */
+export const CAMERA_ANIM_DURATION_MS = 400;
+
+/** Total inertial-pan decay window (ms). */
+export const DRAG_INERTIA_DECAY_MS = 800;
+
+/**
+ * Smoothly animate the camera from its current az/alt to the target az/alt
+ * over `durationMs` milliseconds. Uses an ease-out cubic curve and picks the
+ * shortest azimuthal arc (so a 350→10 transition crosses 0, not 180).
+ *
+ * For tests and non-animated call sites, `durationMs <= 0` snaps instantly.
+ *
+ * NOTE: this function reads the camera's current heading/pitch at call time
+ * via `camera.heading` / `camera.pitch` if present (Cesium `Camera` exposes
+ * these as live getters). If neither is available it starts from az=0, alt=0.
+ */
+export function setCameraViewAnimated(
+  camera: Camera,
+  lat: number,
+  lon: number,
+  targetAzDeg: number,
+  targetAltDeg: number,
+  durationMs: number,
+): void {
+  if (durationMs <= 0) {
+    setCameraView(camera, lat, lon, targetAzDeg, targetAltDeg);
+    return;
+  }
+
+  // Safely snapshot current orientation; Cesium's Camera has live getters.
+  const c = camera as unknown as { heading?: number; pitch?: number };
+  const fromAz = typeof c.heading === "number" ? CesiumMath.toDegrees(c.heading) : 0;
+  const fromAlt = typeof c.pitch === "number" ? CesiumMath.toDegrees(c.pitch) : 0;
+
+  const start = Date.now();
+  const from = { az: fromAz, alt: fromAlt };
+  const to = { az: targetAzDeg, alt: targetAltDeg };
+
+  // setTimeout(16ms) instead of requestAnimationFrame: 60fps is plenty for a
+  // 400ms transition and setTimeout is easier to reason about under fake timers
+  // in tests. Any additional visual smoothness from rAF is imperceptible here.
+  function step(): void {
+    const elapsed = Date.now() - start;
+    const t = Math.min(1, Math.max(0, elapsed / durationMs));
+    const eased = easeOutCubic(t);
+    const { az, alt } = interpolateAzAlt(from, to, eased);
+    setCameraView(camera, lat, lon, az, alt);
+    if (t < 1) {
+      setTimeout(step, 16);
+    }
+  }
+
+  step();
+}
+
+/**
+ * Gesture subsystem — owns pointer-driven camera interactions:
+ *  - drag to pan (with post-release inertia)
+ *  - scroll-wheel zoom (FOV)
+ *  - pinch-to-zoom (mobile — handled through Cesium's built-in PINCH events)
+ *  - double-tap / double-click to center (empty sky → zenith, object → its az/alt)
+ *
+ * Designed to coexist with tooltip.ts which independently wires LEFT_CLICK
+ * and MOUSE_MOVE on the same canvas. Cesium's `ScreenSpaceEventHandler`
+ * supports multiple independent handlers per canvas.
+ */
+
+export type AzAltPosition = { az: number; alt: number };
+
+export type GestureOptions = {
+  /** Observer location provider (az/alt transforms need it). */
+  getObserver: () => { lat: number; lon: number };
+  /**
+   * Hit-test at a screen position. Returns the az/alt of the picked object,
+   * or null if the point is empty sky.
+   */
+  resolveObjectAt: (x: number, y: number) => AzAltPosition | null;
+  /** Called after a zoom changes the camera FOV (so callers can re-render reticle). */
+  onZoom?: () => void;
+};
+
+export type GestureHandle = {
+  destroy: () => void;
+};
+
+/** Wheel-zoom sensitivity: multiplicative factor per "unit" of wheel delta. */
+const WHEEL_ZOOM_FACTOR = 1.0015;
+
+function getCameraFovDeg(camera: Camera): number {
+  const frustum = camera.frustum as { fovy?: number; fov?: number };
+  const rad =
+    typeof frustum.fovy === "number" && Number.isFinite(frustum.fovy) && frustum.fovy > 0
+      ? frustum.fovy
+      : typeof frustum.fov === "number" && Number.isFinite(frustum.fov) && frustum.fov > 0
+        ? frustum.fov
+        : Math.PI / 3;
+  return CesiumMath.toDegrees(rad);
+}
+
+function setCameraFovDeg(camera: Camera, deg: number): void {
+  const rad = CesiumMath.toRadians(deg);
+  const frustum = camera.frustum as { fovy?: number; fov?: number };
+  if (typeof frustum.fovy === "number") frustum.fovy = rad;
+  if (typeof frustum.fov === "number") frustum.fov = rad;
+}
+
+export function setupGestures(viewer: Viewer, options: GestureOptions): GestureHandle {
+  const { scene, camera } = viewer;
+  const handler = new ScreenSpaceEventHandler(scene.canvas);
+
+  // --- Scroll-wheel / pinch zoom -------------------------------------------
+  function applyWheelDelta(delta: number): void {
+    const current = getCameraFovDeg(camera);
+    // Positive delta -> zoom out (bigger FOV); negative -> zoom in.
+    const next = clampFov(current * Math.pow(WHEEL_ZOOM_FACTOR, delta));
+    setCameraFovDeg(camera, next);
+    options.onZoom?.();
+  }
+
+  handler.setInputAction((delta: number) => {
+    applyWheelDelta(delta);
+  }, ScreenSpaceEventType.WHEEL);
+
+  // Pinch zoom: Cesium fires PINCH_START with two finger positions
+  // (TwoPointEvent) and PINCH_MOVE with current+previous positions
+  // (TwoPointMotionEvent). We use the ratio of finger separation to map
+  // the pinch to a multiplicative FOV change.
+  let pinchStartDistance = 0;
+  let pinchStartFovDeg = 0;
+
+  function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  handler.setInputAction((event: ScreenSpaceEventHandler.TwoPointEvent) => {
+    pinchStartDistance = distance(event.position1, event.position2);
+    pinchStartFovDeg = getCameraFovDeg(camera);
+  }, ScreenSpaceEventType.PINCH_START);
+
+  handler.setInputAction((event: ScreenSpaceEventHandler.TwoPointMotionEvent) => {
+    if (pinchStartDistance <= 0) return;
+    const currentDistance = distance(event.position1, event.position2);
+    if (currentDistance <= 0) return;
+    // Fingers apart → larger distance → zoom in (smaller FOV)
+    const ratio = pinchStartDistance / currentDistance;
+    const next = clampFov(pinchStartFovDeg * ratio);
+    setCameraFovDeg(camera, next);
+    options.onZoom?.();
+  }, ScreenSpaceEventType.PINCH_MOVE);
+
+  handler.setInputAction(() => {
+    pinchStartDistance = 0;
+  }, ScreenSpaceEventType.PINCH_END);
+
+  // --- Double-tap reset / center ------------------------------------------
+  handler.setInputAction((event: { position: { x: number; y: number } }) => {
+    const { lat, lon } = options.getObserver();
+    const hit = options.resolveObjectAt(event.position.x, event.position.y);
+    if (hit) {
+      setCameraViewAnimated(camera, lat, lon, hit.az, hit.alt, CAMERA_ANIM_DURATION_MS);
+    } else {
+      setCameraViewAnimated(camera, lat, lon, 0, 89.9, CAMERA_ANIM_DURATION_MS);
+    }
+  }, ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+  function destroy(): void {
+    handler.destroy();
+  }
+
+  return { destroy };
+}
+
 export function setupTrackballControls(viewer: Viewer): void {
   const scene = viewer.scene;
   const camera = viewer.camera;
@@ -61,26 +237,18 @@ export function setupTrackballControls(viewer: Viewer): void {
   let isDragging = false;
   let lastX = 0;
   let lastY = 0;
+  let lastMoveTime = 0;
+  // Rolling velocity estimate (pixels / ms) for inertial drag.
+  let vx = 0;
+  let vy = 0;
+  // Active inertia frame id (if any). Used to cancel when a new drag begins.
+  let inertiaToken = 0;
+
   const rotateSpeed = 0.005; // radians per pixel
 
-  handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
-    isDragging = true;
-    lastX = click.position.x;
-    lastY = click.position.y;
-  }, ScreenSpaceEventType.LEFT_DOWN);
-
-  handler.setInputAction((movement: ScreenSpaceEventHandler.MotionEvent) => {
-    if (!isDragging) return;
-
-    const dx = movement.endPosition.x - lastX;
-    const dy = movement.endPosition.y - lastY;
-    lastX = movement.endPosition.x;
-    lastY = movement.endPosition.y;
-
-    // Map mouse dx to rotation around camera up (yaw), dy to rotation around
-    // camera right (pitch). Quaternion multiplication avoids gimbal lock.
-    const qRight = Quaternion.fromAxisAngle(camera.right, -dy * rotateSpeed, new Quaternion());
-    const qUp = Quaternion.fromAxisAngle(camera.up, -dx * rotateSpeed, new Quaternion());
+  function applyRotation(dxPx: number, dyPx: number): void {
+    const qRight = Quaternion.fromAxisAngle(camera.right, -dyPx * rotateSpeed, new Quaternion());
+    const qUp = Quaternion.fromAxisAngle(camera.up, -dxPx * rotateSpeed, new Quaternion());
     const qCombined = Quaternion.multiply(qUp, qRight, new Quaternion());
 
     const rotMatrix = Matrix3.fromQuaternion(qCombined, new Matrix3());
@@ -93,9 +261,67 @@ export function setupTrackballControls(viewer: Viewer): void {
     Cartesian3.normalize(camera.right, camera.right);
     Cartesian3.cross(camera.right, camera.direction, camera.up);
     Cartesian3.normalize(camera.up, camera.up);
+  }
+
+  handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
+    isDragging = true;
+    lastX = click.position.x;
+    lastY = click.position.y;
+    lastMoveTime = Date.now();
+    vx = 0;
+    vy = 0;
+    // Cancel any running inertia by bumping the token
+    inertiaToken++;
+  }, ScreenSpaceEventType.LEFT_DOWN);
+
+  handler.setInputAction((movement: ScreenSpaceEventHandler.MotionEvent) => {
+    if (!isDragging) return;
+
+    const now = Date.now();
+    const dx = movement.endPosition.x - lastX;
+    const dy = movement.endPosition.y - lastY;
+    lastX = movement.endPosition.x;
+    lastY = movement.endPosition.y;
+
+    // Update rolling velocity (simple instantaneous estimate)
+    const dtMs = Math.max(1, now - lastMoveTime);
+    lastMoveTime = now;
+    // Low-pass filter: blend new sample with existing velocity
+    const alpha = 0.5;
+    vx = alpha * (dx / dtMs) + (1 - alpha) * vx;
+    vy = alpha * (dy / dtMs) + (1 - alpha) * vy;
+
+    applyRotation(dx, dy);
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
   handler.setInputAction(() => {
     isDragging = false;
+    // Kick off inertia if velocity is meaningful
+    const speed = Math.sqrt(vx * vx + vy * vy);
+    if (speed <= 0.05) return; // ignore tiny jitters — treat as stopped
+
+    const token = ++inertiaToken;
+    const v0x = vx;
+    const v0y = vy;
+    const startTime = Date.now();
+    let lastDx = 0;
+    let lastDy = 0;
+
+    function stepInertia(): void {
+      if (token !== inertiaToken) return; // cancelled by a new drag
+      const elapsed = Date.now() - startTime;
+      const totalDx = inertiaDelta(v0x, elapsed, DRAG_INERTIA_DECAY_MS);
+      const totalDy = inertiaDelta(v0y, elapsed, DRAG_INERTIA_DECAY_MS);
+      const frameDx = totalDx - lastDx;
+      const frameDy = totalDy - lastDy;
+      lastDx = totalDx;
+      lastDy = totalDy;
+      if (frameDx !== 0 || frameDy !== 0) applyRotation(frameDx, frameDy);
+      if (elapsed < DRAG_INERTIA_DECAY_MS) {
+        setTimeout(stepInertia, 16);
+      }
+    }
+
+    stepInertia();
   }, ScreenSpaceEventType.LEFT_UP);
 }

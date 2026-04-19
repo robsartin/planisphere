@@ -6,6 +6,8 @@ import { getFovDegrees } from "../astro/fov-presets";
 
 export type ReticleLayer = {
   setPreset: (preset: FovPresetId) => void;
+  /** Force a redraw — call after the camera FOV changes so the ring resizes. */
+  render: () => void;
   destroy: () => void;
 };
 
@@ -126,5 +128,5 @@ export function createReticleLayer(scene: Scene, container: HTMLElement): Reticl
     svg.remove();
   }
 
-  return { setPreset, destroy };
+  return { setPreset, render, destroy };
 }

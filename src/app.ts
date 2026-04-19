@@ -32,6 +32,7 @@ import {
   createViewer,
   initCamera,
   setupTrackballControls,
+  setupGestures,
   createStarLayer,
   createBodyLayer,
   createTooltip,
@@ -48,6 +49,7 @@ import {
   setCameraView,
   getCameraHeadingDeg,
 } from "./scene";
+import type { AzAltPosition } from "./scene";
 import type {
   StarLayer,
   BodyLayer,
@@ -538,6 +540,28 @@ export async function bootstrap(
   if (cesiumContainer) {
     createTooltip(viewer, cesiumContainer);
   }
+
+  // Gesture polish (Plan 07 1J):
+  //   - scroll-wheel / pinch zoom → adjust camera FOV in-place (not persisted
+  //     as a free-form value in URL state; the FOV preset reticle stays what
+  //     the user last chose, and the reticle layer rerenders after zoom so
+  //     its displayed angular size matches the new camera vFOV).
+  //   - double-tap empty sky → animated return to zenith.
+  //   - double-tap on an object → animated center on its current az/alt.
+  function resolveObjectAt(x: number, y: number): AzAltPosition | null {
+    const picker = viewer.scene as unknown as { pick?: (pos: { x: number; y: number }) => unknown };
+    if (typeof picker.pick !== "function") return null;
+    const picked = picker.pick({ x, y }) as { id?: { az?: unknown; alt?: unknown } } | undefined;
+    const id = picked?.id;
+    if (!id || typeof id.az !== "number" || typeof id.alt !== "number") return null;
+    return { az: id.az, alt: id.alt };
+  }
+
+  setupGestures(viewer, {
+    getObserver: () => ({ lat: state.observer.lat, lon: state.observer.lon }),
+    resolveObjectAt,
+    onZoom: () => layers.reticle?.render(),
+  });
 
   // Planet info wrapper — holds the current planet-info section, refreshed on time/observer changes
   const planetInfoWrapper = document.createElement("div");

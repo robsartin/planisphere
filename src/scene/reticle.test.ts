@@ -119,6 +119,18 @@ describe("createReticleLayer", () => {
     expect(container.querySelector("svg[data-reticle]")).toBeNull();
   });
 
+  it("render() resizes the circle after the camera fov changes", () => {
+    const scene = makeScene(Math.PI / 3); // 60 deg
+    const layer = createReticleLayer(scene as never, container);
+    layer.setPreset("naked-eye");
+    const r1 = Number(container.querySelector("circle")!.getAttribute("r"));
+    // Narrow the camera FOV (zoom in) — same preset should now render larger
+    scene.camera.frustum.fovy = Math.PI / 6; // 30 deg
+    layer.render();
+    const r2 = Number(container.querySelector("circle")!.getAttribute("r"));
+    expect(r2).toBeGreaterThan(r1);
+  });
+
   it("draws a larger circle for a wider fov preset", () => {
     const layer = createReticleLayer(makeScene() as never, container);
     layer.setPreset("small-scope");
