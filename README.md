@@ -11,6 +11,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the current code architec
 - **Artificial satellites** — live TLE feed from CelesTrak with a bundled fallback; SGP4 propagation via satellite.js.
 - **Deep-sky objects** — Messier catalog with per-type symbols (open cluster, globular, nebula, galaxy).
 - **Constellations** — IAU stick figures and official boundary polygons. Constellation names in Latin, English, Chinese, Arabic, or Greek.
+- **Skycultures** — pick an alternate asterism set (Western/IAU, Chinese Xingguan, Indian Vedic, Norse Edda, Hawaiian starlines, or Māori) in place of the Western stick figures. Data normalized from Stellarium under CC-BY-SA 4.0 / CC-BY 4.0 — see [`docs/adr/007-stellarium-skyculture-data.md`](docs/adr/007-stellarium-skyculture-data.md).
+- **Upcoming events panel** — planet-planet / planet-Sun / planet-Moon conjunctions, lunar eclipses, meteor-shower peaks, and ISS passes (with a cylindrical-umbra shadow check and an approximate magnitude). Each event's "Go to" button jumps the time cursor and aims the camera at the subject.
 - **Milky Way** — a soft additive billboard glow band tracing the galactic plane.
 - **Reference lines** — RA/Dec equatorial grid and the ecliptic, both with independent opacity sliders.
 - **Object trails** — show a dashed 4-hour future path for any solar-system body from the planet info panel.
@@ -31,16 +33,16 @@ Under the hood:
 
 Planisphere is composed of eight modules with strict boundaries:
 
-| Module         | Role                                                                                                                                                                                                                   |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/astro/`   | Pure astronomy math — star catalog, ephemerides, coordinate transforms, constellation/boundary/Messier/Milky Way filtering, grid/ecliptic geometry, trails, search index, FOV presets, constellation-name translations |
-| `src/sat/`     | TLE loading (with bundled fallback), SGP4 propagation via satellite.js                                                                                                                                                 |
-| `src/scene/`   | CesiumJS rendering — one factory per layer (`Star`, `Body`, `Constellation`, `Boundary`, `Satellite`, `Compass`, `Grid`, `Ecliptic`, `Messier`, `MilkyWay`, `Trail`, `Reticle`) plus camera setup and hover tooltip    |
-| `src/workers/` | Astro computation Web Worker: `astro-worker` (entry), `astro-worker-client`, `worker-math` (pure GMST math extracted for tests), `star-builder` (typed-array packing helpers)                                          |
-| `src/ui/`      | DOM controls that emit typed `UIIntent` values — panel, time, location, view, layer, FOV, planet-info, search; no position math                                                                                        |
-| `src/state/`   | `AppState` type, URL serialisation/deserialisation (`lat`, `lon`, `t`, `layers`, `op_*`, `vaz`, `valt`, `nv`, `mag`, `lang`, `fov`)                                                                                    |
-| `src/result/`  | `Result<T, E>` discriminated union and helpers                                                                                                                                                                         |
-| `src/app.ts`   | Composition root — wires state → computation → rendering → UI, debounces rerenders, dispatches intents, keeps the URL in sync                                                                                          |
+| Module         | Role                                                                                                                                                                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/astro/`   | Pure astronomy math — star catalog, ephemerides, coordinate transforms, constellation/boundary/Messier/Milky Way filtering, grid/ecliptic geometry, trails, search index, FOV presets, constellation-name translations, alternate skycultures (`skycultures`), upcoming-events composition (`events`) |
+| `src/sat/`     | TLE loading (with bundled fallback), SGP4 propagation via satellite.js, pass detection (`passes`) and cylindrical-umbra + magnitude illumination model (`illumination`)                                                                                                                               |
+| `src/scene/`   | CesiumJS rendering — one factory per layer (`Star`, `Body`, `Constellation`, `Boundary`, `Satellite`, `Compass`, `Grid`, `Ecliptic`, `Messier`, `MilkyWay`, `Trail`, `Reticle`) plus camera setup and hover tooltip                                                                                   |
+| `src/workers/` | Astro computation Web Worker: `astro-worker` (entry), `astro-worker-client`, `worker-math` (pure GMST math extracted for tests), `star-builder` (typed-array packing helpers)                                                                                                                         |
+| `src/ui/`      | DOM controls that emit typed `UIIntent` values — panel, time, location, view, layer, FOV, planet-info, search, events-panel; no position math                                                                                                                                                         |
+| `src/state/`   | `AppState` type, URL serialisation/deserialisation (`lat`, `lon`, `t`, `layers`, `op_*`, `vaz`, `valt`, `nv`, `mag`, `lang`, `fov`, `sky`)                                                                                                                                                            |
+| `src/result/`  | `Result<T, E>` discriminated union and helpers                                                                                                                                                                                                                                                        |
+| `src/app.ts`   | Composition root — wires state → computation → rendering → UI, debounces rerenders, dispatches intents, keeps the URL in sync                                                                                                                                                                         |
 
 `src/main.ts` is the browser entrypoint; it also registers the service worker (`public/sw.js`) when the app is served from a production build.
 
