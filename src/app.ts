@@ -72,7 +72,6 @@ import {
   createPanel,
   createLocationControls,
   createViewControls,
-  createPlanetInfo,
   createSearch,
   createFovControls,
   createEventsDrawer,
@@ -80,6 +79,7 @@ import {
   createBottomHud,
   createCommandPalette,
   createSettingsDrawer,
+  createTonightDrawer,
   createObjectCardsManager,
 } from "./ui";
 import type {
@@ -89,6 +89,7 @@ import type {
   ObjectCardData,
   ObjectPosition,
   CardKey,
+  TonightDrawer,
 } from "./ui";
 import type {
   CommandPalette,
@@ -979,14 +980,15 @@ export async function bootstrap(
     onZoom: () => layers.reticle?.render(),
   });
 
-  // Planet info wrapper — holds the current planet-info section, refreshed on time/observer changes
-  const planetInfoWrapper = document.createElement("div");
-
   // Events drawer — celestial event alerts (conjunctions / lunar eclipses / meteor showers / ISS).
   // Drawer is created at bootstrap (lives on <body>) and refreshed on any observer/time change
   // regardless of whether it's currently open, so it's always fresh when the user taps 📅.
   let cachedEvents: readonly CelestialEvent[] = [];
   let eventsDrawer: EventsDrawer | null = null;
+  // Tonight drawer (milestone 1G) — slide-in surface holding the Planet Info list (replaces
+  // the always-on side-panel section). Refreshed on observer/time/trail changes so it's
+  // always current when the user taps ♀.
+  let tonightDrawer: TonightDrawer | null = null;
 
   function refreshEvents(s: AppState): void {
     const result = computeUpcomingEvents(
@@ -998,27 +1000,10 @@ export async function bootstrap(
     eventsDrawer?.setEvents(cachedEvents);
   }
 
-  function refreshPlanetInfo(s: AppState): void {
+  function refreshTonight(s: AppState): void {
+    if (tonightDrawer === null) return;
     const bodies = computeBodyPositions(s.observer.lat, s.observer.lon, s.timeUtc, false);
-    planetInfoWrapper.replaceChildren(
-      createPlanetInfo(
-        bodies,
-        s.observer.lat,
-        s.observer.lon,
-        s.timeUtc,
-        (az, alt) => {
-          handleIntent({ type: "set-view", az, alt });
-        },
-        (id) => {
-          if (trailBodyId === id) {
-            handleIntent({ type: "hide-trail" });
-          } else {
-            handleIntent({ type: "show-trail", objectKind: "body", id });
-          }
-        },
-        trailBodyId,
-      ),
-    );
+    tonightDrawer.setBodies(bodies, s.observer.lat, s.observer.lon, s.timeUtc, trailBodyId);
   }
 
   function rebuildSearchIndex(s: AppState): void {
@@ -1041,7 +1026,7 @@ export async function bootstrap(
       case "set-time": {
         state = { ...state, timeUtc: intent.time };
         scheduleRerender(state);
-        refreshPlanetInfo(state);
+        refreshTonight(state);
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
@@ -1053,7 +1038,7 @@ export async function bootstrap(
         state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
         initCamera(viewer.camera, intent.lat, intent.lon);
         scheduleRerender(state);
-        refreshPlanetInfo(state);
+        refreshTonight(state);
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
@@ -1102,13 +1087,13 @@ export async function bootstrap(
       case "show-trail": {
         trailBodyId = intent.id;
         rerenderTrail(state);
-        refreshPlanetInfo(state);
+        refreshTonight(state);
         break;
       }
       case "hide-trail": {
         trailBodyId = null;
         layers.trail.hide();
-        refreshPlanetInfo(state);
+        refreshTonight(state);
         break;
       }
       case "set-language": {
@@ -1168,7 +1153,7 @@ export async function bootstrap(
         const now = new Date();
         state = { ...state, timeUtc: now };
         scheduleRerender(state);
-        refreshPlanetInfo(state);
+        refreshTonight(state);
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
@@ -1181,7 +1166,7 @@ export async function bootstrap(
               state = { ...state, observer: { lat, lon } };
               initCamera(viewer.camera, lat, lon);
               scheduleRerender(state);
-              refreshPlanetInfo(state);
+              refreshTonight(state);
               refreshEvents(state);
               rebuildSearchIndex(state);
               rerenderTrail(state);
@@ -1251,6 +1236,13 @@ export async function bootstrap(
   });
   document.body.appendChild(settingsDrawer.element);
 
+  // Tonight drawer (Plan 07 1G) — slide-in ♀ drawer that replaces the always-on
+  // Planet Info side-panel section. Created at bootstrap (so tests / headless
+  // environments still mount it) and populated with the initial body list.
+  tonightDrawer = createTonightDrawer({ dispatch: handleIntent });
+  document.body.appendChild(tonightDrawer.element);
+  refreshTonight(state);
+
   // Bottom HUD — ambient bar with time, location chip, and compass. Replaces the
   // side-panel Time section (milestone 1A of Plan 07). Appended to <body> so it
   // sits above the cesium canvas independently of the side panel.
@@ -1301,12 +1293,20 @@ export async function bootstrap(
         // Mutual exclusion: close other open surfaces before opening the drawer.
         if (helpModal.isOpen()) helpModal.close();
         if (settingsDrawer.isOpen()) settingsDrawer.close();
+        if (tonightDrawer?.isOpen()) tonightDrawer.close();
         eventsDrawer?.open();
       },
       onOpenSettings: () => {
         if (helpModal.isOpen()) helpModal.close();
         if (eventsDrawer?.isOpen()) eventsDrawer.close();
+        if (tonightDrawer?.isOpen()) tonightDrawer.close();
         settingsDrawer.open();
+      },
+      onOpenTonight: () => {
+        if (helpModal.isOpen()) helpModal.close();
+        if (eventsDrawer?.isOpen()) eventsDrawer.close();
+        if (settingsDrawer.isOpen()) settingsDrawer.close();
+        tonightDrawer?.open();
       },
     });
     nightVisionPanel = panel;
@@ -1328,9 +1328,6 @@ export async function bootstrap(
 
     const fovEl = createFovControls(state.fov, handleIntent);
     uiContainer.appendChild(fovEl);
-
-    refreshPlanetInfo(state);
-    uiContainer.appendChild(planetInfoWrapper);
 
     panel.setContent(uiContainer);
   }
