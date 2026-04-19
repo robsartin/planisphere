@@ -76,6 +76,10 @@ export type IssPassEvent = {
   readonly peakAltDeg: number;
   readonly peakAzDeg: number;
   readonly durationSec: number;
+  /** True if the ISS is in Earth's umbra at peak — visually invisible even at night. */
+  readonly eclipsed: boolean;
+  /** Approximate visual magnitude at peak; null when eclipsed. See sat/illumination.ts. */
+  readonly magnitudeAtPeak: number | null;
 };
 
 export type CelestialEvent =
@@ -272,7 +276,11 @@ function formatLocalTime(d: Date): string {
 }
 
 /** Turn an IssPass into a CelestialEvent. `when` is the peak time so Go-to jumps to
- *  the highest-altitude (easiest viewing) moment of the pass rather than to the horizon. */
+ *  the highest-altitude (easiest viewing) moment of the pass rather than to the horizon.
+ *
+ *  Eclipsed passes are *kept* in the list (not filtered) so the user can see a pass
+ *  exists, but their title is prefixed "(shadow)" and the description notes invisibility.
+ *  The UI applies reduced opacity — see ui/events-panel.ts. */
 function toIssPassEvent(pass: IssPass): IssPassEvent {
   const durationSec = Math.round((pass.set.getTime() - pass.rise.getTime()) / 1000);
   const minutes = Math.max(1, Math.round(durationSec / 60));
@@ -280,15 +288,36 @@ function toIssPassEvent(pass: IssPass): IssPassEvent {
   const peakCompass = azToCompass(pass.peak.azDeg);
   const setLocal = formatLocalTime(pass.set);
   const peakLocal = formatLocalTime(pass.peak.time);
+  const illum = pass.peak.illumination;
+
+  const title = illum.eclipsed
+    ? `ISS pass — in Earth's shadow (${peakAltInt}° peak)`
+    : `ISS pass — mag ${formatMagnitude(illum.magnitude)}, peaks at ${peakAltInt}°`;
+
+  const visibilityNote = illum.eclipsed
+    ? " Satellite is in Earth's shadow at peak — not visible."
+    : "";
+  const description = `Peaks ${peakAltInt}° in the ${peakCompass} at ${peakLocal} local, sets ${setLocal} (${minutes} min pass).${visibilityNote}`;
+
   return {
     kind: "iss-pass",
     when: pass.peak.time,
-    title: `ISS pass — peaks at ${peakAltInt}° altitude`,
-    description: `Peaks ${peakAltInt}° in the ${peakCompass} at ${peakLocal} local, sets ${setLocal} (${minutes} min pass).`,
+    title,
+    description,
     peakAltDeg: pass.peak.altDeg,
     peakAzDeg: pass.peak.azDeg,
     durationSec,
+    eclipsed: illum.eclipsed,
+    magnitudeAtPeak: illum.magnitude,
   };
+}
+
+/** Format a magnitude with a leading sign and one decimal, e.g. "-1.8" or "+2.4".
+ *  Never trust the third decimal of our model (see illumination.ts). */
+function formatMagnitude(m: number | null): string {
+  if (m === null) return "n/a";
+  const sign = m >= 0 ? "+" : "";
+  return `${sign}${m.toFixed(1)}`;
 }
 
 // ---------- Composition ----------

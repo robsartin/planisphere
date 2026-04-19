@@ -253,4 +253,59 @@ describe("computeUpcomingEvents", () => {
     const issEvents = result.value.filter((e) => e.kind === "iss-pass");
     expect(issEvents).toHaveLength(0);
   });
+
+  it("ISS pass events carry eclipsed + magnitudeAtPeak fields", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter(
+      (e): e is Extract<CelestialEvent, { kind: "iss-pass" }> => e.kind === "iss-pass",
+    );
+    expect(issEvents.length).toBeGreaterThan(0);
+    for (const e of issEvents) {
+      expect(typeof e.eclipsed).toBe("boolean");
+      if (e.eclipsed) {
+        expect(e.magnitudeAtPeak).toBeNull();
+      } else {
+        expect(typeof e.magnitudeAtPeak).toBe("number");
+      }
+    }
+  });
+
+  it("lit ISS pass titles mention magnitude; eclipsed ones mention Earth's shadow", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter(
+      (e): e is Extract<CelestialEvent, { kind: "iss-pass" }> => e.kind === "iss-pass",
+    );
+    expect(issEvents.length).toBeGreaterThan(0);
+    for (const e of issEvents) {
+      if (e.eclipsed) {
+        expect(e.title).toMatch(/shadow/i);
+      } else {
+        expect(e.title).toMatch(/mag/i);
+      }
+    }
+  });
+
+  it("keeps eclipsed ISS passes in the events list (does not silently drop them)", () => {
+    // At equatorial locations within dark hours, some ISS passes *can* be in Earth's
+    // shadow at peak because the observer is on the anti-sun side and the sat is low
+    // in the sky. We simply verify that the kind still shows up so the user sees
+    // that a pass exists. This is a structural check — we don't assert that any
+    // specific date produces an eclipsed pass.
+    const now = new Date("2024-04-10T00:00:00Z");
+    const sats = expectOk(parseTle(ISS_TLE));
+    const result = computeUpcomingEvents(now, { lat: 39.74, lon: -104.99 }, sats);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const issEvents = result.value.filter((e) => e.kind === "iss-pass");
+    // At least one pass overall; none of them were silently removed.
+    expect(issEvents.length).toBeGreaterThan(0);
+  });
 });

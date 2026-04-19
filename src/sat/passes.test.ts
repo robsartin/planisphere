@@ -94,3 +94,48 @@ describe("isIssRecord", () => {
     expect(isIssRecord(hubble)).toBe(false);
   });
 });
+
+describe("computeUpcomingPasses — illumination at peak", () => {
+  it("attaches an illumination object to each pass peak", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const passes = computeUpcomingPasses(iss, 39.74, -104.99, now, 48);
+    expect(passes.length).toBeGreaterThan(0);
+    for (const p of passes) {
+      expect(p.peak.illumination).toBeDefined();
+      expect(typeof p.peak.illumination.eclipsed).toBe("boolean");
+      expect(typeof p.peak.illumination.phaseDeg).toBe("number");
+      expect(typeof p.peak.illumination.rangeKm).toBe("number");
+      // magnitude is number | null
+      if (p.peak.illumination.eclipsed) {
+        expect(p.peak.illumination.magnitude).toBeNull();
+      } else {
+        expect(typeof p.peak.illumination.magnitude).toBe("number");
+      }
+    }
+  });
+
+  it("range at peak is plausible for ISS (a few hundred to a couple thousand km)", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const passes = computeUpcomingPasses(iss, 39.74, -104.99, now, 48);
+    expect(passes.length).toBeGreaterThan(0);
+    for (const p of passes) {
+      expect(p.peak.illumination.rangeKm).toBeGreaterThan(350);
+      expect(p.peak.illumination.rangeKm).toBeLessThan(3000);
+    }
+  });
+
+  it("sunlit passes produce a finite magnitude in a plausible range", () => {
+    const now = new Date("2024-04-10T00:00:00Z");
+    const passes = computeUpcomingPasses(iss, 39.74, -104.99, now, 48);
+    for (const p of passes) {
+      if (!p.peak.illumination.eclipsed) {
+        const m = p.peak.illumination.magnitude;
+        expect(m).not.toBeNull();
+        expect(Number.isFinite(m!)).toBe(true);
+        // ISS real-world range is roughly -4 to +5 at the extremes.
+        expect(m!).toBeGreaterThan(-5);
+        expect(m!).toBeLessThan(8);
+      }
+    }
+  });
+});
