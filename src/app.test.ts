@@ -207,15 +207,16 @@ vi.mock("../data/boundaries.json", () => ({
 
 // Captured dispatch function from UI mock — used in intent tests
 let capturedDispatch: ((intent: unknown) => void) | null = null;
-let capturedPanelOptions: { onOpenSettings?: () => void; onOpenHelp?: () => void } | null = null;
+let capturedPanelOptions: {
+  onOpenEvents?: () => void;
+  onOpenSettings?: () => void;
+  onOpenHelp?: () => void;
+} | null = null;
 let settingsDrawerMock: {
   open: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   isOpen: ReturnType<typeof vi.fn>;
 } | null = null;
-
-// Captured panel options from UI mock — lets tests assert on drawer wiring.
-let capturedPanelOptions: { onOpenEvents?: () => void; onOpenHelp?: () => void } | null = null;
 
 // Captured events-drawer setEvents spy — lets tests assert it was called when
 // `set-time` / `set-observer` / `now` intents fire.

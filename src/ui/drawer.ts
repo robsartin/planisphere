@@ -7,6 +7,13 @@ export type DrawerOptions = {
   side: DrawerSide;
   width: string | number;
   onClose?: () => void;
+  /**
+   * Content to mount into the drawer body at creation time. Callers that hold
+   * a stable content element and mutate its children (e.g. re-rendering on
+   * state changes) should use this so the body is populated even while the
+   * drawer is hidden. `open(content)` still replaces body children on each open.
+   */
+  initialContent?: HTMLElement;
 };
 
 export type Drawer = {
@@ -31,7 +38,7 @@ export type Drawer = {
  * the help-modal slide pattern so future animation work has a hook.
  */
 export function createDrawer(options: DrawerOptions): Drawer {
-  const { side, width, onClose } = options;
+  const { side, width, onClose, initialContent } = options;
 
   const root = document.createElement("div");
   root.dataset.testid = "drawer";
@@ -99,6 +106,10 @@ export function createDrawer(options: DrawerOptions): Drawer {
   panel.appendChild(body);
   root.appendChild(backdrop);
   root.appendChild(panel);
+
+  if (initialContent !== undefined) {
+    body.replaceChildren(initialContent);
+  }
 
   let open = false;
 
