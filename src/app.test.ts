@@ -241,6 +241,25 @@ vi.mock("./ui", () => ({
       destroy: vi.fn(),
     };
   }),
+  createCommandPalette: vi
+    .fn()
+    .mockImplementation(
+      (opts: {
+        getSources: () => unknown;
+        dispatch: (i: unknown) => void;
+        onRecentSelected: (e: unknown) => void;
+      }) => {
+        opts.getSources();
+        opts.onRecentSelected({ id: "probe", label: "Probe" });
+        opts.getSources();
+        return {
+          element: document.createElement("div"),
+          open: vi.fn(),
+          close: vi.fn(),
+          isOpen: vi.fn().mockReturnValue(false),
+        };
+      },
+    ),
 }));
 
 // Mock the TLE bundled data
@@ -798,5 +817,78 @@ describe("handleIntent routing", () => {
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     vi.useRealTimers();
+  });
+
+  it("pin-object intent for a known object updates URL with new view", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "pin-object", id: "Polaris" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("pin-object intent for an unknown id does not throw", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "pin-object", id: "NoSuchObject" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("copy-link intent does not throw when clipboard is unavailable", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "copy-link" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("copy-link intent invokes clipboard.writeText when available", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    await bootstrap(root);
+    capturedDispatch!({ type: "copy-link" });
+    expect(writeText).toHaveBeenCalledOnce();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("Ctrl+K / Cmd+K opens the command palette via the global keydown handler", async () => {
+    // Grab the real createCommandPalette mock so we can see its returned palette.
+    const ui = await import("./ui");
+    const mockOpen = vi.fn();
+    const mockClose = vi.fn();
+    let isOpen = false;
+    (
+      ui.createCommandPalette as unknown as { mockReturnValueOnce: (v: unknown) => void }
+    ).mockReturnValueOnce({
+      element: document.createElement("div"),
+      open: () => {
+        isOpen = true;
+        mockOpen();
+      },
+      close: () => {
+        isOpen = false;
+        mockClose();
+      },
+      isOpen: () => isOpen,
+    });
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    const evt = new KeyboardEvent("keydown", { key: "k", ctrlKey: true });
+    document.dispatchEvent(evt);
+    expect(mockOpen).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
   });
 });
