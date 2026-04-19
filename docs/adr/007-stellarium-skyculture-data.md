@@ -1,4 +1,4 @@
-# ADR 007 — Stellarium skyculture data (CC-BY-SA 4.0)
+# ADR 007 — Stellarium skyculture data (CC-BY-SA 4.0, CC-BY 4.0)
 
 **Date:** 2026-04-18
 **Status:** Accepted
@@ -31,6 +31,22 @@ under `data/asterisms/<culture>.json`. The v1 shipping set is:
 - `data/asterisms/western.json` — IAU 88, mirror of existing public-domain
   `data/constellations.json`.
 - `data/asterisms/chinese.json` — Stellarium's `chinese` skyculture, CC-BY-SA 4.0.
+- `data/asterisms/indian.json` — Stellarium's `indian` skyculture, CC-BY-SA 4.0
+  (Vedic / Nakshatra sky).
+- `data/asterisms/norse_edda.json` — Stellarium's `norse_edda` skyculture,
+  CC-BY 4.0 (reconstructed Germanic/Norse constellations from Eddic texts).
+- `data/asterisms/hawaiian_starlines.json` — Stellarium's `hawaiian_starlines`
+  skyculture, CC-BY-SA 4.0 (Polynesian navigation starlines).
+- `data/asterisms/maori.json` — Stellarium's `maori` skyculture, CC-BY-SA 4.0
+  (a small but distinctive set of traditional Māori star groupings).
+
+Stellarium skycultures distributed under CC-BY-ND (e.g. `arabic_al-sufi`,
+`babylonian_seleucid`, `babylonian_mulapin`) or GPL-2.0 (e.g. `inuit`,
+`aztec`, `navajo`) are **not** bundled — the no-derivatives clause of
+CC-BY-ND forbids distributing our normalized polyline form, and GPL-2.0
+is a strong copyleft that would conflict with our Apache 2.0 code license.
+If a user later wants any of those cultures, they would need an alternate
+upstream or a separately-licensed data source.
 
 The build script `scripts/build-asterisms.mjs` downloads and normalises the
 Stellarium source into our simple shape:
@@ -45,18 +61,21 @@ Stellarium source into our simple shape:
 }
 ```
 
-Attribution is recorded in `NOTICE`. The CC-BY-SA 4.0 license is compatible
-with our Apache 2.0 source license as long as the derived data files
-themselves remain under CC-BY-SA 4.0 (the data is separable from the code).
+Attribution is recorded in `NOTICE`. The CC-BY-SA 4.0 and CC-BY 4.0 licenses
+are both compatible with our Apache 2.0 source license as long as the derived
+data files themselves remain under their respective original licenses (the
+data is separable from the code). CC-BY 4.0 imposes attribution only;
+CC-BY-SA 4.0 additionally imposes share-alike on modifications to the data.
 
 ## Consequences
 
-- **Bundle size:** +26 KB (chinese.json) + 15 KB (western.json). Well within
-  the existing budget.
-- **Licensing:** Data files under `data/asterisms/` are CC-BY-SA 4.0. Any
-  downstream redistribution must preserve the NOTICE attribution and the
-  share-alike provision applies to modifications of the data (not to code
-  using the data).
+- **Bundle size:** roughly +50 KB total for all non-Western skyculture JSON
+  (chinese ≈ 26 KB, the others ≈ 1–5 KB each) + 15 KB western.json. Well
+  within the existing budget.
+- **Licensing:** Data files under `data/asterisms/` retain their upstream
+  licenses (CC-BY-SA 4.0 or CC-BY 4.0). Any downstream redistribution must
+  preserve the NOTICE attribution; the share-alike provision of CC-BY-SA
+  applies to modifications of the data (not to code using the data).
 - **No runtime fetch.** Data is bundled at build time.
 - **Extensibility.** Adding more cultures is now a small script change +
   a new JSON file + adding the id to `SKYCULTURES`.

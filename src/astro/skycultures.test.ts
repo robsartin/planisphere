@@ -19,7 +19,14 @@ describe("SKYCULTURES", () => {
   });
 
   it("includes all supported skyculture ids", () => {
-    const ids: SkycultureId[] = ["western", "chinese"];
+    const ids: SkycultureId[] = [
+      "western",
+      "chinese",
+      "indian",
+      "norse_edda",
+      "hawaiian_starlines",
+      "maori",
+    ];
     for (const id of ids) {
       expect(SKYCULTURES).toContain(id);
     }
@@ -30,6 +37,10 @@ describe("isSkycultureId", () => {
   it("returns true for known ids", () => {
     expect(isSkycultureId("western")).toBe(true);
     expect(isSkycultureId("chinese")).toBe(true);
+    expect(isSkycultureId("indian")).toBe(true);
+    expect(isSkycultureId("norse_edda")).toBe(true);
+    expect(isSkycultureId("hawaiian_starlines")).toBe(true);
+    expect(isSkycultureId("maori")).toBe(true);
   });
 
   it("returns false for unknown ids", () => {
@@ -51,6 +62,10 @@ describe("parseSkyculture", () => {
   it("returns the id for known ids", () => {
     expect(parseSkyculture("chinese")).toBe("chinese");
     expect(parseSkyculture("western")).toBe("western");
+    expect(parseSkyculture("indian")).toBe("indian");
+    expect(parseSkyculture("norse_edda")).toBe("norse_edda");
+    expect(parseSkyculture("hawaiian_starlines")).toBe("hawaiian_starlines");
+    expect(parseSkyculture("maori")).toBe("maori");
   });
 });
 

@@ -91,6 +91,10 @@ import rawNamesAr from "../data/constellation-names/ar.json";
 import rawNamesEl from "../data/constellation-names/el.json";
 import rawAsterismsWestern from "../data/asterisms/western.json";
 import rawAsterismsChinese from "../data/asterisms/chinese.json";
+import rawAsterismsIndian from "../data/asterisms/indian.json";
+import rawAsterismsNorseEdda from "../data/asterisms/norse_edda.json";
+import rawAsterismsHawaiian from "../data/asterisms/hawaiian_starlines.json";
+import rawAsterismsMaori from "../data/asterisms/maori.json";
 
 const CONSTELLATION_NAMES_RAW: Partial<Record<Language, unknown>> = {
   en: rawNamesEn,
@@ -114,6 +118,10 @@ function loadNameOverridesForLanguage(lang: Language): ConstellationNameMap | nu
 const ASTERISM_SETS_RAW: Record<SkycultureId, unknown> = {
   western: rawAsterismsWestern,
   chinese: rawAsterismsChinese,
+  indian: rawAsterismsIndian,
+  norse_edda: rawAsterismsNorseEdda,
+  hawaiian_starlines: rawAsterismsHawaiian,
+  maori: rawAsterismsMaori,
 };
 
 function loadAsterismSet(id: SkycultureId): AsterismSet | null {

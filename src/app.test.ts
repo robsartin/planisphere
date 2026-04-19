@@ -143,6 +143,44 @@ vi.mock("../data/asterisms/chinese.json", () => ({
   },
 }));
 
+vi.mock("../data/asterisms/indian.json", () => ({
+  default: {
+    id: "indian",
+    name: "Indian (Vedic)",
+    constellations: [{ id: "CON indian Aśv", name: "अश्विनी", lines: [[8832, 8903]] }],
+  },
+}));
+
+vi.mock("../data/asterisms/norse_edda.json", () => ({
+  default: {
+    id: "norse_edda",
+    name: "Norse (Edda)",
+    constellations: [{ id: "CON norse_edda Bif", name: "Bifrǫst", lines: [[102098, 112158]] }],
+  },
+}));
+
+vi.mock("../data/asterisms/hawaiian_starlines.json", () => ({
+  default: {
+    id: "hawaiian_starlines",
+    name: "Hawaiian Starlines",
+    constellations: [
+      {
+        id: "CON hawaiian_starlines KOM",
+        name: "Ke Ka o Makali`i",
+        lines: [[32349, 37279, 37826]],
+      },
+    ],
+  },
+}));
+
+vi.mock("../data/asterisms/maori.json", () => ({
+  default: {
+    id: "maori",
+    name: "Māori",
+    constellations: [{ id: "CON maori 001", name: "Taki-o-Autahi", lines: [[61084, 60718]] }],
+  },
+}));
+
 vi.mock("../data/boundaries.json", () => ({
   default: [
     {
