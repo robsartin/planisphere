@@ -322,6 +322,36 @@ describe("createPanel", () => {
     });
   });
 
+  describe("layout regressions (issue #228)", () => {
+    it("allows the header button group to wrap so the row of icons cannot force horizontal overflow", () => {
+      // Post-Phase-1 the header carries 7+ icon buttons. With PANEL_WIDTH
+      // fixed at 280px, a single non-wrapping row overflows and makes the
+      // panel appear wider at the top than at its body. The header row
+      // (or its btn group) must permit flex wrapping.
+      const { element } = createPanel(container);
+      const header = element.querySelector<HTMLElement>("[data-testid='panel-header']")!;
+      const btnGroup = header.children[1] as HTMLElement;
+      const headerWraps = header.style.flexWrap === "wrap";
+      const btnGroupWraps = btnGroup.style.flexWrap === "wrap";
+      expect(headerWraps || btnGroupWraps).toBe(true);
+    });
+
+    it("does not impose an overflow-y:auto that would render a spurious scrollbar on short content", () => {
+      // After Phase 1 the body content is short (search + location + view +
+      // fov). A panel-wide overflow-y:auto combined with max-height:80vh is
+      // sized for the pre-Phase-1 content and renders an unwanted scrollbar.
+      const { element } = createPanel(container);
+      expect(element.style.overflowY).not.toBe("auto");
+    });
+
+    it("does not clamp the panel to a viewport-relative max-height larger than its content", () => {
+      // Let block layout size the panel to its content; the old 80vh cap is
+      // left over from when the panel carried the events/time/layers UIs.
+      const { element } = createPanel(container);
+      expect(element.style.maxHeight).toBe("");
+    });
+  });
+
   describe("copy-link button", () => {
     beforeEach(() => {
       Object.defineProperty(navigator, "clipboard", {

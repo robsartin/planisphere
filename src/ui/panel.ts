@@ -5,7 +5,6 @@ import {
   PANEL_BORDER,
   PANEL_RADIUS,
   PANEL_WIDTH,
-  PANEL_MAX_HEIGHT,
   TEXT_COLOR,
   applyButton,
 } from "./styles";
@@ -49,8 +48,10 @@ export function createPanel(
   panel.style.top = "16px";
   panel.style.right = "16px";
   panel.style.width = PANEL_WIDTH;
-  panel.style.maxHeight = PANEL_MAX_HEIGHT;
-  panel.style.overflowY = "auto";
+  // Let the panel auto-size to its (post-Phase-1) short content. The old
+  // 80vh cap + overflow-y:auto was sized for the pre-Phase-1 UI and now
+  // renders an unwanted scrollbar. See issue #228.
+  panel.style.overflowY = "visible";
   panel.style.background = PANEL_BG;
   panel.style.border = PANEL_BORDER;
   panel.style.borderRadius = PANEL_RADIUS;
@@ -63,6 +64,10 @@ export function createPanel(
   header.style.display = "flex";
   header.style.justifyContent = "space-between";
   header.style.alignItems = "center";
+  // Title + 7 icon buttons don't fit on one row inside PANEL_WIDTH. Allow
+  // the row to wrap so the header cannot force horizontal overflow.
+  header.style.flexWrap = "wrap";
+  header.style.gap = "4px";
   header.style.padding = "8px 12px";
   header.style.borderBottom = "1px solid rgba(255,255,255,0.15)";
 
@@ -75,6 +80,7 @@ export function createPanel(
 
   const btnGroup = document.createElement("div");
   btnGroup.style.display = "flex";
+  btnGroup.style.flexWrap = "wrap";
   btnGroup.style.gap = "4px";
   btnGroup.style.alignItems = "center";
 
