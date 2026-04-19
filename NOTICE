@@ -41,6 +41,13 @@ astronomical data. Positions and magnitudes are J2000 epoch coordinates compiled
 from standard references including the original Messier catalog and subsequent
 corrections. The Messier catalog is in the public domain.
 
+Meteor shower peak dates, ZHR estimates, and radiant RA/Dec coordinates
+(data/meteor-showers.json) are hand-curated from the International Meteor
+Organization (IMO) annual meteor shower calendar
+(https://www.imo.net/resources/calendar/) and the corresponding entries on
+Wikipedia's "List of meteor showers". These values are canonical public
+astronomical reference data.
+
 Constellation name translations (data/constellation-names/*.json) are
 hand-curated translations of the 88 IAU constellation names into English,
 Chinese, Arabic, and Modern Greek. The IAU constellation names themselves

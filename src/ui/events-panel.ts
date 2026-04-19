@@ -3,6 +3,24 @@ import { applyBaseText, GAP, TEXT_COLOR } from "./styles";
 import type { CelestialEvent } from "../astro/events";
 import type { UIIntent } from "./index";
 
+/**
+ * Extract a view direction (az, alt) from a celestial event when one is present.
+ *
+ * ISS pass events carry `peakAzDeg/peakAltDeg`; the other kinds (conjunction, lunar
+ * eclipse, meteor-shower) carry optional `viewAz/viewAlt`. Returns null when no
+ * direction is available, in which case the Go-to button only dispatches set-time
+ * and leaves the camera wherever it was.
+ */
+function viewFromEvent(event: CelestialEvent): { az: number; alt: number } | null {
+  if (event.kind === "iss-pass") {
+    return { az: event.peakAzDeg, alt: event.peakAltDeg };
+  }
+  if (event.viewAz !== undefined && event.viewAlt !== undefined) {
+    return { az: event.viewAz, alt: event.viewAlt };
+  }
+  return null;
+}
+
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
 function formatLocal(d: Date): string {
   const y = d.getFullYear();
@@ -121,11 +139,12 @@ export function createEventsPanel(
       gotoBtn.style.cursor = "pointer";
       gotoBtn.addEventListener("click", () => {
         dispatch({ type: "set-time", time: event.when });
-        // For ISS passes, also aim the camera at the peak position so the
-        // satellite is actually in the user's field of view rather than the
+        // Aim the camera at the event's view direction when one is available, so
+        // the subject is actually in the user's field of view rather than the
         // camera staying at whatever direction it was last pointed.
-        if (event.kind === "iss-pass") {
-          dispatch({ type: "set-view", az: event.peakAzDeg, alt: event.peakAltDeg });
+        const view = viewFromEvent(event);
+        if (view !== null) {
+          dispatch({ type: "set-view", az: view.az, alt: view.alt });
         }
       });
       titleRow.appendChild(gotoBtn);

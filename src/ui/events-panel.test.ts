@@ -50,6 +50,86 @@ function makeIssPass(when: Date): CelestialEvent {
   };
 }
 
+describe("createEventsPanel — Go-to dispatches view aim for any event with view data", () => {
+  it("conjunction with view fields → dispatches set-view with its az/alt", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2026-06-10T10:00:00Z");
+    const conjEvent: CelestialEvent = {
+      kind: "conjunction",
+      when,
+      title: "Venus – Mars conjunction",
+      description: "within 1°",
+      body1: "Venus",
+      body2: "Mars",
+      separationDeg: 1,
+      viewAz: 123,
+      viewAlt: 45,
+    };
+    const el = createEventsPanel([conjEvent], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
+    const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
+    expect(calls.some((c) => c.type === "set-time")).toBe(true);
+    const view = calls.find((c) => c.type === "set-view") as
+      | { type: "set-view"; az: number; alt: number }
+      | undefined;
+    expect(view).toBeDefined();
+    expect(view?.az).toBe(123);
+    expect(view?.alt).toBe(45);
+  });
+
+  it("lunar eclipse with view fields → dispatches set-view with Moon az/alt", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2026-07-20T18:00:00Z");
+    const eclipseEvent: CelestialEvent = {
+      kind: "lunar-eclipse",
+      when,
+      title: "Lunar eclipse (total)",
+      description: "100% obscuration",
+      eclipseKind: "total",
+      obscuration: 1,
+      viewAz: 210,
+      viewAlt: 30,
+    };
+    const el = createEventsPanel([eclipseEvent], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
+    const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
+    const view = calls.find((c) => c.type === "set-view") as
+      | { type: "set-view"; az: number; alt: number }
+      | undefined;
+    expect(view).toBeDefined();
+    expect(view?.az).toBe(210);
+    expect(view?.alt).toBe(30);
+  });
+
+  it("meteor shower with view fields → dispatches set-view with radiant az/alt", () => {
+    const dispatch = vi.fn();
+    const when = new Date("2026-08-12T09:00:00Z");
+    const showerEvent: CelestialEvent = {
+      kind: "meteor-shower-peak",
+      when,
+      title: "Perseids meteor shower peak",
+      description: "~100/hr",
+      showerId: "perseids",
+      showerName: "Perseids",
+      zhr: 100,
+      viewAz: 50,
+      viewAlt: 60,
+    };
+    const el = createEventsPanel([showerEvent], dispatch);
+    const btn = el.querySelector<HTMLButtonElement>("[data-testid='event-goto']")!;
+    btn.click();
+    const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
+    const view = calls.find((c) => c.type === "set-view") as
+      | { type: "set-view"; az: number; alt: number }
+      | undefined;
+    expect(view).toBeDefined();
+    expect(view?.az).toBe(50);
+    expect(view?.alt).toBe(60);
+  });
+});
+
 describe("createEventsPanel — ISS Go-to dispatches view aim", () => {
   it("on 'Go to' for an ISS pass, dispatches set-time AND set-view to peak az/alt so the camera points at the ISS", () => {
     const dispatch = vi.fn();
