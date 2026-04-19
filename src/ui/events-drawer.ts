@@ -60,12 +60,10 @@ export function createEventsDrawer(options: EventsDrawerOptions): EventsDrawer {
   // Internal drawer structure test ids also get an events-drawer prefix so the
   // existing events-drawer-backdrop / events-drawer-close / events-drawer-body
   // queries continue to match after swapping in the canonical primitive.
-  drawer.element
-    .querySelectorAll<HTMLElement>("[data-testid^='drawer']")
-    .forEach((el) => {
-      const current = el.dataset.testid!;
-      el.dataset.testid = `events-${current}`;
-    });
+  drawer.element.querySelectorAll<HTMLElement>("[data-testid^='drawer']").forEach((el) => {
+    const current = el.dataset.testid!;
+    el.dataset.testid = `events-${current}`;
+  });
 
   return {
     element: drawer.element,

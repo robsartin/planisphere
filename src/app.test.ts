@@ -225,27 +225,25 @@ const eventsDrawerOpen = vi.fn();
 
 // Mock UI modules — they exercise DOM which is fully covered in their own tests
 vi.mock("./ui", () => ({
-  createPanel: vi
-    .fn()
-    .mockImplementation(
-      (
-        _root: HTMLElement,
-        _dispatch: unknown,
-        options?: {
-          onOpenEvents?: () => void;
-          onOpenSettings?: () => void;
-          onOpenHelp?: () => void;
-        },
-      ) => {
-        capturedPanelOptions = options ?? null;
-        return {
-          element: document.createElement("div"),
-          setContent: vi.fn(),
-          setCollapsed: vi.fn(),
-          setNightVision: vi.fn(),
-        };
+  createPanel: vi.fn().mockImplementation(
+    (
+      _root: HTMLElement,
+      _dispatch: unknown,
+      options?: {
+        onOpenEvents?: () => void;
+        onOpenSettings?: () => void;
+        onOpenHelp?: () => void;
       },
-    ),
+    ) => {
+      capturedPanelOptions = options ?? null;
+      return {
+        element: document.createElement("div"),
+        setContent: vi.fn(),
+        setCollapsed: vi.fn(),
+        setNightVision: vi.fn(),
+      };
+    },
+  ),
   createLocationControls: vi.fn().mockReturnValue(document.createElement("div")),
   createViewControls: vi.fn().mockReturnValue(document.createElement("div")),
   createPlanetInfo: vi.fn().mockReturnValue(document.createElement("div")),
