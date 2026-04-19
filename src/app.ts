@@ -46,6 +46,7 @@ import {
   createTrailLayer,
   createReticleLayer,
   setCameraView,
+  getCameraHeadingDeg,
 } from "./scene";
 import type {
   StarLayer,
@@ -66,7 +67,6 @@ import type { SatelliteRecord, TleParseError } from "./sat";
 import type { Result } from "./result";
 import {
   createPanel,
-  createTimeControls,
   createLocationControls,
   createLayerControls,
   createViewControls,
@@ -75,8 +75,9 @@ import {
   createFovControls,
   createEventsPanel,
   createHelpModal,
+  createBottomHud,
 } from "./ui";
-import type { TimeControls } from "./ui";
+import type { BottomHud } from "./ui";
 import { computeUpcomingEvents } from "./astro/events";
 import type { CelestialEvent } from "./astro/events";
 import type { UIIntent } from "./ui";
@@ -591,7 +592,7 @@ export async function bootstrap(
     );
   }
 
-  let timeControls: TimeControls | null = null;
+  let bottomHud: BottomHud | null = null;
 
   // Intent handler
   function handleIntent(intent: UIIntent): void {
@@ -603,7 +604,7 @@ export async function bootstrap(
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
-        timeControls?.setTime(intent.time);
+        bottomHud?.setTime(intent.time);
         updateUrl(state);
         break;
       }
@@ -615,6 +616,7 @@ export async function bootstrap(
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
+        bottomHud?.setObserver(intent.lat, intent.lon);
         updateUrl(state);
         break;
       }
@@ -700,7 +702,7 @@ export async function bootstrap(
         refreshEvents(state);
         rebuildSearchIndex(state);
         rerenderTrail(state);
-        timeControls?.setTime(now);
+        bottomHud?.setTime(now);
         updateUrl(state);
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -713,6 +715,7 @@ export async function bootstrap(
               refreshEvents(state);
               rebuildSearchIndex(state);
               rerenderTrail(state);
+              bottomHud?.setObserver(lat, lon);
               updateUrl(state);
             },
             () => {
@@ -720,6 +723,16 @@ export async function bootstrap(
             },
           );
         }
+        break;
+      }
+      case "open-location-picker": {
+        // Milestone 1B (#193) will replace this stub with the real overlay.
+        console.warn("[planisphere] open-location-picker intent — picker not yet implemented");
+        break;
+      }
+      case "toggle-animation": {
+        // Plan 08 / issue #136 will wire the actual play/pause animator.
+        // TODO(#136): start/stop the time-advance loop here.
         break;
       }
     }
@@ -733,6 +746,34 @@ export async function bootstrap(
   // Help modal — created once at bootstrap, appended to <body> so it overlays everything.
   const helpModal = createHelpModal();
   document.body.appendChild(helpModal.element);
+
+  // Bottom HUD — ambient bar with time, location chip, and compass. Replaces the
+  // side-panel Time section (milestone 1A of Plan 07). Appended to <body> so it
+  // sits above the cesium canvas independently of the side panel.
+  bottomHud = createBottomHud(
+    {
+      timeUtc: state.timeUtc,
+      lat: state.observer.lat,
+      lon: state.observer.lon,
+    },
+    handleIntent,
+  );
+  document.body.appendChild(bottomHud.element);
+  bottomHud.setCompass(getCameraHeadingDeg(viewer.camera));
+
+  // Poll the camera heading on each animation frame so the compass chip mirrors
+  // drag-rotation of the view. Cesium's camera doesn't emit a change event.
+  const raf =
+    typeof globalThis.requestAnimationFrame === "function"
+      ? globalThis.requestAnimationFrame.bind(globalThis)
+      : null;
+  if (raf !== null) {
+    const tickCompass = (): void => {
+      bottomHud?.setCompass(getCameraHeadingDeg(viewer.camera));
+      raf(tickCompass);
+    };
+    raf(tickCompass);
+  }
 
   // Build UI panel
   let nightVisionPanel: ReturnType<typeof createPanel> | null = null;
@@ -752,10 +793,7 @@ export async function bootstrap(
     const searchEl = createSearch((query) => searchObjects(searchIndex, query), handleIntent);
     uiContainer.appendChild(searchEl);
 
-    timeControls = createTimeControls(state.timeUtc, handleIntent);
-    uiContainer.appendChild(timeControls.element);
-
-    // Events panel sits right after time because Go-to jumps the time cursor;
+    // Events panel sits right after search because Go-to jumps the time cursor;
     // putting it above the location/layer blocks keeps it above the fold for
     // typical panel heights.
     refreshEvents(state);

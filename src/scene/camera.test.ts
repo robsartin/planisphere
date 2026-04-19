@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Camera, Viewer } from "cesium";
-import { initCamera, setupTrackballControls } from "./camera";
+import { initCamera, setupTrackballControls, getCameraHeadingDeg } from "./camera";
 
 const { mockSetInputAction, mockScreenSpaceEventHandler } = vi.hoisted(() => {
   const mockSetInputAction = vi.fn();
@@ -15,7 +15,10 @@ vi.mock("cesium", () => ({
     cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
     normalize: vi.fn((_v: object, result: object) => result),
   },
-  Math: { toRadians: (deg: number) => (deg * Math.PI) / 180 },
+  Math: {
+    toRadians: (deg: number) => (deg * Math.PI) / 180,
+    toDegrees: (rad: number) => (rad * 180) / Math.PI,
+  },
   Matrix3: {
     fromQuaternion: vi.fn().mockReturnValue({}),
     multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),
@@ -75,6 +78,28 @@ describe("initCamera", () => {
     initCamera(mock, 40.0, -74.0);
     const [args] = setView.mock.calls[0] as [{ orientation: { pitch: number } }];
     expect(args.orientation.pitch).toBeGreaterThan(0);
+  });
+});
+
+describe("getCameraHeadingDeg", () => {
+  it("converts radian heading to degrees", () => {
+    const camera = { heading: Math.PI / 2 } as unknown as Camera;
+    expect(getCameraHeadingDeg(camera)).toBeCloseTo(90, 5);
+  });
+
+  it("normalizes negative headings into [0, 360)", () => {
+    const camera = { heading: -Math.PI / 2 } as unknown as Camera;
+    expect(getCameraHeadingDeg(camera)).toBeCloseTo(270, 5);
+  });
+
+  it("returns 0 when camera has no numeric heading (test mocks, degenerate cases)", () => {
+    const camera = {} as unknown as Camera;
+    expect(getCameraHeadingDeg(camera)).toBe(0);
+  });
+
+  it("returns 0 when heading is NaN", () => {
+    const camera = { heading: NaN } as unknown as Camera;
+    expect(getCameraHeadingDeg(camera)).toBe(0);
   });
 });
 

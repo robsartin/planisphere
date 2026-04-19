@@ -12,6 +12,8 @@ export { createFovControls } from "./fov-controls";
 export { createEventsPanel } from "./events-panel";
 export type { HelpModal } from "./help-modal";
 export { createHelpModal } from "./help-modal";
+export { createBottomHud } from "./bottom-hud";
+export type { BottomHud } from "./bottom-hud";
 
 import type { LayerVisibility, LayerOpacity } from "../state/state";
 import type { Language } from "../astro/constellation-names";
@@ -31,4 +33,6 @@ export type UIIntent =
   | { type: "set-language"; language: Language }
   | { type: "set-skyculture"; id: SkycultureId }
   | { type: "set-fov"; preset: FovPresetId }
-  | { type: "now" };
+  | { type: "now" }
+  | { type: "open-location-picker" }
+  | { type: "toggle-animation" };

@@ -13,6 +13,18 @@ export function initCamera(camera: Camera, lat: number, lon: number): void {
   setCameraView(camera, lat, lon, 0, 89.9);
 }
 
+/**
+ * Read the current camera heading (azimuth) in degrees, normalized to [0, 360).
+ * Returns 0 if the camera object does not expose a numeric `heading` property —
+ * this happens in jsdom-based tests where the mock camera is a static object.
+ */
+export function getCameraHeadingDeg(camera: Camera): number {
+  const h = (camera as { heading?: unknown }).heading;
+  if (typeof h !== "number" || !Number.isFinite(h)) return 0;
+  const deg = CesiumMath.toDegrees(h);
+  return ((deg % 360) + 360) % 360;
+}
+
 export function setCameraView(
   camera: Camera,
   lat: number,
