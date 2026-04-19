@@ -1103,8 +1103,11 @@ describe("handleIntent routing", () => {
     document.body.removeChild(panelRoot);
   });
 
-  it("picking an object in the scene dispatches open-object-card + opens a card", async () => {
-    capturedDispatch = null;
+  async function driveScenePick(pickedId: Record<string, unknown>): Promise<{
+    openMock: ReturnType<typeof vi.fn>;
+    root: HTMLElement;
+    panelRoot: HTMLElement;
+  }> {
     const ui = await import("./ui");
     const openMock = vi.fn();
     (
@@ -1120,12 +1123,7 @@ describe("handleIntent routing", () => {
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
 
-    // Find the LEFT_CLICK handler on the tooltip's ScreenSpaceEventHandler so we
-    // can drive it directly. It's the handler whose `pick` flow returns an id.
     const cesium = await import("cesium");
-    const scene = await import("./scene");
-    // Set the shared scene pick to return a star record
-    scene; // reference to silence linter
     const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
     const handlers = handlerCtor.mock.results.map(
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
@@ -1141,28 +1139,88 @@ describe("handleIntent routing", () => {
     }
 
     if (clickFn !== null) {
-      // The scene `.pick` is the vi.fn() inside the cesium mock — return a star id
       const viewerCtor = cesium.Viewer as unknown as ReturnType<typeof vi.fn>;
       const lastViewer = viewerCtor.mock.results[viewerCtor.mock.results.length - 1]?.value as {
         scene?: { pick?: ReturnType<typeof vi.fn> };
       };
-      lastViewer?.scene?.pick?.mockReturnValueOnce({
-        id: {
-          hip: 32349,
-          ra: 101.2872,
-          dec: -16.7161,
-          alt: 45,
-          az: 180,
-          mag: -1.44,
-          name: "Sirius",
-          size: 16,
-          opacity: 1,
-        },
-      });
+      lastViewer?.scene?.pick?.mockReturnValueOnce({ id: pickedId });
       clickFn({ position: { x: 140, y: 260 } });
-      expect(openMock).toHaveBeenCalled();
     }
 
+    return { openMock, root, panelRoot };
+  }
+
+  it("picking a star dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      hip: 32349,
+      ra: 101.2872,
+      dec: -16.7161,
+      alt: 45,
+      az: 180,
+      mag: -1.44,
+      name: "Sirius",
+      size: 16,
+      opacity: 1,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a planet (body) dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      id: "Mars",
+      ra: 120,
+      dec: 20,
+      alt: 30,
+      az: 90,
+      mag: 0.4,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a satellite dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      noradId: 25544,
+      name: "ISS",
+      alt: 40,
+      az: 160,
+      velocity: 7.66,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a Messier object dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      m: 31,
+      type: "Galaxy",
+      name: "Andromeda",
+      alt: 50,
+      az: 70,
+      mag: 3.4,
+    });
+    expect(openMock).toHaveBeenCalled();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("picking a constellation label dispatches open-object-card + opens a card", async () => {
+    capturedDispatch = null;
+    const { openMock, root, panelRoot } = await driveScenePick({
+      id: "Ori",
+      name: "Orion",
+      centroid: { alt: 25, az: 180 },
+      lines: [],
+    });
+    expect(openMock).toHaveBeenCalled();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });
