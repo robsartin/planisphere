@@ -139,20 +139,36 @@ type Env = {
   DB: D1Database;
   APP_ORIGIN: string; // e.g. "https://planisphere.app" — cookie redirects
   SESSION_SECRET: string; // HMAC key — set via `wrangler secret put`
+  RESEND_API_KEY?: string; // Resend secret — ADR 014
+  EMAIL_FROM?: string; // verified sender on Resend
 };
 ```
 
-`SESSION_SECRET` is a Worker secret (never committed). `APP_ORIGIN` and the
-D1 binding are in `wrangler.jsonc` — the single Worker-with-Static-Assets
-config that deploys both this module and the SPA `dist/` bundle. The dev
-`SESSION_SECRET` is a placeholder string — fine for local development, not
-for any deployed environment.
+`SESSION_SECRET` and `RESEND_API_KEY` are Worker secrets (never committed).
+`APP_ORIGIN`, `EMAIL_FROM`, and the D1 binding are in `wrangler.jsonc` —
+the single Worker-with-Static-Assets config that deploys both this
+module and the SPA `dist/` bundle. The dev `SESSION_SECRET` is a
+placeholder string — fine for local development, not for any deployed
+environment.
+
+### Email delivery (Resend)
+
+Real magic-link email uses the [Resend](https://resend.com) HTTP API
+(ADR 014). To switch off the dev stub in a deployed environment:
+
+1. Verify your sender domain in the Resend dashboard — add the SPF +
+   DKIM TXT records they emit to your DNS.
+2. Create an API key scoped to "Send Email".
+3. `pnpm exec wrangler secret put RESEND_API_KEY` — paste the key.
+4. Set `EMAIL_FROM` in `wrangler.jsonc` to the verified address
+   (e.g. `noreply@planisphere.app`) and redeploy.
+
+Until both `RESEND_API_KEY` and `EMAIL_FROM` are non-empty, the Worker
+uses `ConsoleEmailSender` — grep `wrangler tail --search "[auth]"` for
+`[auth] magic link for <email>: <url>`.
 
 ## What's stubbed in this PR
 
-- **Email delivery.** `email.ts` logs `[auth] magic link for <email>: <url>`
-  to the Worker console. Extracting a `EmailSender` interface means swapping
-  in Resend / Postmark / SES is a one-file change.
 - **Session expiry cleanup.** Expired `sessions` rows are rejected at read
   time but not pruned. Follow-up.
 - **Magic-link expiry.** Tokens are single-use but have no time-to-live

@@ -6,6 +6,12 @@ export type Env = {
   readonly DB: D1Database;
   readonly APP_ORIGIN: string;
   readonly SESSION_SECRET: string;
+  /** Resend API key (Worker secret). Absent / empty in dev → auth falls
+   *  back to the console-log stub. See ADR 014. */
+  readonly RESEND_API_KEY?: string;
+  /** Verified sender address on the Resend side, e.g. `noreply@your-domain`.
+   *  Required alongside `RESEND_API_KEY` to switch off the dev stub. */
+  readonly EMAIL_FROM?: string;
 };
 
 /** User row in D1. Tier is a string column; the narrow union is enforced
