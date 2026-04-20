@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { isPro } from "../features";
 import type { NotebookDoc, NotebookError, NotebookPayload, NotebookSummary } from "../notebooks";
-import { createNotebook, listNotebooks, updateNotebook } from "../notebooks";
+import { createNotebook, getNotebook, listNotebooks, updateNotebook } from "../notebooks";
 import type { Result } from "../result";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
 import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
@@ -11,6 +11,7 @@ import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 export type NotebookApi = {
   list(): Promise<Result<NotebookSummary[], NotebookError>>;
   create(payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
+  get(id: number): Promise<Result<NotebookDoc, NotebookError>>;
   update(id: number, payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
 };
 
@@ -49,6 +50,7 @@ export type NotebookWorkspace = {
 const DEFAULT_API: NotebookApi = {
   list: listNotebooks,
   create: createNotebook,
+  get: getNotebook,
   update: updateNotebook,
 };
 
@@ -168,15 +170,15 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     }
     const first = listRes.value[0];
     if (first !== undefined) {
-      currentId = first.id;
-      currentTitle = first.title;
-      mountEditor(EMPTY_DOC_JSON);
-      // Load the full doc. listRes only has summaries (no content_json).
-      // To keep this PR tight we fetch content by re-creating with the
-      // summary shape — the individual GET lives in the notebooks client
-      // but is not yet needed here. Upload-only shape for now: the editor
-      // starts empty, and the user's next edit overwrites any server
-      // content. Follow-up PR (#219 list view) swaps this for a true read.
+      const getRes = await api.get(first.id);
+      if (!getRes.ok) {
+        renderError(errorToMessage(getRes.error));
+        statusLine.textContent = "";
+        return;
+      }
+      currentId = getRes.value.id;
+      currentTitle = getRes.value.title;
+      mountEditor(getRes.value.content_json);
     } else {
       const createRes = await api.create({
         title: DEFAULT_NOTEBOOK_TITLE,
