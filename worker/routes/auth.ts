@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { generateToken, signCookie, verifyCookie } from "../crypto";
+import { generateToken, signCookie } from "../crypto";
 import {
   consumeMagicLink,
   deleteSession,
@@ -11,6 +11,7 @@ import {
   upsertUser,
 } from "../db";
 import type { EmailSender } from "../email";
+import { readSessionId } from "../session";
 import {
   MAGIC_LINK_RATE_WINDOW_MS,
   SESSION_COOKIE,
@@ -130,21 +131,4 @@ export async function handleMe(req: Request, env: Env): Promise<Response> {
   const user = await getUserById(env.DB, session.user_id);
   if (!user) return errorJson("unauthenticated", 401);
   return json({ email: user.email, tier: user.tier });
-}
-
-async function readSessionId(req: Request, env: Env): Promise<string | null> {
-  const raw = parseCookie(req.headers.get("cookie"), SESSION_COOKIE);
-  if (raw === null) return null;
-  return verifyCookie(env.SESSION_SECRET, raw);
-}
-
-function parseCookie(header: string | null, name: string): string | null {
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq < 0) continue;
-    const k = part.slice(0, eq).trim();
-    if (k === name) return part.slice(eq + 1).trim();
-  }
-  return null;
 }
