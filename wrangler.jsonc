@@ -39,6 +39,7 @@
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
     "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
+     "EMAIL_FROM": "noreply@rabbitsatin.com",  // ← or "onboarding@resend.dev" for the shortcut
   },
 
   "observability": {
