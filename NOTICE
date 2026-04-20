@@ -39,6 +39,16 @@ Copyright (c) 2024 Mario Heiderich (https://cure53.de/)
 License: Apache-2.0 OR MPL-2.0 (consumed under Apache-2.0)
 https://github.com/cure53/DOMPurify
 
+tiptap (@tiptap/core, @tiptap/pm, @tiptap/starter-kit)
+Copyright (c) 2024 überdosis GmbH (https://tiptap.dev)
+License: MIT
+https://github.com/ueberdosis/tiptap
+
+ProseMirror (re-exported via @tiptap/pm)
+Copyright (C) 2015-present by Marijn Haverbeke and contributors
+License: MIT
+https://github.com/ProseMirror
+
 @cloudflare/vitest-pool-workers (dev dependency)
 Copyright (c) Cloudflare, Inc.
 License: MIT

@@ -1397,9 +1397,9 @@ export async function bootstrap(
     if (user !== null) setUser(user.email);
   });
 
-  // Notebook workspace (milestone 2A of Plan 07, issue #216). Right-side shell
-  // shown only when state.mode === "notebook". Content is a placeholder +
-  // localStorage-backed scratch textarea; the real editor arrives in #219.
+  // Notebook workspace (milestone 2A / 2D of Plan 07, issues #216 + #219).
+  // Right-side shell shown only when state.mode === "notebook". The tiptap
+  // editor inside autosaves to /api/notebooks via the default NotebookApi.
   notebookWorkspace = createNotebookWorkspace({
     getCurrentView: () => ({
       href: globalThis.location.href,
