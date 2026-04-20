@@ -33,9 +33,8 @@
 
   // Non-secret defaults. The real SESSION_SECRET must be set out-of-band
   //   wrangler secret put SESSION_SECRET
-  // (never committed). APP_ORIGIN is the URL magic-link callbacks redirect
-  // to — override per environment via Cloudflare dashboard or `vars`
-  // overrides in a deploy-time config.
+  // (never committed). Magic-link callback URLs are built against the
+  // request's own origin, so no APP_ORIGIN var is needed.
   //
   // Email (ADR 014): `RESEND_API_KEY` is a Worker secret
   //   wrangler secret put RESEND_API_KEY
@@ -43,7 +42,6 @@
   // either is unset, the Worker falls back to the console-log stub —
   // grep `wrangler tail` for `[auth] magic link`.
   "vars": {
-    "APP_ORIGIN": "http://localhost:5173",
     "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
     "EMAIL_FROM": "noreply@rabbitsatin.com", // ← or "onboarding@resend.dev" for the shortcut
   },

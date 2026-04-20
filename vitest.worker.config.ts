@@ -19,7 +19,6 @@ export default defineWorkersConfig({
           compatibilityFlags: ["nodejs_compat"],
           d1Databases: ["DB"],
           bindings: {
-            APP_ORIGIN: "http://localhost:5173",
             SESSION_SECRET: "test-secret-at-least-32-bytes-long-please!!",
           },
         },
