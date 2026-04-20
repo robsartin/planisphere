@@ -81,7 +81,7 @@ TTL = 30 days rolling, no password reset ever) carries through unchanged.
   the HMAC check before we even hit D1. No measurable latency cost — the
   HMAC is a single SHA-256 over <50 bytes.
 - **`SESSION_SECRET` is a Worker secret** (`wrangler secret put
-SESSION_SECRET`). The value in `wrangler.worker.jsonc` is a dev-only
+SESSION_SECRET`). The value in `wrangler.jsonc` is a dev-only
   placeholder. Rotating the secret invalidates all live sessions — an
   accepted consequence, documented in `worker/README.md`.
 - **OAuth is a known follow-up, not a shipped feature.** The sign-in modal

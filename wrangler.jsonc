@@ -1,7 +1,47 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Single Cloudflare Worker service for the planisphere. Serves the static
+// SPA from ./dist via `assets`, and runs the `worker/` module for any path
+// that doesn't match a static file — i.e. `/api/*`. See ADR 009 ("single
+// Worker service, co-deployed with the Pages SPA") and ADR 011.
+//
+// The Git → Cloudflare integration deploys this config on every push to
+// main, and each PR gets its own preview URL that exercises both halves of
+// the app.
 {
   "name": "planisphere",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-04-16",
+  "compatibility_flags": ["nodejs_compat"],
+
   "assets": {
     "directory": "./dist",
+  },
+
+  // D1 binding. `database_id` is a placeholder — once per environment, run
+  //   wrangler d1 create planisphere-dev   (or planisphere-prod)
+  // and paste the returned UUID here. Local `wrangler dev` uses an
+  // in-memory SQLite instance automatically.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "planisphere-dev",
+      "database_id": "5d31eb5b-daba-4b16-8946-9467eebc40ac",
+      "migrations_dir": "migrations",
+    },
+  ],
+
+  // Non-secret defaults. The real SESSION_SECRET must be set out-of-band
+  //   wrangler secret put SESSION_SECRET
+  // (never committed). APP_ORIGIN is the URL magic-link callbacks redirect
+  // to — override per environment via Cloudflare dashboard or `vars`
+  // overrides in a deploy-time config.
+  "vars": {
+    "APP_ORIGIN": "http://localhost:5173",
+    "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
+  },
+
+  "observability": {
+    "enabled": true,
   },
 }

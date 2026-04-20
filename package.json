@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "concurrently -n spa,worker -c cyan,magenta \"pnpm dev:client\" \"pnpm dev:worker\"",
     "dev:client": "vite",
-    "dev:worker": "wrangler dev --config wrangler.worker.jsonc",
+    "dev:worker": "wrangler dev",
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",

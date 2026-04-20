@@ -115,9 +115,10 @@ type Env = {
 ```
 
 `SESSION_SECRET` is a Worker secret (never committed). `APP_ORIGIN` and the
-D1 binding are in `wrangler.worker.jsonc`. The dev SESSION_SECRET is a
-placeholder string — fine for local development, not for any deployed
-environment.
+D1 binding are in `wrangler.jsonc` — the single Worker-with-Static-Assets
+config that deploys both this module and the SPA `dist/` bundle. The dev
+`SESSION_SECRET` is a placeholder string — fine for local development, not
+for any deployed environment.
 
 ## What's stubbed in this PR
 
@@ -139,13 +140,30 @@ environment.
 ## Running locally
 
 ```
-wrangler d1 create planisphere-dev --local   # one-time
-wrangler d1 migrations apply planisphere-dev --local --config wrangler.worker.jsonc
-pnpm dev                                     # vite + wrangler dev in parallel
+pnpm exec wrangler d1 migrations apply planisphere-dev --local   # one-time
+pnpm dev                                                         # vite :5173 + wrangler dev :8787
 ```
 
-`pnpm dev:client` and `pnpm dev:worker` are available for running only one
-side. See `docs/adr/012-worker-deps.md` for why we use `concurrently`.
+Vite proxies `/api/*` → `http://localhost:8787` so the SPA stays on one
+origin for fetch / cookie semantics, matching production (where the merged
+`wrangler.jsonc` serves both halves). `pnpm dev:client` and `pnpm
+dev:worker` are available for running only one side. See
+`docs/adr/012-worker-deps.md` for why we use `concurrently`.
+
+## First-time deploy (per environment)
+
+The Worker and its D1 database are provisioned out-of-band; `wrangler.jsonc`
+ships with placeholder values.
+
+```
+pnpm exec wrangler d1 create planisphere-dev            # paste the UUID into wrangler.jsonc
+pnpm exec wrangler secret put SESSION_SECRET            # strong random value, per env
+pnpm exec wrangler d1 migrations apply planisphere-dev --remote
+```
+
+After that, the Cloudflare Git integration takes over — every push to
+`main` (and every PR) gets both the SPA and `/api/*` in the same preview
+URL.
 
 ## Testing
 

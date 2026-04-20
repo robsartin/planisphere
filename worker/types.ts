@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /** D1 + secret bindings available to the Worker. Populated by the runtime
- *  from `wrangler.worker.jsonc` + `wrangler secret put`. */
+ *  from `wrangler.jsonc` + `wrangler secret put`. */
 export type Env = {
   readonly DB: D1Database;
   readonly APP_ORIGIN: string;

@@ -248,12 +248,12 @@ let notebookWorkspaceMock: {
   destroy: ReturnType<typeof vi.fn>;
   onProRequired: (() => void) | null;
 } | null = null;
-let emailGateModalMock: {
+let loginModalMock: {
   element: HTMLElement;
   open: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   isOpen: ReturnType<typeof vi.fn>;
-  onGranted: () => void;
+  requestMagicLink: (email: string) => Promise<unknown>;
 } | null = null;
 let panelSetModeMock: ReturnType<typeof vi.fn> | null = null;
 let settingsDrawerMock: {
@@ -454,19 +454,21 @@ vi.mock("./ui", () => ({
       return mock;
     }),
   NOTEBOOK_SCRATCH_STORAGE_KEY: "planisphere.notebook.scratch.v1",
-  createEmailGateModal: vi.fn().mockImplementation((opts: { onGranted: () => void }) => {
-    const element = document.createElement("div");
-    element.dataset.testid = "email-gate-modal";
-    const mock = {
-      element,
-      open: vi.fn(),
-      close: vi.fn(),
-      isOpen: vi.fn().mockReturnValue(false),
-      onGranted: opts.onGranted,
-    };
-    emailGateModalMock = mock;
-    return mock;
-  }),
+  createLoginModal: vi
+    .fn()
+    .mockImplementation((opts: { requestMagicLink: (email: string) => Promise<unknown> }) => {
+      const element = document.createElement("div");
+      element.dataset.testid = "login-modal";
+      const mock = {
+        element,
+        open: vi.fn(),
+        close: vi.fn(),
+        isOpen: vi.fn().mockReturnValue(false),
+        requestMagicLink: opts.requestMagicLink,
+      };
+      loginModalMock = mock;
+      return mock;
+    }),
   createOnboardingOverlay: vi.fn().mockImplementation(() => {
     const element = document.createElement("div");
     element.dataset.testid = "onboarding-overlay";
@@ -494,6 +496,22 @@ vi.mock("./sat", () => ({
   fetchTle: vi.fn().mockResolvedValue({ ok: true, value: "" }),
   parseTle: vi.fn().mockReturnValue({ ok: true, value: [] }),
   propagateSatellites: vi.fn().mockReturnValue([]),
+}));
+
+// Mock the client-side auth wrapper. Tests can flip the currentUser() return
+// via `setCurrentUserResult` (declared below) to exercise the bootstrap sync.
+// requestMagicLink always reports success so the login-modal wiring test can
+// round-trip through the mock.
+let currentUserResult: { email: string; tier: "free" | "pro" } | null = null;
+function setCurrentUserResult(value: { email: string; tier: "free" | "pro" } | null): void {
+  currentUserResult = value;
+}
+vi.mock("./auth", () => ({
+  currentUser: vi.fn().mockImplementation(() => Promise.resolve(currentUserResult)),
+  requestMagicLink: vi
+    .fn()
+    .mockImplementation(() => Promise.resolve({ ok: true, value: undefined })),
+  logout: vi.fn().mockImplementation(() => Promise.resolve()),
 }));
 
 import { bootstrap } from "./app";
@@ -1781,20 +1799,20 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode notebook while NOT Pro opens the email-gate modal and does NOT flip", async () => {
+  it("set-mode notebook while NOT Pro opens the login modal and does NOT flip", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
-    emailGateModalMock = null;
+    loginModalMock = null;
     globalThis.localStorage?.clear();
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(emailGateModalMock).not.toBeNull();
+    expect(loginModalMock).not.toBeNull();
     expect(notebookWorkspaceMock).not.toBeNull();
     notebookWorkspaceMock!.setVisible.mockClear();
-    emailGateModalMock!.open.mockClear();
+    loginModalMock!.open.mockClear();
 
     capturedDispatch!({ type: "set-mode", mode: "notebook" });
-    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    expect(loginModalMock!.open).toHaveBeenCalledTimes(1);
     expect(notebookWorkspaceMock!.setVisible).not.toHaveBeenCalledWith(true);
 
     document.body.removeChild(root);
@@ -1803,78 +1821,113 @@ describe("handleIntent routing", () => {
       .querySelectorAll("[data-testid='notebook-workspace']")
       .forEach((el) => el.parentNode?.removeChild(el));
     document
-      .querySelectorAll("[data-testid='email-gate-modal']")
+      .querySelectorAll("[data-testid='login-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("email-gate onGranted callback re-dispatches set-mode and flips to notebook", async () => {
-    capturedDispatch = null;
-    notebookWorkspaceMock = null;
-    emailGateModalMock = null;
+  it("bootstrap calls currentUser() and syncs features.setUser when a user is returned", async () => {
     globalThis.localStorage?.clear();
+    setCurrentUserResult({ email: "rob.sartin@gmail.com", tier: "free" });
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(emailGateModalMock).not.toBeNull();
-    notebookWorkspaceMock!.setVisible.mockClear();
-    // Simulate the modal's successful path: user is now Pro and onGranted fires.
-    const { setUser } = await import("./features");
-    setUser("rob.sartin@gmail.com");
-    emailGateModalMock!.onGranted();
-    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    // The currentUser() promise resolves on a microtask; flush it.
+    await Promise.resolve();
+    await Promise.resolve();
+    const { getUser } = await import("./features");
+    expect(getUser().email).toBe("rob.sartin@gmail.com");
     globalThis.localStorage?.clear();
+    setCurrentUserResult(null);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
       .querySelectorAll("[data-testid='notebook-workspace']")
       .forEach((el) => el.parentNode?.removeChild(el));
     document
-      .querySelectorAll("[data-testid='email-gate-modal']")
+      .querySelectorAll("[data-testid='login-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("panel option onProRequired opens the email-gate modal", async () => {
+  it("bootstrap leaves features untouched when currentUser returns null", async () => {
+    globalThis.localStorage?.clear();
+    setCurrentUserResult(null);
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    await Promise.resolve();
+    await Promise.resolve();
+    const { getUser } = await import("./features");
+    expect(getUser().email).toBeNull();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='login-modal']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("panel option onProRequired opens the login modal", async () => {
     capturedDispatch = null;
     capturedPanelOptions = null;
-    emailGateModalMock = null;
+    loginModalMock = null;
     globalThis.localStorage?.clear();
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(capturedPanelOptions).not.toBeNull();
     expect(capturedPanelOptions!.onProRequired).toBeDefined();
-    expect(emailGateModalMock).not.toBeNull();
-    emailGateModalMock!.open.mockClear();
+    expect(loginModalMock).not.toBeNull();
+    loginModalMock!.open.mockClear();
     capturedPanelOptions!.onProRequired!();
-    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    expect(loginModalMock!.open).toHaveBeenCalledTimes(1);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
       .querySelectorAll("[data-testid='notebook-workspace']")
       .forEach((el) => el.parentNode?.removeChild(el));
     document
-      .querySelectorAll("[data-testid='email-gate-modal']")
+      .querySelectorAll("[data-testid='login-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("notebook workspace's onProRequired opens the email-gate modal", async () => {
+  it("notebook workspace's onProRequired opens the login modal", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
-    emailGateModalMock = null;
+    loginModalMock = null;
     globalThis.localStorage?.clear();
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(notebookWorkspaceMock).not.toBeNull();
     expect(notebookWorkspaceMock!.onProRequired).not.toBeNull();
-    expect(emailGateModalMock).not.toBeNull();
-    emailGateModalMock!.open.mockClear();
+    expect(loginModalMock).not.toBeNull();
+    loginModalMock!.open.mockClear();
     notebookWorkspaceMock!.onProRequired!();
-    expect(emailGateModalMock!.open).toHaveBeenCalledTimes(1);
+    expect(loginModalMock!.open).toHaveBeenCalledTimes(1);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
       .querySelectorAll("[data-testid='notebook-workspace']")
       .forEach((el) => el.parentNode?.removeChild(el));
     document
-      .querySelectorAll("[data-testid='email-gate-modal']")
+      .querySelectorAll("[data-testid='login-modal']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+  });
+
+  it("login modal is created with requestMagicLink wired to the auth module", async () => {
+    loginModalMock = null;
+    globalThis.localStorage?.clear();
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(loginModalMock).not.toBeNull();
+    expect(typeof loginModalMock!.requestMagicLink).toBe("function");
+    const result = await loginModalMock!.requestMagicLink("a@b.co");
+    expect(result).toEqual({ ok: true, value: undefined });
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='notebook-workspace']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    document
+      .querySelectorAll("[data-testid='login-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 

@@ -86,10 +86,11 @@ import {
   createEmptySkyPopover,
   createOnboardingOverlay,
   createNotebookWorkspace,
-  createEmailGateModal,
+  createLoginModal,
   ONBOARDING_STORAGE_KEY,
 } from "./ui";
-import { isPro } from "./features";
+import { currentUser, requestMagicLink } from "./auth";
+import { isPro, setUser } from "./features";
 import type { OnboardingStep } from "./ui";
 import type {
   BottomHud,
@@ -1067,7 +1068,7 @@ export async function bootstrap(
   let bottomHud: BottomHud | null = null;
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
   let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
-  let emailGateModal: ReturnType<typeof createEmailGateModal> | null = null;
+  let loginModal: ReturnType<typeof createLoginModal> | null = null;
 
   // Intent handler
   function handleIntent(intent: UIIntent): void {
@@ -1174,7 +1175,7 @@ export async function bootstrap(
         // enter it are shown the email-gate modal instead of flipping mode.
         // Exiting back to planetarium is always free.
         if (intent.mode === "notebook" && !isPro()) {
-          emailGateModal?.open();
+          loginModal?.open();
           break;
         }
         state = { ...state, mode: intent.mode };
@@ -1376,17 +1377,25 @@ export async function bootstrap(
   });
   document.body.appendChild(locationPicker.element);
 
-  // Email-gate modal (issue #224) — surfaced whenever a non-Pro user hits a
-  // Pro-gated action. Built before the panel/notebook so they can reference
-  // it via an onProRequired callback. On-grant behaviour is to re-dispatch a
-  // set-mode intent; by the time it fires, isPro() is true so the gate falls
-  // open.
-  emailGateModal = createEmailGateModal({
-    onGranted: () => {
-      handleIntent({ type: "set-mode", mode: "notebook" });
-    },
+  // Login modal (issue #218 follow-up to #227) — surfaced whenever a non-Pro
+  // user hits a Pro-gated action. Wires the client `requestMagicLink` helper
+  // directly into the modal so `fetch` never leaks into `src/ui/`. Success is
+  // "link sent"; the real "you're signed in" moment happens server-side on
+  // magic-link callback and is picked up by the currentUser() sync below.
+  loginModal = createLoginModal({
+    requestMagicLink: (email) => requestMagicLink(email),
   });
-  document.body.appendChild(emailGateModal.element);
+  document.body.appendChild(loginModal.element);
+
+  // Pick up any existing server session — if the ps_session cookie is valid
+  // the Worker will return the authenticated user; mirror the email into
+  // features.setUser so isPro() still reflects the Rung-1 allowlist during
+  // the transitional window. Fire-and-forget so bootstrap isn't gated on a
+  // network roundtrip; users who land here straight from a magic-link
+  // callback have plenty of idle time before their first click.
+  void currentUser().then((user) => {
+    if (user !== null) setUser(user.email);
+  });
 
   // Notebook workspace (milestone 2A of Plan 07, issue #216). Right-side shell
   // shown only when state.mode === "notebook". Content is a placeholder +
@@ -1397,7 +1406,7 @@ export async function bootstrap(
       timeUtc: state.timeUtc,
     }),
     onProRequired: () => {
-      emailGateModal?.open();
+      loginModal?.open();
     },
   });
   document.body.appendChild(notebookWorkspace.element);
@@ -1455,7 +1464,7 @@ export async function bootstrap(
         tonightDrawer?.open();
       },
       onProRequired: () => {
-        emailGateModal?.open();
+        loginModal?.open();
       },
       mode: state.mode,
     });
