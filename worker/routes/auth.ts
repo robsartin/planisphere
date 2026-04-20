@@ -76,7 +76,12 @@ export async function handleRequestLink(
   const expiresAt = Date.now() + MAGIC_LINK_TTL_SECONDS * 1000;
   await insertMagicLink(env.DB, token, normalized, expiresAt);
 
-  const callbackUrl = new URL("/api/auth/callback", env.APP_ORIGIN);
+  // Build the callback URL against the request's own origin, not a fixed
+  // env var. The Worker is same-origin with the SPA (ADR 009), so the
+  // request URL's origin is exactly where the user should land back —
+  // works correctly for `localhost`, preview URLs, and production
+  // without any per-environment config.
+  const callbackUrl = new URL("/api/auth/callback", new URL(req.url).origin);
   callbackUrl.searchParams.set("token", token);
   await email.sendMagicLink(normalized, callbackUrl.toString());
 
@@ -107,7 +112,7 @@ export async function handleCallback(req: Request, env: Env): Promise<Response> 
     status: 302,
     headers: {
       "Set-Cookie": cookie,
-      Location: env.APP_ORIGIN + "/",
+      Location: url.origin + "/",
     },
   });
 }

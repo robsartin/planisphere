@@ -77,7 +77,7 @@ client the strict-Result contract CLAUDE.md mandates.
                         UPDATE magic_links SET used_at=now   ► marks one-use
                         INSERT sessions  ──────────► sessions row
                         Set-Cookie: ps_session=<signed>
-                        Location: APP_ORIGIN/
+                        Location: <request-origin>/
                 ◄──────
 
   GET /api/auth/me
@@ -137,7 +137,6 @@ Declared as the `Env` type in `worker/types.ts`:
 ```ts
 type Env = {
   DB: D1Database;
-  APP_ORIGIN: string; // e.g. "https://planisphere.app" — cookie redirects
   SESSION_SECRET: string; // HMAC key — set via `wrangler secret put`
   RESEND_API_KEY?: string; // Resend secret — ADR 014
   EMAIL_FROM?: string; // verified sender on Resend
@@ -145,11 +144,15 @@ type Env = {
 ```
 
 `SESSION_SECRET` and `RESEND_API_KEY` are Worker secrets (never committed).
-`APP_ORIGIN`, `EMAIL_FROM`, and the D1 binding are in `wrangler.jsonc` —
-the single Worker-with-Static-Assets config that deploys both this
-module and the SPA `dist/` bundle. The dev `SESSION_SECRET` is a
-placeholder string — fine for local development, not for any deployed
-environment.
+`EMAIL_FROM` and the D1 binding are in `wrangler.jsonc` — the single
+Worker-with-Static-Assets config that deploys both this module and the
+SPA `dist/` bundle. The dev `SESSION_SECRET` is a placeholder string —
+fine for local development, not for any deployed environment.
+
+Magic-link callback URLs and post-login redirects are built against the
+**request's own origin** (not an env var). The Worker is same-origin
+with the SPA per ADR 009, so this gives the right URL on `localhost`,
+preview deploys, and production with no per-environment config.
 
 ### Email delivery (Resend)
 

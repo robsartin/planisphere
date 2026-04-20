@@ -92,7 +92,7 @@ describe("POST /api/auth/request-link", () => {
 });
 
 describe("GET /api/auth/callback", () => {
-  it("consumes the token, sets a cookie, and redirects to APP_ORIGIN", async () => {
+  it("consumes the token, sets a cookie, and redirects to the request origin", async () => {
     // Request a link, read the token straight out of D1.
     await fetchWorker(
       new Request(`${BASE}/api/auth/request-link`, {
@@ -109,7 +109,8 @@ describe("GET /api/auth/callback", () => {
 
     const res = await fetchWorker(new Request(`${BASE}/api/auth/callback?token=${pending!.token}`));
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toContain("http://localhost:5173");
+    // Location uses the request's own origin (no APP_ORIGIN env var).
+    expect(res.headers.get("Location")).toBe(`${BASE}/`);
     const cookie = extractSessionCookie(res);
     expect(cookie).toBeTruthy();
     expect(cookie).toContain(".");

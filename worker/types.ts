@@ -4,7 +4,6 @@
  *  from `wrangler.jsonc` + `wrangler secret put`. */
 export type Env = {
   readonly DB: D1Database;
-  readonly APP_ORIGIN: string;
   readonly SESSION_SECRET: string;
   /** Resend API key (Worker secret). Absent / empty in dev → auth falls
    *  back to the console-log stub. See ADR 014. */
