@@ -77,8 +77,7 @@ A change is not "done" until `pnpm typecheck && pnpm lint && pnpm format:check &
 Phase 2 introduces a Worker + D1 backend. See [`worker/README.md`](worker/README.md)
 and [ADR 009](docs/adr/009-backend-selection.md). First-time setup:
 
-    wrangler d1 create planisphere-dev --local
-    wrangler d1 migrations apply planisphere-dev --local --config wrangler.worker.jsonc
+    pnpm exec wrangler d1 migrations apply planisphere-dev --local
 
 `pnpm dev` then runs Vite and `wrangler dev` in parallel. The magic-link
 email is stubbed to a `console.log` line on the Worker console — grep for

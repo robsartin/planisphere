@@ -45,5 +45,16 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // In local dev the SPA runs on Vite (:5173) while the Worker + D1 run on
+    // `wrangler dev` (:8787). Proxying `/api/*` keeps the client on a single
+    // origin so cookies, fetch credentials, and the Set-Cookie redirect on
+    // the magic-link callback all behave as they do in production (where the
+    // merged `wrangler.jsonc` service serves both halves from one origin).
+    proxy: {
+      "/api": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+      },
+    },
   },
 });
