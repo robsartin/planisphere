@@ -59,15 +59,30 @@ See [`docs/architecture.md`](docs/architecture.md) for Mermaid diagrams covering
 ## Commands
 
     pnpm install       # install deps
-    pnpm dev           # local dev server on http://localhost:5173
-    pnpm typecheck     # tsc --noEmit
+    pnpm dev           # local dev: vite + wrangler dev in parallel
+    pnpm dev:client    # just the SPA (Vite) on http://localhost:5173
+    pnpm dev:worker    # just the Worker (wrangler dev)
+    pnpm typecheck     # tsc --noEmit for SPA + Worker
     pnpm lint          # ESLint + SPDX header check
     pnpm format:check  # Prettier check
-    pnpm test          # Vitest
+    pnpm test          # Vitest (SPA tests under jsdom)
     pnpm test:cov      # Vitest with coverage (enforces thresholds)
+    pnpm test:worker   # Vitest for worker/ under the Cloudflare Workers pool
     pnpm build         # typecheck + production build to dist/
 
 A change is not "done" until `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:cov && pnpm build` all pass locally.
+
+### Worker / D1 local setup
+
+Phase 2 introduces a Worker + D1 backend. See [`worker/README.md`](worker/README.md)
+and [ADR 009](docs/adr/009-backend-selection.md). First-time setup:
+
+    wrangler d1 create planisphere-dev --local
+    wrangler d1 migrations apply planisphere-dev --local --config wrangler.worker.jsonc
+
+`pnpm dev` then runs Vite and `wrangler dev` in parallel. The magic-link
+email is stubbed to a `console.log` line on the Worker console — grep for
+`[auth] magic link for`.
 
 ## Quality gates
 

@@ -26,6 +26,8 @@ export { createTonightDrawer } from "./tonight-drawer";
 export type { TonightDrawer, TonightDrawerOptions } from "./tonight-drawer";
 export type { HelpModal, HelpModalOptions } from "./help-modal";
 export { createHelpModal } from "./help-modal";
+export type { LoginModal, LoginModalOptions } from "./login-modal";
+export { createLoginModal } from "./login-modal";
 export { createOnboardingOverlay, ONBOARDING_STORAGE_KEY } from "./onboarding-overlay";
 export type {
   OnboardingOverlay,
