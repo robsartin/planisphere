@@ -15,11 +15,12 @@ import type { NotebookDoc, NotebookError, NotebookSummary } from "../notebooks";
 type Calls = {
   list: number;
   create: number;
+  gets: number[];
   updates: Array<{ id: number; content_json: string; title: string }>;
 };
 
 function stubApi(overrides: Partial<NotebookApi> = {}): { api: NotebookApi; calls: Calls } {
-  const calls: Calls = { list: 0, create: 0, updates: [] };
+  const calls: Calls = { list: 0, create: 0, gets: [], updates: [] };
   const api: NotebookApi = {
     list:
       overrides.list ??
@@ -35,6 +36,18 @@ function stubApi(overrides: Partial<NotebookApi> = {}): { api: NotebookApi; call
           id: 1,
           title: payload.title,
           content_json: payload.content_json,
+          created_at: 1,
+          updated_at: 1,
+        });
+      }),
+    get:
+      overrides.get ??
+      (async (id) => {
+        calls.gets.push(id);
+        return ok({
+          id,
+          title: "stub",
+          content_json: JSON.stringify({ type: "doc", content: [] }),
           created_at: 1,
           updated_at: 1,
         });
@@ -157,12 +170,26 @@ describe("createNotebookWorkspace — load / create", () => {
     ws.destroy();
   });
 
-  it("adopts the first notebook from the list without creating a new one", async () => {
+  it("adopts the first notebook from the list, fetches its content, and mounts the editor", async () => {
+    const savedContent = JSON.stringify({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "Perseids tonight" }] }],
+    });
     let listHits = 0;
     const { api, calls } = stubApi({
       list: async () => {
         listHits += 1;
         return ok([{ id: 42, title: "Existing", created_at: 1, updated_at: 2 }]);
+      },
+      get: async (id) => {
+        calls.gets.push(id);
+        return ok({
+          id,
+          title: "Existing",
+          content_json: savedContent,
+          created_at: 1,
+          updated_at: 2,
+        });
       },
     });
     const ws = createNotebookWorkspace({
@@ -174,7 +201,26 @@ describe("createNotebookWorkspace — load / create", () => {
     await ws.ready;
     expect(listHits).toBe(1);
     expect(calls.create).toBe(0);
-    expect(ws.element.querySelector("[data-testid='notebook-editor']")).not.toBeNull();
+    expect(calls.gets).toEqual([42]);
+    // The editor's contenteditable surface carries the saved text.
+    const surface = ws.element.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface?.textContent).toContain("Perseids tonight");
+    ws.destroy();
+  });
+
+  it("shows an error when list() succeeds but get() fails", async () => {
+    const { api } = stubApi({
+      list: async () => ok([{ id: 7, title: "Existing", created_at: 1, updated_at: 2 }]),
+      get: async () => err<NotebookError>({ kind: "server" }),
+    });
+    const ws = createNotebookWorkspace({
+      notebookApi: api,
+      saveDebounceMs: SAVE_DEBOUNCE,
+      initiallyVisible: true,
+    });
+    await vi.runAllTimersAsync();
+    await ws.ready;
+    expect(ws.element.querySelector("[data-testid='notebook-error']")).not.toBeNull();
     ws.destroy();
   });
 
@@ -452,6 +498,8 @@ describe("NotebookError branch — every kind maps to a message", () => {
         list: async (): Promise<Result<NotebookSummary[], NotebookError>> =>
           err({ kind } as NotebookError),
         create: async (): Promise<Result<NotebookDoc, NotebookError>> =>
+          err({ kind: "server" } as NotebookError),
+        get: async (): Promise<Result<NotebookDoc, NotebookError>> =>
           err({ kind: "server" } as NotebookError),
         update: async (): Promise<Result<NotebookDoc, NotebookError>> =>
           err({ kind: "server" } as NotebookError),
