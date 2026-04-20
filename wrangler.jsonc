@@ -26,7 +26,7 @@
     {
       "binding": "DB",
       "database_name": "planisphere-dev",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "5d31eb5b-daba-4b16-8946-9467eebc40ac",
       "migrations_dir": "migrations",
     },
   ],
