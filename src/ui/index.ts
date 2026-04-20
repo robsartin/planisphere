@@ -44,8 +44,12 @@ export type {
 } from "./location-picker-overlay";
 export { createCommandPalette } from "./command-palette";
 export type { CommandPalette, CommandPaletteOptions } from "./command-palette";
-export { createNotebookWorkspace, NOTEBOOK_SCRATCH_STORAGE_KEY } from "./notebook-workspace";
-export type { NotebookWorkspace, NotebookWorkspaceOptions } from "./notebook-workspace";
+export { createNotebookWorkspace } from "./notebook-workspace";
+export type {
+  NotebookApi,
+  NotebookWorkspace,
+  NotebookWorkspaceOptions,
+} from "./notebook-workspace";
 export { buildPaletteResults, fuzzyScore } from "./palette-results";
 export type {
   PaletteResult,

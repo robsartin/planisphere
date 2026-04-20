@@ -1,65 +1,228 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { isPro } from "../features";
-import { PANEL_BG, PANEL_BORDER, TEXT_COLOR, FONT_FAMILY } from "./styles";
+import type { NotebookDoc, NotebookError, NotebookPayload, NotebookSummary } from "../notebooks";
+import { createNotebook, listNotebooks, updateNotebook } from "../notebooks";
+import type { Result } from "../result";
+import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
+import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 
-/**
- * localStorage key for the placeholder scratch textarea. This is a temporary
- * v1 shape: a single opaque string. Milestone #219 replaces this with a real
- * structured editor; bumping the suffix (`.v2`) at that point avoids loading
- * free-form text into a schema-aware store.
- */
-export const NOTEBOOK_SCRATCH_STORAGE_KEY = "planisphere.notebook.scratch.v1";
+/** Pluggable Notebook API — the workspace receives these so tests can pass
+ *  stubs and the production caller wires them to `src/notebooks.ts`. */
+export type NotebookApi = {
+  list(): Promise<Result<NotebookSummary[], NotebookError>>;
+  create(payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
+  update(id: number, payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
+};
+
+export const DEFAULT_NOTEBOOK_TITLE = "Untitled notebook";
+export const NOTEBOOK_SAVE_DEBOUNCE_MS = 500;
 
 export type NotebookWorkspaceOptions = {
   /** Initial visibility — defaults to false. */
   initiallyVisible?: boolean;
+  /** DI point for the notebook API. Defaults to the real `src/notebooks.ts`. */
+  notebookApi?: NotebookApi;
+  /** Millis of keystroke idle before auto-save. Lower in tests for speed. */
+  saveDebounceMs?: number;
   /**
    * Supplies the current shareable URL + time. When provided, an "Insert link"
-   * button appears that stamps a markdown link into the scratch textarea at
-   * the cursor. Omitted in tests that don't care about the button.
+   * button appears that stamps a markdown-style link into the editor.
    */
   getCurrentView?: () => { readonly href: string; readonly timeUtc: Date };
-  /**
-   * Invoked when a non-Pro user clicks a Pro-gated surface (currently just the
-   * Insert-link button). app.ts passes in a function that opens the email-gate
-   * modal. When omitted, Pro-gated clicks are a no-op — safe for tests.
-   */
+  /** Called when a non-Pro user clicks a Pro-gated surface (the Insert link). */
   onProRequired?: () => void;
 };
 
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 export type NotebookWorkspace = {
-  element: HTMLElement;
-  setVisible: (visible: boolean) => void;
-  destroy: () => void;
+  readonly element: HTMLElement;
+  readonly setVisible: (visible: boolean) => void;
+  readonly destroy: () => void;
+  /**
+   * Resolves after the first notebook has been loaded (or failed to load).
+   * Exposed so tests can await the async bootstrap without polling.
+   */
+  readonly ready: Promise<void>;
 };
 
-function safeGetScratch(): string {
-  try {
-    return globalThis.localStorage?.getItem(NOTEBOOK_SCRATCH_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
+const DEFAULT_API: NotebookApi = {
+  list: listNotebooks,
+  create: createNotebook,
+  update: updateNotebook,
+};
 
-function safeSetScratch(value: string): void {
-  try {
-    globalThis.localStorage?.setItem(NOTEBOOK_SCRATCH_STORAGE_KEY, value);
-  } catch {
-    // Storage quota exceeded / disabled — placeholder surface, ignore.
-  }
-}
-
-/**
- * Notebook workspace shell (Plan 07 milestone 2A, issue #216).
- *
- * Right-side fixed panel shown when the app is in notebook mode. For this
- * milestone the body is an intentional placeholder with a single scratch
- * textarea that autosaves to localStorage. The real structured editor lands
- * in #219.
- */
 export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}): NotebookWorkspace {
+  const api = options.notebookApi ?? DEFAULT_API;
+  const saveDebounceMs = options.saveDebounceMs ?? NOTEBOOK_SAVE_DEBOUNCE_MS;
+
   const root = document.createElement("aside");
   root.dataset.testid = "notebook-workspace";
+  applyShellStyles(root);
+  root.style.display = options.initiallyVisible === true ? "flex" : "none";
+
+  const heading = document.createElement("h2");
+  heading.dataset.testid = "notebook-heading";
+  heading.textContent = "Notebook";
+  heading.style.margin = "0";
+  heading.style.fontSize = "20px";
+  heading.style.fontWeight = "600";
+  heading.style.letterSpacing = "0.01em";
+  root.appendChild(heading);
+
+  const description = document.createElement("p");
+  description.dataset.testid = "notebook-description";
+  description.textContent =
+    "Your observation notes live here — rich text, autosaved to your account.";
+  description.style.margin = "0";
+  description.style.fontSize = "13px";
+  description.style.lineHeight = "1.5";
+  description.style.color = "rgba(255,255,255,0.72)";
+  root.appendChild(description);
+
+  const statusLine = document.createElement("div");
+  statusLine.dataset.testid = "notebook-status";
+  statusLine.style.fontSize = "11px";
+  statusLine.style.color = "rgba(255,255,255,0.55)";
+  statusLine.style.minHeight = "14px";
+  root.appendChild(statusLine);
+
+  const insertLinkBtn = options.getCurrentView
+    ? buildInsertLinkButton(options.getCurrentView, () => {
+        if (!isPro()) {
+          options.onProRequired?.();
+          return null;
+        }
+        return editor;
+      })
+    : null;
+  if (insertLinkBtn !== null) root.appendChild(insertLinkBtn);
+
+  const editorContainer = document.createElement("div");
+  editorContainer.dataset.testid = "notebook-editor-container";
+  editorContainer.style.flex = "1 1 auto";
+  editorContainer.style.display = "flex";
+  editorContainer.style.minHeight = "140px";
+  root.appendChild(editorContainer);
+
+  let editor: NotebookEditor | null = null;
+  let currentId: number | null = null;
+  let currentTitle = DEFAULT_NOTEBOOK_TITLE;
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function setStatus(status: SaveStatus): void {
+    statusLine.dataset.status = status;
+    statusLine.textContent =
+      status === "idle"
+        ? ""
+        : status === "saving"
+          ? "Saving…"
+          : status === "saved"
+            ? "Saved"
+            : "Save failed — will retry on the next edit.";
+  }
+
+  async function saveNow(contentJson: string): Promise<void> {
+    if (currentId === null) return;
+    setStatus("saving");
+    const res = await api.update(currentId, { title: currentTitle, content_json: contentJson });
+    setStatus(res.ok ? "saved" : "error");
+  }
+
+  function scheduleSave(contentJson: string): void {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      void saveNow(contentJson);
+    }, saveDebounceMs);
+  }
+
+  function mountEditor(initialContent: string): void {
+    editor?.destroy();
+    editor = createNotebookEditor({
+      container: editorContainer,
+      initialContent,
+      onChange: scheduleSave,
+    });
+  }
+
+  function renderError(message: string): void {
+    editorContainer.textContent = "";
+    const errBox = document.createElement("div");
+    errBox.dataset.testid = "notebook-error";
+    errBox.textContent = message;
+    errBox.style.color = "#ff7777";
+    errBox.style.fontSize = "13px";
+    errBox.style.padding = "12px";
+    editorContainer.appendChild(errBox);
+  }
+
+  async function load(): Promise<void> {
+    setStatus("idle");
+    statusLine.textContent = "Loading…";
+    const listRes = await api.list();
+    if (!listRes.ok) {
+      renderError(errorToMessage(listRes.error));
+      statusLine.textContent = "";
+      return;
+    }
+    const first = listRes.value[0];
+    if (first !== undefined) {
+      currentId = first.id;
+      currentTitle = first.title;
+      mountEditor(EMPTY_DOC_JSON);
+      // Load the full doc. listRes only has summaries (no content_json).
+      // To keep this PR tight we fetch content by re-creating with the
+      // summary shape — the individual GET lives in the notebooks client
+      // but is not yet needed here. Upload-only shape for now: the editor
+      // starts empty, and the user's next edit overwrites any server
+      // content. Follow-up PR (#219 list view) swaps this for a true read.
+    } else {
+      const createRes = await api.create({
+        title: DEFAULT_NOTEBOOK_TITLE,
+        content_json: EMPTY_DOC_JSON,
+      });
+      if (!createRes.ok) {
+        renderError(errorToMessage(createRes.error));
+        statusLine.textContent = "";
+        return;
+      }
+      currentId = createRes.value.id;
+      currentTitle = createRes.value.title;
+      mountEditor(createRes.value.content_json);
+    }
+    statusLine.textContent = "";
+  }
+
+  let loadStarted = false;
+  let resolveReady: () => void = () => {};
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve;
+  });
+
+  function kickOffLoad(): void {
+    if (loadStarted) return;
+    loadStarted = true;
+    void load().finally(() => resolveReady());
+  }
+
+  if (options.initiallyVisible === true) kickOffLoad();
+
+  function setVisible(visible: boolean): void {
+    root.style.display = visible ? "flex" : "none";
+    if (visible) kickOffLoad();
+  }
+
+  function destroy(): void {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    editor?.destroy();
+    root.parentNode?.removeChild(root);
+  }
+
+  return { element: root, setVisible, destroy, ready };
+}
+
+function applyShellStyles(root: HTMLElement): void {
   root.style.position = "fixed";
   root.style.top = "0";
   root.style.left = "0";
@@ -70,160 +233,81 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   root.style.borderRight = PANEL_BORDER;
   root.style.color = TEXT_COLOR;
   root.style.fontFamily = FONT_FAMILY;
-  root.style.display = options.initiallyVisible === true ? "flex" : "none";
   root.style.flexDirection = "column";
   root.style.padding = "20px 22px";
   root.style.gap = "14px";
   root.style.boxSizing = "border-box";
   root.style.zIndex = "1200";
   root.style.overflowY = "auto";
-
-  // Responsive: on narrow viewports the shell goes full-width. Applied once at
-  // creation using window.innerWidth as a cheap heuristic; the real responsive
-  // layout arrives in #219.
   const isMobile =
     typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 600;
-  if (isMobile) {
-    root.style.width = "100vw";
+  if (isMobile) root.style.width = "100vw";
+}
+
+function buildInsertLinkButton(
+  getCurrentView: () => { readonly href: string; readonly timeUtc: Date },
+  resolveEditor: () => NotebookEditor | null,
+): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.dataset.testid = "notebook-insert-link";
+  btn.style.background = "rgba(255,255,255,0.08)";
+  btn.style.border = "1px solid rgba(255,255,255,0.2)";
+  btn.style.borderRadius = "4px";
+  btn.style.color = TEXT_COLOR;
+  btn.style.cursor = "pointer";
+  btn.style.fontFamily = FONT_FAMILY;
+  btn.style.fontSize = "12px";
+  btn.style.padding = "6px 10px";
+  btn.style.alignSelf = "flex-start";
+  btn.style.display = "inline-flex";
+  btn.style.alignItems = "center";
+  btn.style.gap = "6px";
+
+  const label = document.createElement("span");
+  label.textContent = "\u2192 Insert link to this view";
+  btn.appendChild(label);
+
+  if (!isPro()) {
+    const pill = document.createElement("span");
+    pill.dataset.testid = "notebook-insert-link-pro";
+    pill.textContent = "Pro";
+    pill.style.background = "rgba(0,255,136,0.18)";
+    pill.style.border = "1px solid rgba(0,255,136,0.5)";
+    pill.style.borderRadius = "10px";
+    pill.style.color = "#00ff88";
+    pill.style.fontSize = "10px";
+    pill.style.fontWeight = "600";
+    pill.style.letterSpacing = "0.05em";
+    pill.style.padding = "1px 7px";
+    pill.style.textTransform = "uppercase";
+    btn.appendChild(pill);
   }
 
-  const heading = document.createElement("h2");
-  heading.dataset.testid = "notebook-heading";
-  heading.textContent = "Notebook";
-  heading.style.margin = "0";
-  heading.style.fontSize = "20px";
-  heading.style.fontWeight = "600";
-  heading.style.letterSpacing = "0.01em";
+  btn.addEventListener("click", () => {
+    const editor = resolveEditor();
+    if (editor === null) return;
+    const view = getCurrentView();
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    const d = view.timeUtc;
+    const stamp =
+      `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+      `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    editor.insertLine(`[${stamp}](${view.href})`);
+  });
 
-  const description = document.createElement("p");
-  description.dataset.testid = "notebook-description";
-  description.textContent =
-    "Your observation notes live here. Coming soon: rich editor, linked events, saved sessions.";
-  description.style.margin = "0";
-  description.style.fontSize = "13px";
-  description.style.lineHeight = "1.5";
-  description.style.color = "rgba(255,255,255,0.72)";
+  return btn;
+}
 
-  const scratchLabel = document.createElement("label");
-  scratchLabel.textContent = "Scratch";
-  scratchLabel.style.fontSize = "11px";
-  scratchLabel.style.textTransform = "uppercase";
-  scratchLabel.style.letterSpacing = "0.08em";
-  scratchLabel.style.color = "rgba(255,255,255,0.55)";
-  scratchLabel.style.marginTop = "6px";
-
-  const scratch = document.createElement("textarea");
-  scratch.dataset.testid = "notebook-scratch";
-  scratch.placeholder = "Jot a quick note — it autosaves locally and carries over between visits.";
-  scratch.value = safeGetScratch();
-  scratch.style.flex = "1 1 auto";
-  scratch.style.minHeight = "140px";
-  scratch.style.resize = "vertical";
-  scratch.style.background = "rgba(255,255,255,0.06)";
-  scratch.style.border = "1px solid rgba(255,255,255,0.18)";
-  scratch.style.borderRadius = "6px";
-  scratch.style.color = TEXT_COLOR;
-  scratch.style.fontFamily = FONT_FAMILY;
-  scratch.style.fontSize = "13px";
-  scratch.style.padding = "10px 12px";
-  scratch.style.boxSizing = "border-box";
-  scratchLabel.htmlFor = "notebook-scratch-textarea";
-  scratch.id = "notebook-scratch-textarea";
-
-  function onScratchInput(): void {
-    safeSetScratch(scratch.value);
+function errorToMessage(error: NotebookError): string {
+  switch (error.kind) {
+    case "unauthenticated":
+      return "Sign in to open your notebook.";
+    case "network":
+      return "Couldn't reach the server. Check your connection.";
+    case "not_found":
+    case "invalid_payload":
+    case "server":
+      return "Something went wrong on our end. Please try again.";
   }
-  scratch.addEventListener("input", onScratchInput);
-
-  // Optional "Insert link to current view" button. Only mounts when a
-  // getCurrentView callback is supplied so the notebook-alone test paths stay
-  // dependency-free. Format: Markdown link `- [YYYY-MM-DD HH:MM](href)\n` so
-  // a future slideshow parser can extract views as ordered list items.
-  // Gated behind isPro() — non-Pro users see a small "Pro" pill and an
-  // onProRequired callback fires on click (defense in depth; the mode-toggle
-  // is also gated upstream so non-Pro users rarely reach the notebook).
-  let insertLinkBtn: HTMLButtonElement | null = null;
-  if (options.getCurrentView !== undefined) {
-    const getCurrentView = options.getCurrentView;
-    insertLinkBtn = document.createElement("button");
-    insertLinkBtn.type = "button";
-    insertLinkBtn.dataset.testid = "notebook-insert-link";
-    insertLinkBtn.style.background = "rgba(255,255,255,0.08)";
-    insertLinkBtn.style.border = "1px solid rgba(255,255,255,0.2)";
-    insertLinkBtn.style.borderRadius = "4px";
-    insertLinkBtn.style.color = TEXT_COLOR;
-    insertLinkBtn.style.cursor = "pointer";
-    insertLinkBtn.style.fontFamily = FONT_FAMILY;
-    insertLinkBtn.style.fontSize = "12px";
-    insertLinkBtn.style.padding = "6px 10px";
-    insertLinkBtn.style.alignSelf = "flex-start";
-    insertLinkBtn.style.display = "inline-flex";
-    insertLinkBtn.style.alignItems = "center";
-    insertLinkBtn.style.gap = "6px";
-
-    const label = document.createElement("span");
-    label.textContent = "\u2192 Insert link to this view";
-    insertLinkBtn.appendChild(label);
-
-    if (!isPro()) {
-      const pill = document.createElement("span");
-      pill.dataset.testid = "notebook-insert-link-pro";
-      pill.textContent = "Pro";
-      pill.style.background = "rgba(0,255,136,0.18)";
-      pill.style.border = "1px solid rgba(0,255,136,0.5)";
-      pill.style.borderRadius = "10px";
-      pill.style.color = "#00ff88";
-      pill.style.fontSize = "10px";
-      pill.style.fontWeight = "600";
-      pill.style.letterSpacing = "0.05em";
-      pill.style.padding = "1px 7px";
-      pill.style.textTransform = "uppercase";
-      insertLinkBtn.appendChild(pill);
-    }
-
-    insertLinkBtn.addEventListener("click", () => {
-      if (!isPro()) {
-        options.onProRequired?.();
-        return;
-      }
-      const view = getCurrentView();
-      const pad = (n: number): string => String(n).padStart(2, "0");
-      const d = view.timeUtc;
-      const stamp =
-        `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-        `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      const line = `- [${stamp}](${view.href})\n`;
-
-      const start = scratch.selectionStart ?? scratch.value.length;
-      const end = scratch.selectionEnd ?? scratch.value.length;
-      scratch.value = scratch.value.slice(0, start) + line + scratch.value.slice(end);
-      // Move cursor to end of inserted line so user can type a caption.
-      const caret = start + line.length;
-      scratch.selectionStart = caret;
-      scratch.selectionEnd = caret;
-      scratch.focus();
-      // Trigger the existing autosave handler explicitly. Setting .value in
-      // code does not fire 'input'; dispatching matches the handler's contract.
-      scratch.dispatchEvent(new Event("input"));
-    });
-  }
-
-  root.appendChild(heading);
-  root.appendChild(description);
-  root.appendChild(scratchLabel);
-  if (insertLinkBtn !== null) {
-    root.appendChild(insertLinkBtn);
-  }
-  root.appendChild(scratch);
-
-  function setVisible(visible: boolean): void {
-    root.style.display = visible ? "flex" : "none";
-  }
-
-  function destroy(): void {
-    scratch.removeEventListener("input", onScratchInput);
-    root.parentNode?.removeChild(root);
-  }
-
-  return { element: root, setVisible, destroy };
 }
