@@ -30,6 +30,7 @@ export type MagicLinkRow = {
   readonly email: string;
   readonly created_at: number;
   readonly used_at: number | null;
+  readonly expires_at: number;
 };
 
 export type SessionRow = {
@@ -76,3 +77,7 @@ export const SESSION_COOKIE = "ps_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 /** One-pending-link-per-email window, in milliseconds. */
 export const MAGIC_LINK_RATE_WINDOW_MS = 60_000;
+/** Magic-link single-use token TTL, in seconds (15 minutes). Long enough
+ *  for email delivery + the user clicking the link, short enough to keep
+ *  the abuse window tight if a token leaks. */
+export const MAGIC_LINK_TTL_SECONDS = 15 * 60;

@@ -136,6 +136,24 @@ describe("GET /api/auth/callback", () => {
     const res = await fetchWorker(new Request(`${BASE}/api/auth/callback?token=does-not-exist`));
     expect(res.status).toBe(401);
   });
+
+  it("returns 401 for a token whose TTL has elapsed", async () => {
+    // Insert an expired magic link directly so we don't have to wait the TTL.
+    const now = Date.now();
+    await testEnv.DB.prepare(
+      "INSERT INTO magic_links (token, email, created_at, used_at, expires_at) " +
+        "VALUES (?, ?, ?, NULL, ?)",
+    )
+      .bind("stale-token", "stale@example.com", now - 60 * 60_000, now - 60_000)
+      .run();
+    const res = await fetchWorker(new Request(`${BASE}/api/auth/callback?token=stale-token`));
+    expect(res.status).toBe(401);
+    // Stale token should not have been marked used (still NULL).
+    const row = await testEnv.DB.prepare("SELECT used_at FROM magic_links WHERE token = ?")
+      .bind("stale-token")
+      .first<{ used_at: number | null }>();
+    expect(row?.used_at).toBeNull();
+  });
 });
 
 describe("GET /api/auth/me", () => {

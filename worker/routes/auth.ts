@@ -14,6 +14,7 @@ import type { EmailSender } from "../email";
 import { readSessionId } from "../session";
 import {
   MAGIC_LINK_RATE_WINDOW_MS,
+  MAGIC_LINK_TTL_SECONDS,
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   type ApiErrorCode,
@@ -72,7 +73,8 @@ export async function handleRequestLink(
 
   await upsertUser(env.DB, normalized);
   const token = generateToken();
-  await insertMagicLink(env.DB, token, normalized);
+  const expiresAt = Date.now() + MAGIC_LINK_TTL_SECONDS * 1000;
+  await insertMagicLink(env.DB, token, normalized, expiresAt);
 
   const callbackUrl = new URL("/api/auth/callback", env.APP_ORIGIN);
   callbackUrl.searchParams.set("token", token);

@@ -65,7 +65,7 @@ export async function getPendingMagicLinkForEmail(
 ): Promise<MagicLinkRow | null> {
   const row = await db
     .prepare(
-      "SELECT token, email, created_at, used_at FROM magic_links " +
+      "SELECT token, email, created_at, used_at, expires_at FROM magic_links " +
         "WHERE email = ? AND used_at IS NULL ORDER BY created_at DESC LIMIT 1",
     )
     .bind(email)
@@ -77,34 +77,65 @@ export async function insertMagicLink(
   db: D1Database,
   token: string,
   email: string,
+  expiresAt: number,
 ): Promise<MagicLinkRow> {
   const createdAt = NOW();
   await db
-    .prepare("INSERT INTO magic_links (token, email, created_at, used_at) VALUES (?, ?, ?, NULL)")
-    .bind(token, email, createdAt)
+    .prepare(
+      "INSERT INTO magic_links (token, email, created_at, used_at, expires_at) " +
+        "VALUES (?, ?, ?, NULL, ?)",
+    )
+    .bind(token, email, createdAt, expiresAt)
     .run();
-  return { token, email, created_at: createdAt, used_at: null };
+  return { token, email, created_at: createdAt, used_at: null, expires_at: expiresAt };
 }
 
 /**
  * Consume a magic-link token atomically: return the unused row and mark it
- * used in the same step. Returns `null` if the token is unknown or already
- * used.
+ * used in the same step. Returns `null` if the token is unknown, already
+ * used, or past its `expires_at`.
  */
 export async function consumeMagicLink(
   db: D1Database,
   token: string,
 ): Promise<MagicLinkRow | null> {
   const now = NOW();
-  // UPDATE ... WHERE used_at IS NULL RETURNING * is the atomic "claim" step.
   const row = await db
     .prepare(
-      "UPDATE magic_links SET used_at = ? WHERE token = ? AND used_at IS NULL " +
-        "RETURNING token, email, created_at, used_at",
+      "UPDATE magic_links SET used_at = ? " +
+        "WHERE token = ? AND used_at IS NULL AND expires_at > ? " +
+        "RETURNING token, email, created_at, used_at, expires_at",
     )
-    .bind(now, token)
+    .bind(now, token, now)
     .first<MagicLinkRow>();
   return row ?? null;
+}
+
+/**
+ * Background sweep: drop magic_links rows that are either past their TTL
+ * or have already been used. Called by the scheduled handler on the cron
+ * trigger declared in wrangler.jsonc. Returns the row count for log /
+ * test assertions.
+ */
+export async function deleteExpiredMagicLinks(db: D1Database): Promise<number> {
+  const now = NOW();
+  const result = await db
+    .prepare("DELETE FROM magic_links WHERE expires_at <= ? OR used_at IS NOT NULL")
+    .bind(now)
+    .run();
+  return Number(result.meta.changes ?? 0);
+}
+
+/**
+ * Background sweep: drop sessions whose `expires_at` has passed. The read
+ * path in `getActiveSession` already rejects them, so the rows linger
+ * harmlessly between sweeps; this just keeps the table from growing
+ * forever.
+ */
+export async function deleteExpiredSessions(db: D1Database): Promise<number> {
+  const now = NOW();
+  const result = await db.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now).run();
+  return Number(result.meta.changes ?? 0);
 }
 
 export async function insertSession(
