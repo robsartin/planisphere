@@ -1,7 +1,13 @@
 # ADR 010 — Auth mechanism: magic-link + OAuth (Google + GitHub) over D1 sessions
 
 **Date:** 2026-04-19
-**Status:** Accepted
+**Status:** Superseded by [ADR 011](011-auth-mechanism-shipped.md) on 2026-04-19
+
+> Superseded before any implementation landed. PR #227 was already in flight
+> with a different (and better-considered) design when this ADR merged. The
+> shipped design — HMAC-signed cookies over live D1 sessions, magic-link
+> only for launch — is recorded in ADR 011. This ADR is retained as the
+> record of the alternative that was considered and rejected.
 
 ## Context
 
