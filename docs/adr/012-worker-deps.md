@@ -1,4 +1,4 @@
-# ADR 010 — Worker dev deps: `@cloudflare/vitest-pool-workers` + `concurrently`
+# ADR 012 — Worker dev deps: `@cloudflare/vitest-pool-workers` + `concurrently`
 
 **Date:** 2026-04-18
 **Status:** Accepted

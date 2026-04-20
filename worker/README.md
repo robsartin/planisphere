@@ -2,7 +2,9 @@
 
 First backend code in this repo. Scope and rationale are in
 [ADR 009](../docs/adr/009-backend-selection.md); the dev-dep choices for
-testing and local dev are in [ADR 010](../docs/adr/010-worker-deps.md).
+testing and local dev are in [ADR 012](../docs/adr/012-worker-deps.md).
+The shipped auth design is [ADR 011](../docs/adr/011-auth-mechanism-shipped.md)
+(supersedes the initial [ADR 010](../docs/adr/010-auth-mechanism.md)).
 
 This Worker owns the `/api/*` surface for the Notebook-tier features. Milestone
 2C (this PR, closes #218) ships the magic-link auth slice; notebook CRUD
@@ -143,7 +145,7 @@ pnpm dev                                     # vite + wrangler dev in parallel
 ```
 
 `pnpm dev:client` and `pnpm dev:worker` are available for running only one
-side. See `docs/adr/010-worker-deps.md` for why we use `concurrently`.
+side. See `docs/adr/012-worker-deps.md` for why we use `concurrently`.
 
 ## Testing
 
