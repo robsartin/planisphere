@@ -1,12 +1,19 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { createEmailSender } from "./email";
 import { handleCallback, handleLogout, handleMe, handleRequestLink } from "./routes/auth";
+import {
+  handleCreateNotebook,
+  handleDeleteNotebook,
+  handleGetNotebook,
+  handleListNotebooks,
+  handleUpdateNotebook,
+} from "./routes/notebooks";
 import type { Env } from "./types";
 
 /**
- * Entry point for the Phase 2 API Worker. Dispatches `/api/auth/*` to the
- * auth routes. Everything else is a 404. Method-mismatch on a known path
- * returns 405. See `worker/README.md` for the overall shape.
+ * Entry point for the Phase 2 API Worker. Dispatches `/api/auth/*` and
+ * `/api/notebooks[/:id]`. Everything else is a 404. Method-mismatch on a
+ * known path returns 405. See `worker/README.md` for the overall shape.
  */
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
@@ -32,6 +39,22 @@ export default {
         if (method !== "GET") return methodNotAllowed();
         return await handleMe(request, env);
       }
+      if (path === "/api/notebooks") {
+        if (method === "GET") return await handleListNotebooks(request, env);
+        if (method === "POST") return await handleCreateNotebook(request, env);
+        return methodNotAllowed();
+      }
+      if (path.startsWith("/api/notebooks/")) {
+        const idStr = path.slice("/api/notebooks/".length);
+        const id = Number(idStr);
+        if (!/^\d+$/.test(idStr) || !Number.isInteger(id) || id <= 0) {
+          return badRequest();
+        }
+        if (method === "GET") return await handleGetNotebook(request, env, id);
+        if (method === "PUT") return await handleUpdateNotebook(request, env, id);
+        if (method === "DELETE") return await handleDeleteNotebook(request, env, id);
+        return methodNotAllowed();
+      }
       return notFound();
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -54,6 +77,13 @@ function methodNotAllowed(): Response {
 function notFound(): Response {
   return new Response(JSON.stringify({ error: "not_found" }), {
     status: 404,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function badRequest(): Response {
+  return new Response(JSON.stringify({ error: "invalid_payload" }), {
+    status: 400,
     headers: { "content-type": "application/json" },
   });
 }
