@@ -453,7 +453,6 @@ vi.mock("./ui", () => ({
       notebookWorkspaceMock = mock;
       return mock;
     }),
-  NOTEBOOK_SCRATCH_STORAGE_KEY: "planisphere.notebook.scratch.v1",
   createLoginModal: vi
     .fn()
     .mockImplementation((opts: { requestMagicLink: (email: string) => Promise<unknown> }) => {

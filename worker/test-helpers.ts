@@ -35,11 +35,22 @@ const SCHEMA_STATEMENTS = [
     expires_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`,
+  `CREATE TABLE notebooks (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )`,
   `CREATE INDEX idx_magic_links_email ON magic_links(email)`,
   `CREATE INDEX idx_sessions_expires ON sessions(expires_at)`,
+  `CREATE INDEX idx_notebooks_user_updated ON notebooks(user_id, updated_at DESC)`,
 ] as const;
 
 export async function resetDb(): Promise<void> {
+  await testEnv.DB.prepare("DROP TABLE IF EXISTS notebooks").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS sessions").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS magic_links").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS users").run();

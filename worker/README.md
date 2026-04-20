@@ -6,31 +6,34 @@ testing and local dev are in [ADR 012](../docs/adr/012-worker-deps.md).
 The shipped auth design is [ADR 011](../docs/adr/011-auth-mechanism-shipped.md)
 (supersedes the initial [ADR 010](../docs/adr/010-auth-mechanism.md)).
 
-This Worker owns the `/api/*` surface for the Notebook-tier features. Milestone
-2C (this PR, closes #218) ships the magic-link auth slice; notebook CRUD
-(#219), Stripe (#221), and follow-ups are layered in later without changing
-the module shape.
+This Worker owns the `/api/*` surface for the Notebook-tier features.
+Milestone 2C (#218, #227, #234) shipped the magic-link auth slice; milestone
+2D (#219) added the notebook CRUD routes backing ADR 013. Stripe (#221) and
+subsequent milestones layer in without changing the module shape.
 
 ## Layout
 
 ```
 worker/
-  index.ts      Fetch handler. Parses the URL, dispatches to a route module.
+  index.ts         Fetch handler. Parses the URL, dispatches to a route module.
+  session.ts       Shared cookie + session helpers (getAuthenticatedUserId).
   routes/
-    auth.ts     /api/auth/* — request-link, callback, logout, me.
-  db.ts         Thin helpers over the D1 binding. Hand-rolled prepared
-                statements; no ORM.
-  crypto.ts     Token generation + HMAC cookie signing / verification via
-                the workers `crypto.subtle` runtime.
-  email.ts      EmailSender interface + a console-log stub for dev.
-                Swap in Resend/Postmark/SES in a one-file change.
-  types.ts      Shared types: Env binding, User row, MagicLink row,
-                AuthError domain union, SessionPayload.
-  *.test.ts     Vitest tests running under @cloudflare/vitest-pool-workers
-                — real workerd + real D1. See vitest.worker.config.ts.
+    auth.ts        /api/auth/* — request-link, callback, logout, me.
+    notebooks.ts   /api/notebooks[/:id] — list, create, read, update, delete.
+  db.ts            Thin helpers over the D1 binding. Hand-rolled prepared
+                   statements; no ORM.
+  crypto.ts        Token generation + HMAC cookie signing / verification via
+                   the workers `crypto.subtle` runtime.
+  email.ts         EmailSender interface + a console-log stub for dev.
+                   Swap in Resend/Postmark/SES in a one-file change.
+  types.ts         Shared types: Env binding, row types, ApiErrorCode union,
+                   size caps (NOTEBOOK_CONTENT_MAX_BYTES etc).
+  *.test.ts        Vitest tests running under @cloudflare/vitest-pool-workers
+                   — real workerd + real D1. See vitest.worker.config.ts.
 
 migrations/
-  0001_init.sql  users, magic_links, sessions tables + indexes.
+  0001_init.sql       users, magic_links, sessions tables + indexes.
+  0002_notebooks.sql  notebooks table + (user_id, updated_at DESC) index.
 ```
 
 ## Module-boundary rule
@@ -102,6 +105,31 @@ one.
 matching the `sessions.expires_at` in D1. Verification rejects a cookie
 whose signature fails _or_ whose `sessions` row is missing / expired.
 
+## Notebook routes (`/api/notebooks`)
+
+Every route below requires an authenticated session (same `ps_session`
+cookie). Unauthenticated → `401 {"error":"unauthenticated"}`. All input
+validation failures → `400 {"error":"invalid_payload"}`.
+
+| Method   | Path                 | Body                                        | Success response                                          |
+| -------- | -------------------- | ------------------------------------------- | --------------------------------------------------------- |
+| `GET`    | `/api/notebooks`     | —                                           | `200 {"notebooks":[{id,title,created_at,updated_at}, …]}` |
+| `POST`   | `/api/notebooks`     | `{"title": string, "content_json": string}` | `201 {id, title, content_json, created_at, updated_at}`   |
+| `GET`    | `/api/notebooks/:id` | —                                           | `200 {id, title, content_json, created_at, updated_at}`   |
+| `PUT`    | `/api/notebooks/:id` | `{"title": string, "content_json": string}` | `200 {… updated row …}`                                   |
+| `DELETE` | `/api/notebooks/:id` | —                                           | `204`                                                     |
+
+Constraints enforced server-side:
+
+- `title`: non-empty after trimming, ≤ 200 chars.
+- `content_json`: must parse as JSON (shape is tiptap JSON per ADR 013),
+  ≤ `NOTEBOOK_CONTENT_MAX_BYTES` (256 KB) UTF-8 encoded.
+- `:id`: positive integer; malformed → 400.
+- Ownership: reads and writes are scoped to the authenticated user —
+  another user's id is indistinguishable from a missing one (404).
+
+The list endpoint excludes `content_json` so the response stays small.
+
 ## Env / secrets
 
 Declared as the `Env` type in `worker/types.ts`:
@@ -132,6 +160,7 @@ for any deployed environment.
 
 ## Deferred (out of scope)
 
+- Client-side editor + save/load wire-up — lands with the editor-swap PR.
 - Stripe billing / webhooks — milestone 2F (#221).
 - Notebook content persistence to D1 — milestone 2D (#219).
 - Rate-limiting beyond the request-link rule.
