@@ -94,8 +94,8 @@ SESSION_SECRET`). The value in `wrangler.worker.jsonc` is a dev-only
 - **Naming: `ADR 010` in this repo is this repo's first auth-mechanism
   decision; `ADR 011` is the shipped revision.** PR #227 authored its own
   ADR at `docs/adr/010-worker-deps.md` before 010-auth-mechanism landed;
-  on rebase that file must be renumbered (the next free slot after this
-  ADR is `ADR 012`). The rename is mechanical; no content change.
+  that file is renumbered to `docs/adr/012-worker-deps.md` as part of the
+  cleanup following #227's merge.
 
 ## Follow-ups tracked against #218 (not this ADR)
 

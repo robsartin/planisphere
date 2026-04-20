@@ -11,6 +11,9 @@ coverage/
 # Claude Code
 .claude/
 
+# Wrangler / miniflare local dev state (local D1 sqlite, caches)
+.wrangler/
+
 # Editor / OS
 .DS_Store
 .vscode/
