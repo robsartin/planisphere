@@ -20,7 +20,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method.toUpperCase();
-    const emailSender = createEmailSender();
+    const emailSender = createEmailSender(env);
 
     try {
       if (path === "/api/auth/request-link") {

@@ -36,6 +36,12 @@
   // (never committed). APP_ORIGIN is the URL magic-link callbacks redirect
   // to — override per environment via Cloudflare dashboard or `vars`
   // overrides in a deploy-time config.
+  //
+  // Email (ADR 014): `RESEND_API_KEY` is a Worker secret
+  //   wrangler secret put RESEND_API_KEY
+  // and `EMAIL_FROM` is the verified sender address on Resend. When
+  // either is unset, the Worker falls back to the console-log stub —
+  // grep `wrangler tail` for `[auth] magic link`.
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
     "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
