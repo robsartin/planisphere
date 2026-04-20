@@ -48,6 +48,12 @@
     "EMAIL_FROM": "noreply@rabbitsatin.com", // ← or "onboarding@resend.dev" for the shortcut
   },
 
+  // Hourly sweep of expired magic-link tokens and sessions.
+  // The handler is the `scheduled()` export in worker/index.ts.
+  "triggers": {
+    "crons": ["0 * * * *"],
+  },
+
   "observability": {
     "enabled": true,
   },

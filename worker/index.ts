@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { deleteExpiredMagicLinks, deleteExpiredSessions } from "./db";
 import { createEmailSender } from "./email";
 import { handleCallback, handleLogout, handleMe, handleRequestLink } from "./routes/auth";
 import {
@@ -63,6 +64,23 @@ export default {
         status: 500,
         headers: { "content-type": "application/json" },
       });
+    }
+  },
+
+  /**
+   * Cron-triggered cleanup. Runs on the cadence declared by `triggers.crons`
+   * in `wrangler.jsonc`. Sweeps expired / used magic_links and expired
+   * sessions so the tables don't grow unboundedly.
+   */
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    try {
+      const links = await deleteExpiredMagicLinks(env.DB);
+      const sessions = await deleteExpiredSessions(env.DB);
+      // eslint-disable-next-line no-console
+      console.log(`[sweep] magic_links=${String(links)} sessions=${String(sessions)}`);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[sweep] failed", err);
     }
   },
 } satisfies ExportedHandler<Env>;

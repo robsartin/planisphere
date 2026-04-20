@@ -167,12 +167,22 @@ Until both `RESEND_API_KEY` and `EMAIL_FROM` are non-empty, the Worker
 uses `ConsoleEmailSender` — grep `wrangler tail --search "[auth]"` for
 `[auth] magic link for <email>: <url>`.
 
-## What's stubbed in this PR
+## Background sweep (cron trigger)
 
-- **Session expiry cleanup.** Expired `sessions` rows are rejected at read
-  time but not pruned. Follow-up.
-- **Magic-link expiry.** Tokens are single-use but have no time-to-live
-  beyond that. Follow-up.
+`worker/index.ts` exports a `scheduled` handler invoked by Cloudflare on
+the cron schedule declared in `wrangler.jsonc` (`triggers.crons`,
+hourly). Each run calls:
+
+- `deleteExpiredMagicLinks(env.DB)` — drops rows past their `expires_at`
+  **or** already used. Magic-link TTL is `MAGIC_LINK_TTL_SECONDS` (15
+  minutes) — `consumeMagicLink` enforces it on the read path too.
+- `deleteExpiredSessions(env.DB)` — drops sessions past `expires_at`.
+  `getActiveSession` already rejects them at read time, so the rows
+  linger harmlessly between sweeps; this just keeps the table from
+  growing forever.
+
+Both helpers return the row count, which is logged as
+`[sweep] magic_links=N sessions=N` for `wrangler tail` visibility.
 
 ## Deferred (out of scope)
 

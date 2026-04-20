@@ -26,7 +26,8 @@ const SCHEMA_STATEMENTS = [
     token TEXT PRIMARY KEY,
     email TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    used_at INTEGER
+    used_at INTEGER,
+    expires_at INTEGER NOT NULL
   )`,
   `CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
@@ -45,6 +46,7 @@ const SCHEMA_STATEMENTS = [
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`,
   `CREATE INDEX idx_magic_links_email ON magic_links(email)`,
+  `CREATE INDEX idx_magic_links_expires ON magic_links(expires_at)`,
   `CREATE INDEX idx_sessions_expires ON sessions(expires_at)`,
   `CREATE INDEX idx_notebooks_user_updated ON notebooks(user_id, updated_at DESC)`,
 ] as const;
