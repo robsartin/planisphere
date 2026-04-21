@@ -12,12 +12,19 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     include: ["src/**/*.test.ts"],
+    setupFiles: ["./src/test-setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "./coverage",
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/main.ts", "src/env.d.ts", "src/**/index.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/main.ts",
+        "src/env.d.ts",
+        "src/**/index.ts",
+        "src/test-setup.ts",
+      ],
       thresholds: {
         // Project-wide floor
         lines: 85,
