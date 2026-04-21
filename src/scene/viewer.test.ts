@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, expect, it, vi } from "vitest";
 import { isOk, isErr } from "../result";
-import { createViewer } from "./viewer";
+import { createViewer, repositionCreditBar } from "./viewer";
 
 vi.mock("cesium", () => {
   const MockViewer = vi.fn().mockImplementation(() => ({
@@ -53,5 +53,31 @@ describe("createViewer", () => {
     expect(isErr(r)).toBe(true);
     if (isErr(r)) expect(r.error.message).toContain("WebGL not available");
     document.body.removeChild(container);
+  });
+});
+
+describe("repositionCreditBar", () => {
+  it("moves Cesium's default credit bar from bottom-left to top-right", () => {
+    const container = document.createElement("div");
+    const creditBar = document.createElement("div");
+    creditBar.className = "cesium-viewer-bottom";
+    creditBar.style.bottom = "0";
+    creditBar.style.left = "0";
+    container.appendChild(creditBar);
+
+    repositionCreditBar(container);
+
+    expect(creditBar.style.top).toBe("8px");
+    expect(creditBar.style.right).toBe("8px");
+    expect(creditBar.style.bottom).toBe("auto");
+    expect(creditBar.style.left).toBe("auto");
+    expect(creditBar.dataset.testid).toBe("cesium-credit-bar");
+  });
+
+  it("is a no-op if the viewer has no .cesium-viewer-bottom child", () => {
+    const container = document.createElement("div");
+    expect(() => {
+      repositionCreditBar(container);
+    }).not.toThrow();
   });
 });

@@ -41,6 +41,8 @@ export function createViewer(containerId: string): Result<Viewer, SceneInitError
     viewer.scene.globe.show = false;
     viewer.imageryLayers.removeAll();
 
+    repositionCreditBar(container);
+
     return ok(viewer);
   } catch (e) {
     return err({
@@ -48,4 +50,26 @@ export function createViewer(containerId: string): Result<Viewer, SceneInitError
       message: `Cesium Viewer creation failed: ${String(e)}`,
     });
   }
+}
+
+/**
+ * Move Cesium's default credit bar (the `.cesium-viewer-bottom` child of the
+ * viewer container) from its default bottom-left position to the top-right
+ * corner of the viewer. Cesium's own CSS renders the "Powered by Cesium"
+ * logo + attributions inside it; we're only overriding the outer container's
+ * position so it doesn't collide with the bottom-hud (time / observer /
+ * scrubber). Exported for testing.
+ *
+ * Cesium's Apache-2.0 licence expects the credit display to stay visible;
+ * we keep it visible and clickable, just out of the hud's way.
+ */
+export function repositionCreditBar(viewerContainer: HTMLElement): void {
+  const creditBar = viewerContainer.querySelector<HTMLElement>(".cesium-viewer-bottom");
+  if (creditBar === null) return;
+  creditBar.style.bottom = "auto";
+  creditBar.style.left = "auto";
+  creditBar.style.top = "8px";
+  creditBar.style.right = "8px";
+  creditBar.style.zIndex = "100";
+  creditBar.dataset.testid = "cesium-credit-bar";
 }
