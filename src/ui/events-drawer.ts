@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { createDrawer } from "./drawer";
+import { el } from "./dom";
 import { createEventsPanel } from "./events-panel";
 import { TEXT_COLOR } from "./styles";
 import type { CelestialEvent } from "../astro/events";
@@ -28,23 +29,26 @@ export type EventsDrawerOptions = {
 export function createEventsDrawer(options: EventsDrawerOptions): EventsDrawer {
   const { dispatch } = options;
 
+  const panelHost = el("div", { testid: "events-drawer-panel-host" });
+
   // Stable content host. We rebuild its children when setEvents is called so
   // updates propagate whether the drawer is open or closed.
-  const content = document.createElement("div");
-  content.dataset.testid = "events-drawer-content";
-
-  const title = document.createElement("div");
-  title.textContent = "Upcoming Events";
-  title.style.color = TEXT_COLOR;
-  title.style.fontSize = "14px";
-  title.style.fontWeight = "bold";
-  title.style.fontFamily = "sans-serif";
-  title.style.marginBottom = "8px";
-  content.appendChild(title);
-
-  const panelHost = document.createElement("div");
-  panelHost.dataset.testid = "events-drawer-panel-host";
-  content.appendChild(panelHost);
+  const content = el("div", {
+    testid: "events-drawer-content",
+    children: [
+      el("div", {
+        text: "Upcoming Events",
+        style: {
+          color: TEXT_COLOR,
+          fontSize: "14px",
+          fontWeight: "bold",
+          fontFamily: "sans-serif",
+          marginBottom: "8px",
+        },
+      }),
+      panelHost,
+    ],
+  });
 
   let currentEvents: readonly CelestialEvent[] = [];
 
@@ -60,9 +64,9 @@ export function createEventsDrawer(options: EventsDrawerOptions): EventsDrawer {
   // Internal drawer structure test ids also get an events-drawer prefix so the
   // existing events-drawer-backdrop / events-drawer-close / events-drawer-body
   // queries continue to match after swapping in the canonical primitive.
-  drawer.element.querySelectorAll<HTMLElement>("[data-testid^='drawer']").forEach((el) => {
-    const current = el.dataset.testid!;
-    el.dataset.testid = `events-${current}`;
+  drawer.element.querySelectorAll<HTMLElement>("[data-testid^='drawer']").forEach((node) => {
+    const prevId = node.dataset.testid!;
+    node.dataset.testid = `events-${prevId}`;
   });
 
   return {

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { createDrawer } from "./drawer";
+import { el } from "./dom";
 import { createPlanetInfo } from "./planet-info";
 import { TEXT_COLOR } from "./styles";
 import type { CelestialBody } from "../astro/bodies";
@@ -36,24 +37,27 @@ export type TonightDrawerOptions = {
 export function createTonightDrawer(options: TonightDrawerOptions): TonightDrawer {
   const { dispatch } = options;
 
+  const panelHost = el("div", { testid: "tonight-drawer-panel-host" });
+
   // Stable content host. Children are rebuilt when setBodies is called so
   // updates propagate whether the drawer is open or closed.
-  const content = document.createElement("div");
-  content.dataset.testid = "tonight-drawer-content";
-
-  const title = document.createElement("div");
-  title.dataset.testid = "tonight-drawer-title";
-  title.textContent = "Tonight's sky";
-  title.style.color = TEXT_COLOR;
-  title.style.fontSize = "14px";
-  title.style.fontWeight = "bold";
-  title.style.fontFamily = "sans-serif";
-  title.style.marginBottom = "8px";
-  content.appendChild(title);
-
-  const panelHost = document.createElement("div");
-  panelHost.dataset.testid = "tonight-drawer-panel-host";
-  content.appendChild(panelHost);
+  const content = el("div", {
+    testid: "tonight-drawer-content",
+    children: [
+      el("div", {
+        testid: "tonight-drawer-title",
+        text: "Tonight's sky",
+        style: {
+          color: TEXT_COLOR,
+          fontSize: "14px",
+          fontWeight: "bold",
+          fontFamily: "sans-serif",
+          marginBottom: "8px",
+        },
+      }),
+      panelHost,
+    ],
+  });
 
   type Snapshot = {
     bodies: CelestialBody[];
@@ -94,9 +98,9 @@ export function createTonightDrawer(options: TonightDrawerOptions): TonightDrawe
   drawer.element.dataset.testid = "tonight-drawer";
   // Prefix the inner drawer-* test ids so the tonight-drawer-{close,backdrop,body,header,panel}
   // selectors are unique (events + settings drawers have the same pattern on the page).
-  drawer.element.querySelectorAll<HTMLElement>("[data-testid^='drawer']").forEach((el) => {
-    const prev = el.dataset.testid!;
-    el.dataset.testid = `tonight-${prev}`;
+  drawer.element.querySelectorAll<HTMLElement>("[data-testid^='drawer']").forEach((node) => {
+    const prev = node.dataset.testid!;
+    node.dataset.testid = `tonight-${prev}`;
   });
 
   return {
