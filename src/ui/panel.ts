@@ -7,6 +7,7 @@ import {
   PANEL_WIDTH,
   TEXT_COLOR,
   applyButton,
+  createProPill,
 } from "./styles";
 import type { UIIntent } from "./index";
 import type { AppMode } from "../state/state";
@@ -138,19 +139,7 @@ export function createPanel(
   // Discoverable but quiet — signals that Notebook mode is a paid feature
   // without hiding the toggle (the CTA itself is a conversion surface).
   if (!isPro()) {
-    const pill = document.createElement("span");
-    pill.dataset.testid = "panel-mode-pro";
-    pill.textContent = "Pro";
-    pill.style.background = "rgba(0,255,136,0.18)";
-    pill.style.border = "1px solid rgba(0,255,136,0.5)";
-    pill.style.borderRadius = "8px";
-    pill.style.color = "#00ff88";
-    pill.style.fontSize = "9px";
-    pill.style.fontWeight = "600";
-    pill.style.letterSpacing = "0.05em";
-    pill.style.padding = "0 5px";
-    pill.style.textTransform = "uppercase";
-    modeBtn.appendChild(pill);
+    modeBtn.appendChild(createProPill("panel-mode-pro"));
   }
 
   const toggleBtn = document.createElement("button");

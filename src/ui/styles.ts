@@ -32,3 +32,26 @@ export function applyLabel(el: HTMLElement): void {
   el.style.fontFamily = FONT_FAMILY;
   el.style.userSelect = "none";
 }
+
+/**
+ * Build the small "Pro" pill shown next to Pro-gated UI affordances
+ * when the current user isn't on the allowlist. Used by both the side
+ * panel's mode-toggle and the Notebook's Insert-link button, with the
+ * caller choosing the `data-testid` value so the two remain distinct
+ * to tests and query-selectors.
+ */
+export function createProPill(testid: string): HTMLElement {
+  const pill = document.createElement("span");
+  pill.dataset.testid = testid;
+  pill.textContent = "Pro";
+  pill.style.background = "rgba(0,255,136,0.18)";
+  pill.style.border = "1px solid rgba(0,255,136,0.5)";
+  pill.style.borderRadius = "10px";
+  pill.style.color = ACCENT_COLOR.toLowerCase();
+  pill.style.fontSize = "10px";
+  pill.style.fontWeight = "600";
+  pill.style.letterSpacing = "0.05em";
+  pill.style.padding = "1px 7px";
+  pill.style.textTransform = "uppercase";
+  return pill;
+}

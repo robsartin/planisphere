@@ -68,7 +68,7 @@ export function createLoginModal(options: LoginModalOptions): LoginModal {
   }
 
   function renderForm(): void {
-    body.innerHTML = "";
+    body.replaceChildren();
 
     const heading = document.createElement("h2");
     heading.textContent = "Sign in";
@@ -179,7 +179,7 @@ export function createLoginModal(options: LoginModalOptions): LoginModal {
   }
 
   function renderSent(email: string): void {
-    body.innerHTML = "";
+    body.replaceChildren();
 
     const heading = document.createElement("h2");
     heading.textContent = "Check your email";
@@ -191,7 +191,7 @@ export function createLoginModal(options: LoginModalOptions): LoginModal {
     sent.dataset.testid = "login-modal-sent";
     sent.style.fontSize = "13px";
     sent.style.lineHeight = "1.5";
-    sent.innerHTML = "";
+    sent.replaceChildren();
     const line1 = document.createElement("p");
     line1.style.margin = "0 0 8px";
     line1.textContent = `We sent a one-time login link to ${email}.`;
