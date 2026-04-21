@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { Editor, type Content } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { createNotebookMentionExtension } from "./notebook-mention";
 import { FONT_FAMILY, TEXT_COLOR } from "./styles";
 
 /**
@@ -71,7 +72,7 @@ export function createNotebookEditor(options: NotebookEditorOptions): NotebookEd
 
   const editor = new Editor({
     element: host,
-    extensions: [StarterKit],
+    extensions: [StarterKit, createNotebookMentionExtension()],
     content: initialDoc,
     editorProps: {
       attributes: {
