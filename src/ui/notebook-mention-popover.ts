@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { EntityRecord } from "../astro/entities";
 import { resolveEntityLabel, type EntityKind } from "../astro/entities";
+import { el } from "./dom";
 import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR, TEXT_MUTED } from "./styles";
 
 /**
@@ -33,20 +34,23 @@ export function createMentionPopover(options: MentionPopoverOptions): MentionPop
   let selectedIndex = 0;
   let clientRect: (() => DOMRect | null) | null = options.clientRect;
 
-  const root = document.createElement("div");
-  root.dataset.testid = "notebook-mention-popover";
-  root.style.position = "fixed";
-  root.style.background = PANEL_BG;
-  root.style.border = PANEL_BORDER;
-  root.style.borderRadius = "6px";
-  root.style.color = TEXT_COLOR;
-  root.style.fontFamily = FONT_FAMILY;
-  root.style.fontSize = "13px";
-  root.style.padding = "4px";
-  root.style.minWidth = "200px";
-  root.style.maxWidth = "320px";
-  root.style.boxShadow = "0 6px 20px rgba(0,0,0,0.5)";
-  root.style.zIndex = "1400";
+  const root = el("div", {
+    testid: "notebook-mention-popover",
+    style: {
+      position: "fixed",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: "6px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "13px",
+      padding: "4px",
+      minWidth: "200px",
+      maxWidth: "320px",
+      boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+      zIndex: "1400",
+    },
+  });
   document.body.appendChild(root);
 
   function commit(idx: number): void {
@@ -57,54 +61,57 @@ export function createMentionPopover(options: MentionPopoverOptions): MentionPop
   function render(): void {
     root.textContent = "";
     if (items.length === 0) {
-      const empty = document.createElement("div");
-      empty.dataset.testid = "notebook-mention-empty";
-      empty.textContent = "No matches";
-      empty.style.padding = "8px 10px";
-      empty.style.color = TEXT_MUTED;
-      root.appendChild(empty);
+      root.appendChild(
+        el("div", {
+          testid: "notebook-mention-empty",
+          text: "No matches",
+          style: { padding: "8px 10px", color: TEXT_MUTED },
+        }),
+      );
       return;
     }
     items.forEach((item, idx) => {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.dataset.testid = "notebook-mention-item";
-      row.dataset.index = String(idx);
-      row.dataset.kind = item.kind;
-      row.dataset.entityId = item.id;
-      row.style.display = "flex";
-      row.style.justifyContent = "space-between";
-      row.style.alignItems = "center";
-      row.style.gap = "10px";
-      row.style.width = "100%";
-      row.style.textAlign = "left";
-      row.style.border = "none";
-      row.style.background = idx === selectedIndex ? "rgba(255,255,255,0.12)" : "transparent";
-      row.style.color = TEXT_COLOR;
-      row.style.fontFamily = FONT_FAMILY;
-      row.style.fontSize = "13px";
-      row.style.padding = "6px 10px";
-      row.style.borderRadius = "4px";
-      row.style.cursor = "pointer";
-
-      const label = document.createElement("span");
-      label.textContent = item.label;
-      row.appendChild(label);
-
-      const kindPill = document.createElement("span");
-      kindPill.textContent = item.kind;
-      kindPill.style.fontSize = "10px";
-      kindPill.style.textTransform = "uppercase";
-      kindPill.style.letterSpacing = "0.05em";
-      kindPill.style.color = TEXT_MUTED;
-      row.appendChild(kindPill);
-
-      row.addEventListener("mousedown", (ev) => {
-        // mousedown, not click — click fires after the editor loses
-        // focus, which tears down the suggestion plugin before the
-        // handler runs.
-        ev.preventDefault();
-        commit(idx);
+      const row = el("button", {
+        type: "button",
+        testid: "notebook-mention-item",
+        dataset: { index: String(idx), kind: item.kind, entityId: item.id },
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "10px",
+          width: "100%",
+          textAlign: "left",
+          border: "none",
+          background: idx === selectedIndex ? "rgba(255,255,255,0.12)" : "transparent",
+          color: TEXT_COLOR,
+          fontFamily: FONT_FAMILY,
+          fontSize: "13px",
+          padding: "6px 10px",
+          borderRadius: "4px",
+          cursor: "pointer",
+        },
+        on: {
+          // mousedown, not click — click fires after the editor loses
+          // focus, which tears down the suggestion plugin before the
+          // handler runs.
+          mousedown: (ev: MouseEvent) => {
+            ev.preventDefault();
+            commit(idx);
+          },
+        },
+        children: [
+          el("span", { text: item.label }),
+          el("span", {
+            text: item.kind,
+            style: {
+              fontSize: "10px",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: TEXT_MUTED,
+            },
+          }),
+        ],
       });
       root.appendChild(row);
     });
