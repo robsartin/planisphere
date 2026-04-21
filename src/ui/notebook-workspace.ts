@@ -1,7 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { isPro } from "../features";
 import type { NotebookDoc, NotebookError, NotebookPayload, NotebookSummary } from "../notebooks";
-import { createNotebook, getNotebook, listNotebooks, updateNotebook } from "../notebooks";
+import {
+  createNotebook,
+  deleteNotebook,
+  getNotebook,
+  listNotebooks,
+  updateNotebook,
+} from "../notebooks";
 import type { Result } from "../result";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
 import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
@@ -13,6 +19,7 @@ export type NotebookApi = {
   create(payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
   get(id: number): Promise<Result<NotebookDoc, NotebookError>>;
   update(id: number, payload: NotebookPayload): Promise<Result<NotebookDoc, NotebookError>>;
+  delete(id: number): Promise<Result<void, NotebookError>>;
 };
 
 export const DEFAULT_NOTEBOOK_TITLE = "Untitled notebook";
@@ -52,6 +59,7 @@ const DEFAULT_API: NotebookApi = {
   create: createNotebook,
   get: getNotebook,
   update: updateNotebook,
+  delete: deleteNotebook,
 };
 
 export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}): NotebookWorkspace {
@@ -72,15 +80,49 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   heading.style.letterSpacing = "0.01em";
   root.appendChild(heading);
 
-  const description = document.createElement("p");
-  description.dataset.testid = "notebook-description";
-  description.textContent =
-    "Your observation notes live here — rich text, autosaved to your account.";
-  description.style.margin = "0";
-  description.style.fontSize = "13px";
-  description.style.lineHeight = "1.5";
-  description.style.color = "rgba(255,255,255,0.72)";
-  root.appendChild(description);
+  // Title row: editable current title + new / delete action buttons.
+  const titleRow = document.createElement("div");
+  titleRow.style.display = "flex";
+  titleRow.style.gap = "6px";
+  titleRow.style.alignItems = "center";
+
+  const titleInput = document.createElement("input");
+  titleInput.type = "text";
+  titleInput.dataset.testid = "notebook-title";
+  titleInput.placeholder = "Untitled notebook";
+  titleInput.style.flex = "1 1 auto";
+  titleInput.style.background = "rgba(255,255,255,0.06)";
+  titleInput.style.border = "1px solid rgba(255,255,255,0.18)";
+  titleInput.style.borderRadius = "4px";
+  titleInput.style.color = TEXT_COLOR;
+  titleInput.style.fontFamily = FONT_FAMILY;
+  titleInput.style.fontSize = "14px";
+  titleInput.style.padding = "6px 10px";
+
+  const newBtn = document.createElement("button");
+  newBtn.type = "button";
+  newBtn.dataset.testid = "notebook-new";
+  newBtn.textContent = "+ New";
+  styleActionButton(newBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.dataset.testid = "notebook-delete";
+  deleteBtn.textContent = "Delete";
+  styleActionButton(deleteBtn);
+
+  titleRow.appendChild(titleInput);
+  titleRow.appendChild(newBtn);
+  titleRow.appendChild(deleteBtn);
+  root.appendChild(titleRow);
+
+  // Tab list (horizontal, scrollable if overflows). One entry per summary.
+  const tabList = document.createElement("div");
+  tabList.dataset.testid = "notebook-tabs";
+  tabList.style.display = "flex";
+  tabList.style.flexWrap = "wrap";
+  tabList.style.gap = "6px";
+  root.appendChild(tabList);
 
   const statusLine = document.createElement("div");
   statusLine.dataset.testid = "notebook-status";
@@ -108,6 +150,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   root.appendChild(editorContainer);
 
   let editor: NotebookEditor | null = null;
+  let summaries: NotebookSummary[] = [];
   let currentId: number | null = null;
   let currentTitle = DEFAULT_NOTEBOOK_TITLE;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -124,11 +167,60 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
             : "Save failed — will retry on the next edit.";
   }
 
+  function renderTabs(): void {
+    tabList.textContent = "";
+    for (const s of summaries) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.dataset.testid = "notebook-tab";
+      tab.dataset.notebookId = String(s.id);
+      tab.dataset.active = s.id === currentId ? "true" : "false";
+      tab.textContent = s.title;
+      tab.style.background =
+        s.id === currentId ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)";
+      tab.style.border = "1px solid rgba(255,255,255,0.2)";
+      tab.style.borderRadius = "999px";
+      tab.style.color = TEXT_COLOR;
+      tab.style.cursor = "pointer";
+      tab.style.fontFamily = FONT_FAMILY;
+      tab.style.fontSize = "12px";
+      tab.style.padding = "4px 10px";
+      tab.style.maxWidth = "150px";
+      tab.style.overflow = "hidden";
+      tab.style.textOverflow = "ellipsis";
+      tab.style.whiteSpace = "nowrap";
+      tab.addEventListener("click", () => {
+        if (s.id !== currentId) void switchTo(s.id);
+      });
+      tabList.appendChild(tab);
+    }
+  }
+
+  function syncTitleInput(): void {
+    if (titleInput.value !== currentTitle) titleInput.value = currentTitle;
+  }
+
+  function updateSummary(next: NotebookDoc): void {
+    summaries = summaries.filter((s) => s.id !== next.id);
+    summaries.unshift({
+      id: next.id,
+      title: next.title,
+      created_at: next.created_at,
+      updated_at: next.updated_at,
+    });
+    renderTabs();
+  }
+
   async function saveNow(contentJson: string): Promise<void> {
     if (currentId === null) return;
     setStatus("saving");
     const res = await api.update(currentId, { title: currentTitle, content_json: contentJson });
-    setStatus(res.ok ? "saved" : "error");
+    if (res.ok) {
+      updateSummary(res.value);
+      setStatus("saved");
+    } else {
+      setStatus("error");
+    }
   }
 
   function scheduleSave(contentJson: string): void {
@@ -137,6 +229,13 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
       saveTimer = null;
       void saveNow(contentJson);
     }, saveDebounceMs);
+  }
+
+  async function flushPendingSave(): Promise<void> {
+    if (saveTimer === null || editor === null) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    await saveNow(editor.getContent());
   }
 
   function mountEditor(initialContent: string): void {
@@ -159,6 +258,72 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     editorContainer.appendChild(errBox);
   }
 
+  async function adopt(doc: NotebookDoc): Promise<void> {
+    currentId = doc.id;
+    currentTitle = doc.title;
+    mountEditor(doc.content_json);
+    syncTitleInput();
+    renderTabs();
+    statusLine.textContent = "";
+    await Promise.resolve();
+  }
+
+  async function switchTo(id: number): Promise<void> {
+    await flushPendingSave();
+    statusLine.textContent = "Loading…";
+    const res = await api.get(id);
+    if (!res.ok) {
+      renderError(errorToMessage(res.error));
+      statusLine.textContent = "";
+      return;
+    }
+    await adopt(res.value);
+  }
+
+  async function createFresh(): Promise<boolean> {
+    const res = await api.create({
+      title: DEFAULT_NOTEBOOK_TITLE,
+      content_json: EMPTY_DOC_JSON,
+    });
+    if (!res.ok) {
+      renderError(errorToMessage(res.error));
+      statusLine.textContent = "";
+      return false;
+    }
+    summaries.unshift({
+      id: res.value.id,
+      title: res.value.title,
+      created_at: res.value.created_at,
+      updated_at: res.value.updated_at,
+    });
+    await adopt(res.value);
+    return true;
+  }
+
+  async function deleteCurrent(): Promise<void> {
+    if (currentId === null) return;
+    const ok = globalThis.confirm("Delete this notebook? This can't be undone.");
+    if (!ok) return;
+    const id = currentId;
+    // Cancel any pending save for the doomed notebook.
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    const res = await api.delete(id);
+    if (!res.ok) {
+      setStatus("error");
+      return;
+    }
+    summaries = summaries.filter((s) => s.id !== id);
+    currentId = null;
+    if (summaries.length > 0) {
+      await switchTo(summaries[0]!.id);
+    } else {
+      await createFresh();
+    }
+  }
+
   async function load(): Promise<void> {
     setStatus("idle");
     statusLine.textContent = "Loading…";
@@ -168,7 +333,8 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
       statusLine.textContent = "";
       return;
     }
-    const first = listRes.value[0];
+    summaries = [...listRes.value];
+    const first = summaries[0];
     if (first !== undefined) {
       const getRes = await api.get(first.id);
       if (!getRes.ok) {
@@ -176,25 +342,39 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
         statusLine.textContent = "";
         return;
       }
-      currentId = getRes.value.id;
-      currentTitle = getRes.value.title;
-      mountEditor(getRes.value.content_json);
+      await adopt(getRes.value);
     } else {
-      const createRes = await api.create({
-        title: DEFAULT_NOTEBOOK_TITLE,
-        content_json: EMPTY_DOC_JSON,
-      });
-      if (!createRes.ok) {
-        renderError(errorToMessage(createRes.error));
-        statusLine.textContent = "";
-        return;
-      }
-      currentId = createRes.value.id;
-      currentTitle = createRes.value.title;
-      mountEditor(createRes.value.content_json);
+      await createFresh();
     }
-    statusLine.textContent = "";
   }
+
+  // --- listeners
+
+  titleInput.addEventListener("change", () => {
+    if (currentId === null) return;
+    const next = titleInput.value.trim();
+    if (next.length === 0 || next === currentTitle) {
+      syncTitleInput();
+      return;
+    }
+    currentTitle = next;
+    // PUT with the current content so the title change is durable even if
+    // the user is also mid-typing in the editor.
+    if (editor !== null) void saveNow(editor.getContent());
+  });
+
+  newBtn.addEventListener("click", () => {
+    void (async () => {
+      await flushPendingSave();
+      await createFresh();
+    })();
+  });
+
+  deleteBtn.addEventListener("click", () => {
+    void deleteCurrent();
+  });
+
+  // --- bootstrap
 
   let loadStarted = false;
   let resolveReady: () => void = () => {};
@@ -246,6 +426,18 @@ function applyShellStyles(root: HTMLElement): void {
   if (isMobile) root.style.width = "100vw";
 }
 
+function styleActionButton(btn: HTMLButtonElement): void {
+  btn.style.background = "rgba(255,255,255,0.08)";
+  btn.style.border = "1px solid rgba(255,255,255,0.2)";
+  btn.style.borderRadius = "4px";
+  btn.style.color = TEXT_COLOR;
+  btn.style.cursor = "pointer";
+  btn.style.fontFamily = FONT_FAMILY;
+  btn.style.fontSize = "12px";
+  btn.style.padding = "6px 10px";
+  btn.style.whiteSpace = "nowrap";
+}
+
 function buildInsertLinkButton(
   getCurrentView: () => { readonly href: string; readonly timeUtc: Date },
   resolveEditor: () => NotebookEditor | null,
@@ -267,7 +459,7 @@ function buildInsertLinkButton(
   btn.style.gap = "6px";
 
   const label = document.createElement("span");
-  label.textContent = "\u2192 Insert link to this view";
+  label.textContent = "→ Insert link to this view";
   btn.appendChild(label);
 
   if (!isPro()) {
