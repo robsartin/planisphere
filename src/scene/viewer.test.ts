@@ -74,6 +74,24 @@ describe("repositionCreditBar", () => {
     expect(creditBar.dataset.testid).toBe("cesium-credit-bar");
   });
 
+  it("shrinks the bar to content width and disables pointer events", () => {
+    // Cesium's default `.cesium-viewer-bottom` is a full-width absolutely-
+    // positioned element. Leaving it full-width at `top: 8px` would lay a
+    // transparent band across the top of the viewer that intercepts every
+    // hover / drag gesture — breaks picker popups and camera drag. The
+    // wrapper must be `pointer-events: none` + `width: auto` so only the
+    // visible logo area shows and nothing there eats mouse events.
+    const container = document.createElement("div");
+    const creditBar = document.createElement("div");
+    creditBar.className = "cesium-viewer-bottom";
+    container.appendChild(creditBar);
+
+    repositionCreditBar(container);
+
+    expect(creditBar.style.pointerEvents).toBe("none");
+    expect(creditBar.style.width).toBe("auto");
+  });
+
   it("is a no-op if the viewer has no .cesium-viewer-bottom child", () => {
     const container = document.createElement("div");
     expect(() => {

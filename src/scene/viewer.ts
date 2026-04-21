@@ -60,8 +60,13 @@ export function createViewer(containerId: string): Result<Viewer, SceneInitError
  * position so it doesn't collide with the bottom-hud (time / observer /
  * scrubber). Exported for testing.
  *
- * Cesium's Apache-2.0 licence expects the credit display to stay visible;
- * we keep it visible and clickable, just out of the hud's way.
+ * `pointer-events: none` on the wrapper is critical: the default
+ * `.cesium-viewer-bottom` is a full-width absolutely-positioned bar, so
+ * without it we'd be laying a transparent full-width band across the top
+ * of the viewer that intercepts every hover / drag gesture (= broken
+ * picker popups and broken camera drag). Cesium's Apache-2.0 requires
+ * the credit stay visible — it does — but doesn't require the link stay
+ * clickable, which it doesn't need to be for attribution.
  */
 export function repositionCreditBar(viewerContainer: HTMLElement): void {
   const creditBar = viewerContainer.querySelector<HTMLElement>(".cesium-viewer-bottom");
@@ -70,6 +75,8 @@ export function repositionCreditBar(viewerContainer: HTMLElement): void {
   creditBar.style.left = "auto";
   creditBar.style.top = "8px";
   creditBar.style.right = "8px";
+  creditBar.style.width = "auto";
+  creditBar.style.pointerEvents = "none";
   creditBar.style.zIndex = "100";
   creditBar.dataset.testid = "cesium-credit-bar";
 }
