@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { createDrawer, type Drawer } from "./drawer";
+import { el } from "./dom";
 import {
   createVisibilitySection,
   createOpacitySection,
@@ -59,53 +60,56 @@ export type SettingsDrawer = {
 type SectionHandle = {
   wrapper: HTMLElement;
   header: HTMLElement;
+  chevron: HTMLElement;
   body: HTMLElement;
 };
 
 function buildSection(id: SectionId, title: string, content: HTMLElement): SectionHandle {
-  const wrapper = document.createElement("div");
-  wrapper.dataset.testid = `settings-section-${id}`;
-  wrapper.dataset.expanded = "false";
-  wrapper.style.marginBottom = GAP;
-  wrapper.style.border = "1px solid rgba(255,255,255,0.15)";
-  wrapper.style.borderRadius = "6px";
-  wrapper.style.overflow = "hidden";
+  const chevron = el("span", {
+    testid: `settings-chevron-${id}`,
+    text: "▸",
+    style: { transition: "transform 120ms ease" },
+  });
 
-  const header = document.createElement("button");
-  header.dataset.testid = `settings-header-${id}`;
-  header.type = "button";
-  header.style.width = "100%";
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
-  header.style.padding = "8px 10px";
-  header.style.background = "rgba(255,255,255,0.04)";
-  header.style.border = "none";
-  header.style.color = TEXT_COLOR;
-  header.style.cursor = "pointer";
-  header.style.textAlign = "left";
+  const header = el("button", {
+    testid: `settings-header-${id}`,
+    type: "button",
+    style: {
+      width: "100%",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "8px 10px",
+      background: "rgba(255,255,255,0.04)",
+      border: "none",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      textAlign: "left",
+      fontWeight: "bold",
+    },
+    children: [el("span", { text: title }), chevron],
+  });
   applyBaseText(header);
-  header.style.fontWeight = "bold";
 
-  const titleEl = document.createElement("span");
-  titleEl.textContent = title;
-  const chevron = document.createElement("span");
-  chevron.dataset.testid = `settings-chevron-${id}`;
-  chevron.textContent = "▸";
-  chevron.style.transition = "transform 120ms ease";
-  header.appendChild(titleEl);
-  header.appendChild(chevron);
+  const body = el("div", {
+    testid: `settings-body-${id}`,
+    style: { padding: "8px 10px", display: "none" },
+    children: [content],
+  });
 
-  const body = document.createElement("div");
-  body.dataset.testid = `settings-body-${id}`;
-  body.style.padding = "8px 10px";
-  body.style.display = "none";
-  body.appendChild(content);
+  const wrapper = el("div", {
+    testid: `settings-section-${id}`,
+    dataset: { expanded: "false" },
+    style: {
+      marginBottom: GAP,
+      border: "1px solid rgba(255,255,255,0.15)",
+      borderRadius: "6px",
+      overflow: "hidden",
+    },
+    children: [header, body],
+  });
 
-  wrapper.appendChild(header);
-  wrapper.appendChild(body);
-
-  return { wrapper, header, body };
+  return { wrapper, header, chevron, body };
 }
 
 /**
@@ -119,16 +123,6 @@ function buildSection(id: SectionId, title: string, content: HTMLElement): Secti
  */
 export function createSettingsDrawer(options: SettingsDrawerOptions): SettingsDrawer {
   const { visibility, opacity, magLimit, language, skyculture, dispatch } = options;
-
-  const container = document.createElement("div");
-  container.dataset.testid = "settings-drawer-content";
-
-  const title = document.createElement("h2");
-  title.textContent = "Settings";
-  applyBaseText(title);
-  title.style.margin = "0 0 12px 0";
-  title.style.fontSize = "16px";
-  container.appendChild(title);
 
   const sections: Record<SectionId, SectionHandle> = {
     visibility: buildSection(
@@ -145,9 +139,16 @@ export function createSettingsDrawer(options: SettingsDrawerOptions): SettingsDr
     ),
   };
 
-  for (const id of SECTION_IDS) {
-    container.appendChild(sections[id].wrapper);
-  }
+  const title = el("h2", {
+    text: "Settings",
+    style: { margin: "0 0 12px 0", fontSize: "16px" },
+  });
+  applyBaseText(title);
+
+  const container = el("div", {
+    testid: "settings-drawer-content",
+    children: [title, ...SECTION_IDS.map((id) => sections[id].wrapper)],
+  });
 
   function expand(id: SectionId): void {
     for (const other of SECTION_IDS) {
@@ -155,8 +156,7 @@ export function createSettingsDrawer(options: SettingsDrawerOptions): SettingsDr
       const expanded = other === id;
       s.wrapper.dataset.expanded = expanded ? "true" : "false";
       s.body.style.display = expanded ? "block" : "none";
-      const chev = s.header.querySelector<HTMLElement>(`[data-testid='settings-chevron-${other}']`);
-      if (chev !== null) chev.style.transform = expanded ? "rotate(90deg)" : "rotate(0deg)";
+      s.chevron.style.transform = expanded ? "rotate(90deg)" : "rotate(0deg)";
     }
   }
 
@@ -189,24 +189,24 @@ function buildDisplaySection(
   skyculture: SkycultureId,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const wrapper = document.createElement("div");
-
-  const langHeading = document.createElement("div");
-  langHeading.textContent = "Constellation Names";
+  const langHeading = el("div", {
+    text: "Constellation Names",
+    style: { fontSize: "12px", marginBottom: "2px" },
+  });
   applyBaseText(langHeading);
-  langHeading.style.fontSize = "12px";
-  langHeading.style.marginBottom = "2px";
-  wrapper.appendChild(langHeading);
-  wrapper.appendChild(createLanguageSection(language, dispatch));
 
-  const skyHeading = document.createElement("div");
-  skyHeading.textContent = "Skyculture";
+  const skyHeading = el("div", {
+    text: "Skyculture",
+    style: { fontSize: "12px", marginTop: "8px", marginBottom: "2px" },
+  });
   applyBaseText(skyHeading);
-  skyHeading.style.fontSize = "12px";
-  skyHeading.style.marginTop = "8px";
-  skyHeading.style.marginBottom = "2px";
-  wrapper.appendChild(skyHeading);
-  wrapper.appendChild(createSkycultureSection(skyculture, dispatch));
 
-  return wrapper;
+  return el("div", {
+    children: [
+      langHeading,
+      createLanguageSection(language, dispatch),
+      skyHeading,
+      createSkycultureSection(skyculture, dispatch),
+    ],
+  });
 }
