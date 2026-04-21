@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
+import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 
 export const ONBOARDING_STORAGE_KEY = "planisphere.onboarding.v1";
 
@@ -176,7 +176,7 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions): Onboard
   backBtn.dataset.testid = "onboarding-back";
   backBtn.type = "button";
   backBtn.textContent = "Back";
-  backBtn.style.background = "rgba(255,255,255,0.08)";
+  backBtn.style.background = SURFACE;
   backBtn.style.border = "1px solid rgba(255,255,255,0.25)";
   backBtn.style.color = TEXT_COLOR;
   backBtn.style.borderRadius = "6px";

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import citiesJson from "../../data/cities.json";
-import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
+import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 
 export type LocationPickerOverlay = {
@@ -246,7 +246,7 @@ export function createLocationPickerOverlay(
     pill.type = "button";
     pill.textContent = city.name;
     pill.title = `${city.name}, ${city.country}`;
-    pill.style.background = "rgba(255,255,255,0.08)";
+    pill.style.background = SURFACE;
     pill.style.border = "1px solid rgba(255,255,255,0.25)";
     pill.style.borderRadius = "999px";
     pill.style.color = TEXT_COLOR;

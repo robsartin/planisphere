@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { PANEL_BORDER, TEXT_COLOR, FONT_FAMILY } from "./styles";
+import { FONT_FAMILY, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 
 const IDLE_FADE_MS = 2000;
@@ -118,7 +118,7 @@ export function createBottomHud(
   const locationChip = document.createElement("button");
   locationChip.dataset.testid = "hud-location";
   locationChip.type = "button";
-  locationChip.style.background = "rgba(255,255,255,0.08)";
+  locationChip.style.background = SURFACE;
   locationChip.style.border = "1px solid rgba(255,255,255,0.25)";
   locationChip.style.borderRadius = "999px";
   locationChip.style.padding = "6px 12px";
@@ -168,7 +168,7 @@ export function createBottomHud(
   // Right chip — compass
   const compassChip = document.createElement("div");
   compassChip.dataset.testid = "hud-compass";
-  compassChip.style.background = "rgba(255,255,255,0.08)";
+  compassChip.style.background = SURFACE;
   compassChip.style.border = "1px solid rgba(255,255,255,0.25)";
   compassChip.style.borderRadius = "999px";
   compassChip.style.padding = "6px 12px";

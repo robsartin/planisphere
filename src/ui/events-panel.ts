@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { applyBaseText, GAP, TEXT_COLOR } from "./styles";
+import { applyBaseText, GAP, SURFACE, TEXT_COLOR, TEXT_MUTED } from "./styles";
 import type { CelestialEvent } from "../astro/events";
 import type { UIIntent } from "./index";
 
@@ -138,7 +138,7 @@ export function createEventsPanel(
       gotoBtn.style.padding = "2px 6px";
       gotoBtn.style.fontSize = "11px";
       gotoBtn.style.fontFamily = "sans-serif";
-      gotoBtn.style.background = "rgba(255,255,255,0.08)";
+      gotoBtn.style.background = SURFACE;
       gotoBtn.style.color = TEXT_COLOR;
       gotoBtn.style.border = "1px solid rgba(255,255,255,0.2)";
       gotoBtn.style.borderRadius = "3px";
@@ -168,7 +168,7 @@ export function createEventsPanel(
       const descEl = document.createElement("div");
       descEl.dataset.testid = "event-description";
       descEl.textContent = event.description;
-      descEl.style.color = "rgba(255,255,255,0.55)";
+      descEl.style.color = TEXT_MUTED;
       descEl.style.fontSize = "11px";
       descEl.style.fontFamily = "sans-serif";
       descEl.style.marginTop = "2px";
