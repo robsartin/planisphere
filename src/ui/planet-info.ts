@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { applyBaseText, GAP, ACCENT_COLOR, TEXT_COLOR } from "./styles";
+import { ACCENT_COLOR, applyBaseText, GAP, SURFACE, TEXT_COLOR } from "./styles";
 import type { CelestialBody } from "../astro/bodies";
 import { computeRiseSet } from "../astro/rise-set";
 
@@ -166,7 +166,7 @@ export function createPlanetInfo(
       trailBtn.style.padding = "2px 6px";
       trailBtn.style.fontSize = "11px";
       trailBtn.style.fontFamily = "sans-serif";
-      trailBtn.style.background = active ? "rgba(100,160,255,0.25)" : "rgba(255,255,255,0.08)";
+      trailBtn.style.background = active ? "rgba(100,160,255,0.25)" : SURFACE;
       trailBtn.style.color = TEXT_COLOR;
       trailBtn.style.border = "1px solid rgba(255,255,255,0.2)";
       trailBtn.style.borderRadius = "3px";

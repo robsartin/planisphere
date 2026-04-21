@@ -3,6 +3,7 @@ import type { AltAzStar, CelestialBody, VisibleMessier, VisibleConstellation } f
 import type { VisibleSatellite } from "../sat";
 import type { UIIntent } from "./index";
 import { computeRiseSet } from "../astro/rise-set";
+import { TEXT_MUTED } from "./styles";
 
 export type ObjectCardData =
   | { readonly kind: "star"; readonly star: AltAzStar }
@@ -163,7 +164,7 @@ function appendAttrRow(container: HTMLElement, label: string, value: string): vo
   row.style.marginTop = "2px";
   const l = document.createElement("span");
   l.textContent = label;
-  l.style.color = "rgba(255,255,255,0.55)";
+  l.style.color = TEXT_MUTED;
   const v = document.createElement("span");
   v.textContent = value;
   row.appendChild(l);
@@ -345,7 +346,7 @@ export function createObjectCard(props: ObjectCardProps): ObjectCard {
   subtitleEl.dataset.testid = "object-card-subtitle";
   subtitleEl.textContent = subtitle;
   subtitleEl.style.fontSize = "10px";
-  subtitleEl.style.color = "rgba(255,255,255,0.55)";
+  subtitleEl.style.color = TEXT_MUTED;
   subtitleEl.style.marginTop = "1px";
   headerText.appendChild(subtitleEl);
 
