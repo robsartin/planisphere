@@ -49,6 +49,28 @@ function errFromStatus(status: number): NotebookError {
   return { kind: "server" };
 }
 
+/**
+ * Single code path every `/api/notebooks` request flows through. Handles
+ * the `credentials: "include"` default, the `network` / status-mapping /
+ * `server` error branches, and leaves body parsing to the caller via
+ * `parse`. Returning a Result here means every new route inherits the
+ * right error model without manual wiring.
+ */
+async function apiRequest<T>(
+  path: string,
+  init: Omit<RequestInit, "credentials">,
+  parse: (res: Response) => Promise<Result<T, NotebookError>>,
+): Promise<Result<T, NotebookError>> {
+  let response: Response;
+  try {
+    response = await fetch(path, { ...init, credentials: "include" });
+  } catch {
+    return err({ kind: "network" });
+  }
+  if (!response.ok) return err(errFromStatus(response.status));
+  return parse(response);
+}
+
 async function parseDoc(response: Response): Promise<Result<NotebookDoc, NotebookError>> {
   let body: unknown;
   try {
@@ -59,6 +81,32 @@ async function parseDoc(response: Response): Promise<Result<NotebookDoc, Noteboo
   const doc = asNotebookDoc(body);
   if (doc === null) return err({ kind: "server" });
   return ok(doc);
+}
+
+async function parseSummaryList(
+  response: Response,
+): Promise<Result<NotebookSummary[], NotebookError>> {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return err({ kind: "server" });
+  }
+  const list = asSummaryList(body);
+  if (list === null) return err({ kind: "server" });
+  return ok(list);
+}
+
+// eslint-disable-next-line @typescript-eslint/require-await
+async function parseVoid(_response: Response): Promise<Result<void, NotebookError>> {
+  return ok(undefined);
+}
+
+function jsonBody(payload: NotebookPayload): RequestInit {
+  return {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: payload.title, content_json: payload.content_json }),
+  };
 }
 
 function asNotebookDoc(body: unknown): NotebookDoc | null {
@@ -97,80 +145,31 @@ function asSummaryList(body: unknown): NotebookSummary[] | null {
   return out;
 }
 
-export async function listNotebooks(): Promise<Result<NotebookSummary[], NotebookError>> {
-  let response: Response;
-  try {
-    response = await fetch("/api/notebooks", { method: "GET", credentials: "include" });
-  } catch {
-    return err({ kind: "network" });
-  }
-  if (!response.ok) return err(errFromStatus(response.status));
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    return err({ kind: "server" });
-  }
-  const list = asSummaryList(body);
-  if (list === null) return err({ kind: "server" });
-  return ok(list);
+export function listNotebooks(): Promise<Result<NotebookSummary[], NotebookError>> {
+  return apiRequest("/api/notebooks", { method: "GET" }, parseSummaryList);
 }
 
-export async function createNotebook(
+export function createNotebook(
   payload: NotebookPayload,
 ): Promise<Result<NotebookDoc, NotebookError>> {
-  let response: Response;
-  try {
-    response = await fetch("/api/notebooks", {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title: payload.title, content_json: payload.content_json }),
-    });
-  } catch {
-    return err({ kind: "network" });
-  }
-  if (!response.ok) return err(errFromStatus(response.status));
-  return parseDoc(response);
+  return apiRequest("/api/notebooks", { method: "POST", ...jsonBody(payload) }, parseDoc);
 }
 
-export async function getNotebook(id: number): Promise<Result<NotebookDoc, NotebookError>> {
-  let response: Response;
-  try {
-    response = await fetch(`/api/notebooks/${id}`, { method: "GET", credentials: "include" });
-  } catch {
-    return err({ kind: "network" });
-  }
-  if (!response.ok) return err(errFromStatus(response.status));
-  return parseDoc(response);
+export function getNotebook(id: number): Promise<Result<NotebookDoc, NotebookError>> {
+  return apiRequest(`/api/notebooks/${String(id)}`, { method: "GET" }, parseDoc);
 }
 
-export async function updateNotebook(
+export function updateNotebook(
   id: number,
   payload: NotebookPayload,
 ): Promise<Result<NotebookDoc, NotebookError>> {
-  let response: Response;
-  try {
-    response = await fetch(`/api/notebooks/${id}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title: payload.title, content_json: payload.content_json }),
-    });
-  } catch {
-    return err({ kind: "network" });
-  }
-  if (!response.ok) return err(errFromStatus(response.status));
-  return parseDoc(response);
+  return apiRequest(
+    `/api/notebooks/${String(id)}`,
+    { method: "PUT", ...jsonBody(payload) },
+    parseDoc,
+  );
 }
 
-export async function deleteNotebook(id: number): Promise<Result<void, NotebookError>> {
-  let response: Response;
-  try {
-    response = await fetch(`/api/notebooks/${id}`, { method: "DELETE", credentials: "include" });
-  } catch {
-    return err({ kind: "network" });
-  }
-  if (!response.ok) return err(errFromStatus(response.status));
-  return ok(undefined);
+export function deleteNotebook(id: number): Promise<Result<void, NotebookError>> {
+  return apiRequest(`/api/notebooks/${String(id)}`, { method: "DELETE" }, parseVoid);
 }
