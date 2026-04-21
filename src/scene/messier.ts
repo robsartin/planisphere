@@ -2,6 +2,7 @@
 import { BillboardCollection, Color, HorizontalOrigin, VerticalOrigin } from "cesium";
 import type { Scene } from "cesium";
 import type { VisibleMessier } from "../astro/messier";
+import { collectionAt, collectionLength, setCollectionVisible } from "./cesium-collections";
 import { altAzToCartesian } from "./stars";
 
 export type MessierLayer = {
@@ -184,16 +185,14 @@ export function createMessierLayer(scene: Scene): MessierLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (billboards as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(billboards, visible);
   }
 
   function setOpacity(opacity: number): void {
     // Billboard alpha is set per-billboard at add time; update all existing billboards
-    const count = (billboards as unknown as { length: number }).length ?? 0;
+    const count = collectionLength(billboards);
     for (let i = 0; i < count; i++) {
-      const bb = (
-        billboards as unknown as { get: (i: number) => { color: { alpha: number } } }
-      ).get(i);
+      const bb = collectionAt<{ color: { alpha: number } }>(billboards, i);
       if (bb?.color !== undefined) {
         bb.color.alpha = opacity;
       }

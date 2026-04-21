@@ -2,6 +2,7 @@
 import { PolylineCollection, Color, Material } from "cesium";
 import type { Scene } from "cesium";
 import type { HorizontalCoord } from "../astro/coords";
+import { setCollectionVisible } from "./cesium-collections";
 import { altAzToCartesian } from "./stars";
 
 export type TrailLayer = {
@@ -37,15 +38,15 @@ export function createTrailLayer(scene: Scene): TrailLayer {
         dashLength: 16,
       }),
     });
-    (polylines as unknown as { show: boolean }).show = true;
+    setCollectionVisible(polylines, true);
   }
 
   function show(): void {
-    (polylines as unknown as { show: boolean }).show = true;
+    setCollectionVisible(polylines, true);
   }
 
   function hide(): void {
-    (polylines as unknown as { show: boolean }).show = false;
+    setCollectionVisible(polylines, false);
   }
 
   return { setPoints, show, hide };

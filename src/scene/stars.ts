@@ -12,6 +12,7 @@ import {
 import type { Scene } from "cesium";
 import type { AltAzStar } from "../astro";
 import { bvToRgb } from "../astro/star-color";
+import { setCollectionVisible } from "./cesium-collections";
 
 const SKY_RADIUS = 1e5;
 
@@ -86,7 +87,7 @@ export function createStarLayer(scene: Scene): StarLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (billboards as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(billboards, visible);
   }
 
   return { update, setVisible };
