@@ -9,6 +9,7 @@ import {
   updateNotebook,
 } from "../notebooks";
 import type { Result } from "../result";
+import { el } from "./dom";
 import { messageFor } from "./error-messages";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
 import {
@@ -74,74 +75,66 @@ const DEFAULT_API: NotebookApi = {
   delete: deleteNotebook,
 };
 
+const ACTION_BUTTON_STYLE: Partial<CSSStyleDeclaration> = {
+  background: SURFACE,
+  border: PANEL_BORDER,
+  borderRadius: "4px",
+  color: TEXT_COLOR,
+  cursor: "pointer",
+  fontFamily: FONT_FAMILY,
+  fontSize: "12px",
+  padding: "6px 10px",
+  whiteSpace: "nowrap",
+};
+
 export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}): NotebookWorkspace {
   const api = options.notebookApi ?? DEFAULT_API;
   const saveDebounceMs = options.saveDebounceMs ?? NOTEBOOK_SAVE_DEBOUNCE_MS;
 
-  const root = document.createElement("aside");
-  root.dataset.testid = "notebook-workspace";
-  applyShellStyles(root);
-  root.style.display = options.initiallyVisible === true ? "flex" : "none";
+  const titleInput = el("input", {
+    type: "text",
+    testid: "notebook-title",
+    placeholder: "Untitled notebook",
+    style: {
+      flex: "1 1 auto",
+      background: SURFACE_LOW,
+      border: BORDER_SUBTLE,
+      borderRadius: "4px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "14px",
+      padding: "6px 10px",
+    },
+  });
 
-  const heading = document.createElement("h2");
-  heading.dataset.testid = "notebook-heading";
-  heading.textContent = "Notebook";
-  heading.style.margin = "0";
-  heading.style.fontSize = "20px";
-  heading.style.fontWeight = "600";
-  heading.style.letterSpacing = "0.01em";
-  root.appendChild(heading);
+  const newBtn = el("button", {
+    type: "button",
+    testid: "notebook-new",
+    text: "+ New",
+    style: ACTION_BUTTON_STYLE,
+  });
 
-  // Title row: editable current title + new / delete action buttons.
-  const titleRow = document.createElement("div");
-  titleRow.style.display = "flex";
-  titleRow.style.gap = "6px";
-  titleRow.style.alignItems = "center";
+  const deleteBtn = el("button", {
+    type: "button",
+    testid: "notebook-delete",
+    text: "Delete",
+    style: ACTION_BUTTON_STYLE,
+  });
 
-  const titleInput = document.createElement("input");
-  titleInput.type = "text";
-  titleInput.dataset.testid = "notebook-title";
-  titleInput.placeholder = "Untitled notebook";
-  titleInput.style.flex = "1 1 auto";
-  titleInput.style.background = SURFACE_LOW;
-  titleInput.style.border = BORDER_SUBTLE;
-  titleInput.style.borderRadius = "4px";
-  titleInput.style.color = TEXT_COLOR;
-  titleInput.style.fontFamily = FONT_FAMILY;
-  titleInput.style.fontSize = "14px";
-  titleInput.style.padding = "6px 10px";
+  const tabList = el("div", {
+    testid: "notebook-tabs",
+    style: { display: "flex", flexWrap: "wrap", gap: "6px" },
+  });
 
-  const newBtn = document.createElement("button");
-  newBtn.type = "button";
-  newBtn.dataset.testid = "notebook-new";
-  newBtn.textContent = "+ New";
-  styleActionButton(newBtn);
+  const statusLine = el("div", {
+    testid: "notebook-status",
+    style: { fontSize: "11px", color: TEXT_MUTED, minHeight: "14px" },
+  });
 
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.dataset.testid = "notebook-delete";
-  deleteBtn.textContent = "Delete";
-  styleActionButton(deleteBtn);
-
-  titleRow.appendChild(titleInput);
-  titleRow.appendChild(newBtn);
-  titleRow.appendChild(deleteBtn);
-  root.appendChild(titleRow);
-
-  // Tab list (horizontal, scrollable if overflows). One entry per summary.
-  const tabList = document.createElement("div");
-  tabList.dataset.testid = "notebook-tabs";
-  tabList.style.display = "flex";
-  tabList.style.flexWrap = "wrap";
-  tabList.style.gap = "6px";
-  root.appendChild(tabList);
-
-  const statusLine = document.createElement("div");
-  statusLine.dataset.testid = "notebook-status";
-  statusLine.style.fontSize = "11px";
-  statusLine.style.color = TEXT_MUTED;
-  statusLine.style.minHeight = "14px";
-  root.appendChild(statusLine);
+  const editorContainer = el("div", {
+    testid: "notebook-editor-container",
+    style: { flex: "1 1 auto", display: "flex", minHeight: "140px" },
+  });
 
   const insertLinkBtn = options.getCurrentView
     ? buildInsertLinkButton(options.getCurrentView, () => {
@@ -152,14 +145,50 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
         return editor;
       })
     : null;
-  if (insertLinkBtn !== null) root.appendChild(insertLinkBtn);
 
-  const editorContainer = document.createElement("div");
-  editorContainer.dataset.testid = "notebook-editor-container";
-  editorContainer.style.flex = "1 1 auto";
-  editorContainer.style.display = "flex";
-  editorContainer.style.minHeight = "140px";
-  root.appendChild(editorContainer);
+  const root = el("aside", {
+    testid: "notebook-workspace",
+    style: {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      bottom: "0",
+      width: isMobileViewport() ? "100vw" : "400px",
+      maxWidth: "100vw",
+      background: PANEL_BG,
+      borderRight: PANEL_BORDER,
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      display: options.initiallyVisible === true ? "flex" : "none",
+      flexDirection: "column",
+      padding: "20px 22px",
+      gap: "14px",
+      boxSizing: "border-box",
+      zIndex: "1200",
+      overflowY: "auto",
+    },
+    children: [
+      el("h2", {
+        testid: "notebook-heading",
+        text: "Notebook",
+        style: {
+          margin: "0",
+          fontSize: "20px",
+          fontWeight: "600",
+          letterSpacing: "0.01em",
+        },
+      }),
+      // Title row: editable current title + new / delete action buttons.
+      el("div", {
+        style: { display: "flex", gap: "6px", alignItems: "center" },
+        children: [titleInput, newBtn, deleteBtn],
+      }),
+      tabList,
+      statusLine,
+      insertLinkBtn,
+      editorContainer,
+    ],
+  });
 
   let editor: NotebookEditor | null = null;
   let summaries: NotebookSummary[] = [];
@@ -168,7 +197,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   function setStatus(status: SaveStatus): void {
-    statusLine.dataset.status = status;
+    statusLine.dataset["status"] = status;
     statusLine.textContent =
       status === "idle"
         ? ""
@@ -180,31 +209,38 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   }
 
   function renderTabs(): void {
-    tabList.textContent = "";
-    for (const s of summaries) {
-      const tab = document.createElement("button");
-      tab.type = "button";
-      tab.dataset.testid = "notebook-tab";
-      tab.dataset.notebookId = String(s.id);
-      tab.dataset.active = s.id === currentId ? "true" : "false";
-      tab.textContent = s.title;
-      tab.style.background = s.id === currentId ? SURFACE_ACTIVE : SURFACE_LOW;
-      tab.style.border = PANEL_BORDER;
-      tab.style.borderRadius = "999px";
-      tab.style.color = TEXT_COLOR;
-      tab.style.cursor = "pointer";
-      tab.style.fontFamily = FONT_FAMILY;
-      tab.style.fontSize = "12px";
-      tab.style.padding = "4px 10px";
-      tab.style.maxWidth = "150px";
-      tab.style.overflow = "hidden";
-      tab.style.textOverflow = "ellipsis";
-      tab.style.whiteSpace = "nowrap";
-      tab.addEventListener("click", () => {
-        if (s.id !== currentId) void switchTo(s.id);
-      });
-      tabList.appendChild(tab);
-    }
+    tabList.replaceChildren(
+      ...summaries.map((s) =>
+        el("button", {
+          type: "button",
+          testid: "notebook-tab",
+          text: s.title,
+          dataset: {
+            notebookId: String(s.id),
+            active: s.id === currentId ? "true" : "false",
+          },
+          style: {
+            background: s.id === currentId ? SURFACE_ACTIVE : SURFACE_LOW,
+            border: PANEL_BORDER,
+            borderRadius: "999px",
+            color: TEXT_COLOR,
+            cursor: "pointer",
+            fontFamily: FONT_FAMILY,
+            fontSize: "12px",
+            padding: "4px 10px",
+            maxWidth: "150px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          },
+          on: {
+            click: () => {
+              if (s.id !== currentId) void switchTo(s.id);
+            },
+          },
+        }),
+      ),
+    );
   }
 
   function syncTitleInput(): void {
@@ -259,14 +295,13 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   }
 
   function renderError(message: string): void {
-    editorContainer.textContent = "";
-    const errBox = document.createElement("div");
-    errBox.dataset.testid = "notebook-error";
-    errBox.textContent = message;
-    errBox.style.color = "#ff7777";
-    errBox.style.fontSize = "13px";
-    errBox.style.padding = "12px";
-    editorContainer.appendChild(errBox);
+    editorContainer.replaceChildren(
+      el("div", {
+        testid: "notebook-error",
+        text: message,
+        style: { color: "#ff7777", fontSize: "13px", padding: "12px" },
+      }),
+    );
   }
 
   async function adopt(doc: NotebookDoc): Promise<void> {
@@ -415,79 +450,46 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   return { element: root, setVisible, destroy, ready };
 }
 
-function applyShellStyles(root: HTMLElement): void {
-  root.style.position = "fixed";
-  root.style.top = "0";
-  root.style.left = "0";
-  root.style.bottom = "0";
-  root.style.width = "400px";
-  root.style.maxWidth = "100vw";
-  root.style.background = PANEL_BG;
-  root.style.borderRight = PANEL_BORDER;
-  root.style.color = TEXT_COLOR;
-  root.style.fontFamily = FONT_FAMILY;
-  root.style.flexDirection = "column";
-  root.style.padding = "20px 22px";
-  root.style.gap = "14px";
-  root.style.boxSizing = "border-box";
-  root.style.zIndex = "1200";
-  root.style.overflowY = "auto";
-  const isMobile =
-    typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 600;
-  if (isMobile) root.style.width = "100vw";
-}
-
-function styleActionButton(btn: HTMLButtonElement): void {
-  btn.style.background = SURFACE;
-  btn.style.border = PANEL_BORDER;
-  btn.style.borderRadius = "4px";
-  btn.style.color = TEXT_COLOR;
-  btn.style.cursor = "pointer";
-  btn.style.fontFamily = FONT_FAMILY;
-  btn.style.fontSize = "12px";
-  btn.style.padding = "6px 10px";
-  btn.style.whiteSpace = "nowrap";
+function isMobileViewport(): boolean {
+  return typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 600;
 }
 
 function buildInsertLinkButton(
   getCurrentView: () => { readonly href: string; readonly timeUtc: Date },
   resolveEditor: () => NotebookEditor | null,
 ): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.dataset.testid = "notebook-insert-link";
-  btn.style.background = SURFACE;
-  btn.style.border = PANEL_BORDER;
-  btn.style.borderRadius = "4px";
-  btn.style.color = TEXT_COLOR;
-  btn.style.cursor = "pointer";
-  btn.style.fontFamily = FONT_FAMILY;
-  btn.style.fontSize = "12px";
-  btn.style.padding = "6px 10px";
-  btn.style.alignSelf = "flex-start";
-  btn.style.display = "inline-flex";
-  btn.style.alignItems = "center";
-  btn.style.gap = "6px";
+  const proPill = isPro() ? null : createProPill("notebook-insert-link-pro");
 
-  const label = document.createElement("span");
-  label.textContent = "→ Insert link to this view";
-  btn.appendChild(label);
-
-  if (!isPro()) {
-    btn.appendChild(createProPill("notebook-insert-link-pro"));
-  }
-
-  btn.addEventListener("click", () => {
-    const editor = resolveEditor();
-    if (editor === null) return;
-    const view = getCurrentView();
-    const pad = (n: number): string => String(n).padStart(2, "0");
-    const d = view.timeUtc;
-    const stamp =
-      `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
-      `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    editor.insertLine(`[${stamp}](${view.href})`);
+  return el("button", {
+    type: "button",
+    testid: "notebook-insert-link",
+    style: {
+      background: SURFACE,
+      border: PANEL_BORDER,
+      borderRadius: "4px",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      fontFamily: FONT_FAMILY,
+      fontSize: "12px",
+      padding: "6px 10px",
+      alignSelf: "flex-start",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+    },
+    children: [el("span", { text: "→ Insert link to this view" }), proPill],
+    on: {
+      click: () => {
+        const editor = resolveEditor();
+        if (editor === null) return;
+        const view = getCurrentView();
+        const pad = (n: number): string => String(n).padStart(2, "0");
+        const d = view.timeUtc;
+        const stamp =
+          `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+          `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        editor.insertLine(`[${stamp}](${view.href})`);
+      },
+    },
   });
-
-  return btn;
 }
