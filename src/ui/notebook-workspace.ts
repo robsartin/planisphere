@@ -11,7 +11,7 @@ import {
 import type { Result } from "../result";
 import { messageFor } from "./error-messages";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
-import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
+import { createProPill, FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 
 /** Pluggable Notebook API — the workspace receives these so tests can pass
  *  stubs and the production caller wires them to `src/notebooks.ts`. */
@@ -464,19 +464,7 @@ function buildInsertLinkButton(
   btn.appendChild(label);
 
   if (!isPro()) {
-    const pill = document.createElement("span");
-    pill.dataset.testid = "notebook-insert-link-pro";
-    pill.textContent = "Pro";
-    pill.style.background = "rgba(0,255,136,0.18)";
-    pill.style.border = "1px solid rgba(0,255,136,0.5)";
-    pill.style.borderRadius = "10px";
-    pill.style.color = "#00ff88";
-    pill.style.fontSize = "10px";
-    pill.style.fontWeight = "600";
-    pill.style.letterSpacing = "0.05em";
-    pill.style.padding = "1px 7px";
-    pill.style.textTransform = "uppercase";
-    btn.appendChild(pill);
+    btn.appendChild(createProPill("notebook-insert-link-pro"));
   }
 
   btn.addEventListener("click", () => {
