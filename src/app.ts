@@ -1070,38 +1070,68 @@ export async function bootstrap(
   let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
   let loginModal: ReturnType<typeof createLoginModal> | null = null;
 
-  // Intent handler
-  function handleIntent(intent: UIIntent): void {
+  // Intent handler — dispatches to category-specific handlers below. Each
+  // handler mutates `state` and fires whatever side effects the category
+  // needs. Shared sequences (the "refresh-everything-derived" one that
+  // follows any time/observer change) live in helpers so additions can't
+  // accidentally skip a step.
+
+  function refreshAllDerived(nextState: typeof state): void {
+    scheduleRerender(nextState);
+    refreshTonight(nextState);
+    refreshEvents(nextState);
+    rebuildSearchIndex(nextState);
+    rerenderTrail(nextState);
+  }
+
+  function applyTimeChange(time: Date): void {
+    state = { ...state, timeUtc: time };
+    refreshAllDerived(state);
+    bottomHud?.setTime(time);
+    updateUrl(state);
+  }
+
+  function applyObserverChange(lat: number, lon: number): void {
+    state = { ...state, observer: { lat, lon } };
+    initCamera(viewer.camera, lat, lon);
+    refreshAllDerived(state);
+    bottomHud?.setObserver(lat, lon);
+    updateUrl(state);
+  }
+
+  function handleTimeIntent(intent: UIIntent & { type: "set-time" | "now" }): void {
     switch (intent.type) {
-      case "set-time": {
-        state = { ...state, timeUtc: intent.time };
-        scheduleRerender(state);
-        refreshTonight(state);
-        refreshEvents(state);
-        rebuildSearchIndex(state);
-        rerenderTrail(state);
-        bottomHud?.setTime(intent.time);
-        updateUrl(state);
-        break;
-      }
-      case "set-observer": {
-        state = { ...state, observer: { lat: intent.lat, lon: intent.lon } };
-        initCamera(viewer.camera, intent.lat, intent.lon);
-        scheduleRerender(state);
-        refreshTonight(state);
-        refreshEvents(state);
-        rebuildSearchIndex(state);
-        rerenderTrail(state);
-        bottomHud?.setObserver(intent.lat, intent.lon);
-        updateUrl(state);
-        break;
-      }
+      case "set-time":
+        applyTimeChange(intent.time);
+        return;
+      case "now":
+        applyTimeChange(new Date());
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              applyObserverChange(position.coords.latitude, position.coords.longitude);
+            },
+            () => {
+              // Geolocation denied or failed — time already set, keep current location.
+            },
+          );
+        }
+        return;
+    }
+  }
+
+  function handleLayerIntent(
+    intent: UIIntent & {
+      type: "toggle-layer" | "set-opacity" | "set-language" | "set-skyculture";
+    },
+  ): void {
+    switch (intent.type) {
       case "toggle-layer": {
         const newLayers = { ...state.layers, [intent.layer]: !state.layers[intent.layer] };
         state = { ...state, layers: newLayers };
         applyLayerVisibility(layers, state.layers);
         updateUrl(state);
-        break;
+        return;
       }
       case "set-opacity": {
         const newOpacity = { ...state.opacity, [intent.layer]: intent.value };
@@ -1113,38 +1143,7 @@ export async function bootstrap(
         layers.milkyWay.setOpacity(state.opacity.milkyWay);
         if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
         updateUrl(state);
-        break;
-      }
-      case "set-view": {
-        state = { ...state, view: { az: intent.az, alt: intent.alt } };
-        setCameraView(viewer.camera, state.observer.lat, state.observer.lon, intent.az, intent.alt);
-        updateUrl(state);
-        break;
-      }
-      case "toggle-night-vision": {
-        state = { ...state, nightVision: !state.nightVision };
-        document.body.classList.toggle("night-vision", state.nightVision);
-        nightVisionPanel?.setNightVision(state.nightVision);
-        updateUrl(state);
-        break;
-      }
-      case "set-mag-limit": {
-        state = { ...state, magLimit: intent.value };
-        scheduleRerender(state);
-        updateUrl(state);
-        break;
-      }
-      case "show-trail": {
-        trailBodyId = intent.id;
-        rerenderTrail(state);
-        refreshTonight(state);
-        break;
-      }
-      case "hide-trail": {
-        trailBodyId = null;
-        layers.trail.hide();
-        refreshTonight(state);
-        break;
+        return;
       }
       case "set-language": {
         // Name overrides are only defined for the Western (IAU) asterism set, so a
@@ -1155,35 +1154,44 @@ export async function bootstrap(
         layers.constellation.setNameOverrides(loadNameOverridesForLanguage(state.language));
         scheduleRerender(state);
         updateUrl(state);
-        break;
+        return;
       }
-      case "set-skyculture": {
+      case "set-skyculture":
         state = { ...state, skyculture: intent.id };
         data.activeAsterisms = intent.id === "western" ? null : loadAsterismSet(intent.id);
         scheduleRerender(state);
         updateUrl(state);
-        break;
-      }
-      case "set-fov": {
+        return;
+    }
+  }
+
+  function handleViewIntent(
+    intent: UIIntent & {
+      type: "set-view" | "set-mag-limit" | "set-fov" | "toggle-night-vision" | "pin-object";
+    },
+  ): void {
+    switch (intent.type) {
+      case "set-view":
+        state = { ...state, view: { az: intent.az, alt: intent.alt } };
+        setCameraView(viewer.camera, state.observer.lat, state.observer.lon, intent.az, intent.alt);
+        updateUrl(state);
+        return;
+      case "set-mag-limit":
+        state = { ...state, magLimit: intent.value };
+        scheduleRerender(state);
+        updateUrl(state);
+        return;
+      case "set-fov":
         state = { ...state, fov: intent.preset };
         layers.reticle?.setPreset(intent.preset);
         updateUrl(state);
-        break;
-      }
-      case "set-mode": {
-        // Notebook is a Pro feature (issue #224). Non-Pro users attempting to
-        // enter it are shown the email-gate modal instead of flipping mode.
-        // Exiting back to planetarium is always free.
-        if (intent.mode === "notebook" && !isPro()) {
-          loginModal?.open();
-          break;
-        }
-        state = { ...state, mode: intent.mode };
-        notebookWorkspace?.setVisible(intent.mode === "notebook");
-        nightVisionPanel?.setMode(intent.mode);
+        return;
+      case "toggle-night-vision":
+        state = { ...state, nightVision: !state.nightVision };
+        document.body.classList.toggle("night-vision", state.nightVision);
+        nightVisionPanel?.setNightVision(state.nightVision);
         updateUrl(state);
-        break;
-      }
+        return;
       case "pin-object": {
         // The scene layer currently pins via click; from the palette we can't
         // reach into the canvas picker directly, so we mirror the on-screen
@@ -1198,8 +1206,50 @@ export async function bootstrap(
           setCameraView(viewer.camera, state.observer.lat, state.observer.lon, entry.az, entry.alt);
           updateUrl(state);
         }
-        break;
+        return;
       }
+    }
+  }
+
+  function handleTrailIntent(intent: UIIntent & { type: "show-trail" | "hide-trail" }): void {
+    if (intent.type === "show-trail") {
+      trailBodyId = intent.id;
+      rerenderTrail(state);
+    } else {
+      trailBodyId = null;
+      layers.trail.hide();
+    }
+    refreshTonight(state);
+  }
+
+  function handleModeIntent(intent: UIIntent & { type: "set-mode" | "toggle-animation" }): void {
+    if (intent.type === "toggle-animation") {
+      // Plan 08 / issue #136 will wire the actual play/pause animator.
+      // TODO(#136): start/stop the time-advance loop here.
+      return;
+    }
+    // Notebook is a Pro feature (issue #224). Non-Pro users attempting to
+    // enter it are shown the login modal instead of flipping mode.
+    // Exiting back to planetarium is always free.
+    if (intent.mode === "notebook" && !isPro()) {
+      loginModal?.open();
+      return;
+    }
+    state = { ...state, mode: intent.mode };
+    notebookWorkspace?.setVisible(intent.mode === "notebook");
+    nightVisionPanel?.setMode(intent.mode);
+    updateUrl(state);
+  }
+
+  function handleUIIntent(
+    intent: UIIntent & {
+      type: "open-location-picker" | "copy-link" | "open-object-card" | "open-empty-sky-popover";
+    },
+  ): void {
+    switch (intent.type) {
+      case "open-location-picker":
+        locationPicker?.open();
+        return;
       case "copy-link": {
         // Fire-and-forget: clipboard is optional; failure is silent.
         const href = globalThis.location?.href ?? "";
@@ -1211,65 +1261,56 @@ export async function bootstrap(
             // Clipboard access denied — nothing we can do.
           });
         }
-        break;
-      }
-      case "now": {
-        const now = new Date();
-        state = { ...state, timeUtc: now };
-        scheduleRerender(state);
-        refreshTonight(state);
-        refreshEvents(state);
-        rebuildSearchIndex(state);
-        rerenderTrail(state);
-        bottomHud?.setTime(now);
-        updateUrl(state);
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const { latitude: lat, longitude: lon } = position.coords;
-              state = { ...state, observer: { lat, lon } };
-              initCamera(viewer.camera, lat, lon);
-              scheduleRerender(state);
-              refreshTonight(state);
-              refreshEvents(state);
-              rebuildSearchIndex(state);
-              rerenderTrail(state);
-              bottomHud?.setObserver(lat, lon);
-              updateUrl(state);
-            },
-            () => {
-              // Geolocation denied or failed — time already set, keep current location
-            },
-          );
-        }
-        break;
-      }
-      case "open-location-picker": {
-        locationPicker?.open();
-        break;
-      }
-      case "toggle-animation": {
-        // Plan 08 / issue #136 will wire the actual play/pause animator.
-        // TODO(#136): start/stop the time-advance loop here.
-        break;
+        return;
       }
       case "open-object-card": {
-        if (objectCardsManager === null) break;
+        if (objectCardsManager === null) return;
         const key = positionKey(intent.objectKind, intent.id);
-        const data = pendingCardData.get(key);
-        if (data === undefined) break;
+        const cardData = pendingCardData.get(key);
+        if (cardData === undefined) return;
         pendingCardData.delete(key);
         objectCardsManager.open({
-          data,
+          data: cardData,
           screenX: intent.screenX,
           screenY: intent.screenY,
         });
-        break;
+        return;
       }
-      case "open-empty-sky-popover": {
+      case "open-empty-sky-popover":
         emptySkyPopover?.open(intent.alt, intent.az, intent.screenX, intent.screenY);
-        break;
-      }
+        return;
+    }
+  }
+
+  function handleIntent(intent: UIIntent): void {
+    switch (intent.type) {
+      case "set-time":
+      case "now":
+        return handleTimeIntent(intent);
+      case "set-observer":
+        return applyObserverChange(intent.lat, intent.lon);
+      case "toggle-layer":
+      case "set-opacity":
+      case "set-language":
+      case "set-skyculture":
+        return handleLayerIntent(intent);
+      case "set-view":
+      case "set-mag-limit":
+      case "set-fov":
+      case "toggle-night-vision":
+      case "pin-object":
+        return handleViewIntent(intent);
+      case "show-trail":
+      case "hide-trail":
+        return handleTrailIntent(intent);
+      case "set-mode":
+      case "toggle-animation":
+        return handleModeIntent(intent);
+      case "open-location-picker":
+      case "copy-link":
+      case "open-object-card":
+      case "open-empty-sky-popover":
+        return handleUIIntent(intent);
     }
   }
 
