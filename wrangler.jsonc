@@ -43,7 +43,7 @@
   // grep `wrangler tail` for `[auth] magic link`.
   "vars": {
     "SESSION_SECRET": "dev-only-placeholder-replace-with-wrangler-secret-put",
-    "EMAIL_FROM": "noreply@rabbitsatin.com", // ← or "onboarding@resend.dev" for the shortcut
+    "EMAIL_FROM": "onboarding@resend.dev",
   },
 
   // Hourly sweep of expired magic-link tokens and sessions.
