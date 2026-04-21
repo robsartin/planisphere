@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { deleteExpiredMagicLinks, deleteExpiredSessions } from "./db";
 import { createEmailSender } from "./email";
+import { badRequest, methodNotAllowed, notFound } from "./http";
 import { logError, logEvent } from "./log";
 import { handleCallback, handleLogout, handleMe, handleRequestLink } from "./routes/auth";
 import {
@@ -82,24 +83,3 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
-
-function methodNotAllowed(): Response {
-  return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-    status: 405,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-function notFound(): Response {
-  return new Response(JSON.stringify({ error: "not_found" }), {
-    status: 404,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-function badRequest(): Response {
-  return new Response(JSON.stringify({ error: "invalid_payload" }), {
-    status: 400,
-    headers: { "content-type": "application/json" },
-  });
-}

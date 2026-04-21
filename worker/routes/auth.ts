@@ -11,13 +11,12 @@ import {
   upsertUser,
 } from "../db";
 import type { EmailSender } from "../email";
+import { clearSessionCookie, errorJson, isHttpsRequest, json, sessionCookie } from "../http";
 import { readSessionId } from "../session";
 import {
   MAGIC_LINK_RATE_WINDOW_MS,
   MAGIC_LINK_TTL_SECONDS,
-  SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
-  type ApiErrorCode,
   type Env,
 } from "../types";
 
@@ -33,17 +32,6 @@ function normalizeEmail(raw: unknown): string | null {
   const trimmed = raw.trim().toLowerCase();
   if (!EMAIL_PATTERN.test(trimmed)) return null;
   return trimmed;
-}
-
-function json(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
-}
-
-function errorJson(code: ApiErrorCode, status: number, message?: string): Response {
-  return json({ error: code, ...(message ? { message } : {}) }, { status });
 }
 
 /** POST /api/auth/request-link */
@@ -103,15 +91,14 @@ export async function handleCallback(req: Request, env: Env): Promise<Response> 
   await insertSession(env.DB, sessionId, user.id, expiresAt);
   const signed = await signCookie(env.SESSION_SECRET, sessionId);
 
-  const secureFlag = url.protocol === "https:" ? "; Secure" : "";
-  const cookie =
-    `${SESSION_COOKIE}=${signed}; HttpOnly${secureFlag}; SameSite=Lax; ` +
-    `Path=/; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
-
   return new Response(null, {
     status: 302,
     headers: {
-      "Set-Cookie": cookie,
+      "Set-Cookie": sessionCookie({
+        value: signed,
+        maxAgeSec: SESSION_MAX_AGE_SECONDS,
+        secure: isHttpsRequest(url),
+      }),
       Location: url.origin + "/",
     },
   });
@@ -123,10 +110,10 @@ export async function handleLogout(req: Request, env: Env): Promise<Response> {
   if (sessionId !== null) {
     await deleteSession(env.DB, sessionId);
   }
-  const url = new URL(req.url);
-  const secureFlag = url.protocol === "https:" ? "; Secure" : "";
-  const cookie = `${SESSION_COOKIE}=; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=0`;
-  return new Response(null, { status: 204, headers: { "Set-Cookie": cookie } });
+  return new Response(null, {
+    status: 204,
+    headers: { "Set-Cookie": clearSessionCookie({ secure: isHttpsRequest(new URL(req.url)) }) },
+  });
 }
 
 /** GET /api/auth/me */
