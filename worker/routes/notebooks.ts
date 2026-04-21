@@ -6,6 +6,7 @@ import {
   listNotebooksForUser,
   updateNotebook,
 } from "../db";
+import { errorJson, json } from "../http";
 import { getAuthenticatedUserId } from "../session";
 import {
   NOTEBOOK_CONTENT_MAX_BYTES,
@@ -20,17 +21,6 @@ import {
  * requires an authenticated session; the shared auth check lives in
  * `worker/session.ts` so auth routes and notebooks stay consistent.
  */
-
-function json(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
-}
-
-function errorJson(code: ApiErrorCode, status: number): Response {
-  return json({ error: code }, { status });
-}
 
 type NotebookPayload = { title: string; contentJson: string };
 
