@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { AuthError } from "../auth";
 import type { Result } from "../result";
+import { messageFor } from "./error-messages";
 import { PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 
 /**
@@ -161,14 +162,14 @@ export function createLoginModal(options: LoginModalOptions): LoginModal {
           } else {
             submit.disabled = false;
             submit.textContent = "Send login link";
-            errorBox.textContent = messageForError(result.error);
+            errorBox.textContent = messageFor(result.error);
             errorBox.style.display = "block";
           }
         })
         .catch(() => {
           submit.disabled = false;
           submit.textContent = "Send login link";
-          errorBox.textContent = messageForError({ kind: "network" });
+          errorBox.textContent = messageFor({ kind: "network" });
           errorBox.style.display = "block";
         });
     });
@@ -240,20 +241,4 @@ export function createLoginModal(options: LoginModalOptions): LoginModal {
     close: doClose,
     isOpen: () => open,
   };
-}
-
-function messageForError(error: AuthError): string {
-  switch (error.kind) {
-    case "invalid_email":
-      return "Please enter a valid email address.";
-    case "rate_limited":
-      return "A login link was already sent. Try again in a moment.";
-    case "network":
-      return "Couldn't reach the server. Check your connection and try again.";
-    case "server":
-      return "Something went wrong on our end. Please try again.";
-    case "invalid_token":
-    case "unauthenticated":
-      return "Please try again.";
-  }
 }
