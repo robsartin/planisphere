@@ -10,6 +10,7 @@ import {
 } from "cesium";
 import type { Scene } from "cesium";
 import type { VisibleConstellation } from "../astro";
+import { setCollectionVisible } from "./cesium-collections";
 import { altAzToCartesian } from "./stars";
 
 export type ConstellationNameOverrides = Readonly<Record<string, string>> | null;
@@ -80,8 +81,8 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (polylines as unknown as { show: boolean }).show = visible;
-    (labels as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(polylines, visible);
+    setCollectionVisible(labels, visible);
   }
 
   function setOpacity(opacity: number): void {

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { PolylineCollection, Color, Material } from "cesium";
 import type { Scene } from "cesium";
+import { setCollectionVisible } from "./cesium-collections";
 import type { VisibleBoundary } from "../astro";
 import { raDecToAltAz } from "../astro/coords";
 import { altAzToCartesian } from "./stars";
@@ -57,7 +58,7 @@ export function createBoundaryLayer(scene: Scene): BoundaryLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (polylines as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(polylines, visible);
   }
 
   function setOpacity(opacity: number): void {

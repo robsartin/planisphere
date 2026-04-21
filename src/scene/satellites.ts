@@ -9,6 +9,7 @@ import {
 } from "cesium";
 import type { Scene } from "cesium";
 import type { VisibleSatellite } from "../sat";
+import { setCollectionVisible } from "./cesium-collections";
 import { altAzToCartesian } from "./stars";
 
 const SAT_COLOR = "#00FF88";
@@ -84,8 +85,8 @@ export function createSatelliteLayer(scene: Scene): SatelliteLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (billboards as unknown as { show: boolean }).show = visible;
-    (polylines as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(billboards, visible);
+    setCollectionVisible(polylines, visible);
   }
 
   function setOpacity(opacity: number): void {

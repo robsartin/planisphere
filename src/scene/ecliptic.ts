@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { PolylineCollection, Color, Material } from "cesium";
 import type { Scene } from "cesium";
+import { setCollectionVisible } from "./cesium-collections";
 import type { HorizontalCoord } from "../astro/coords";
 import { altAzToCartesian } from "./stars";
 
@@ -39,7 +40,7 @@ export function createEclipticLayer(scene: Scene): EclipticLayer {
   function setOpacity(opacity: number): void {
     currentOpacity = opacity;
     const show = opacity > 0;
-    (polylines as unknown as { show: boolean }).show = show;
+    setCollectionVisible(polylines, show);
     for (const pl of addedPolylines) {
       if (pl?.material?.uniforms?.color !== undefined) {
         pl.material.uniforms.color.alpha = opacity;

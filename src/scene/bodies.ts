@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { BillboardCollection, HorizontalOrigin, VerticalOrigin } from "cesium";
 import type { Scene } from "cesium";
+import { setCollectionVisible } from "./cesium-collections";
 import type { CelestialBody } from "../astro";
 import { altAzToCartesian } from "./stars";
 
@@ -115,7 +116,7 @@ export function createBodyLayer(scene: Scene): BodyLayer {
   }
 
   function setVisible(visible: boolean): void {
-    (billboards as unknown as { show: boolean }).show = visible;
+    setCollectionVisible(billboards, visible);
   }
 
   return { update, setVisible };
