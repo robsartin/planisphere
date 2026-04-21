@@ -1,20 +1,19 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import worker from "../index";
-import { testEnv, resetDb, extractSessionCookie } from "../test-helpers";
+import {
+  TEST_BASE as BASE,
+  extractSessionCookie,
+  fetchWorker,
+  login,
+  resetDb,
+  testEnv,
+} from "../test-helpers";
 import type { EmailSender } from "../email";
 
 /**
  * End-to-end auth-route tests. Runs inside a real workerd isolate via
  * `@cloudflare/vitest-pool-workers` with an in-memory D1 binding.
  */
-
-async function fetchWorker(req: Request): Promise<Response> {
-  if (!worker.fetch) throw new Error("worker has no fetch handler");
-  return worker.fetch(req, testEnv, {} as unknown as ExecutionContext);
-}
-
-const BASE = "http://localhost";
 
 beforeEach(async () => {
   await resetDb();
@@ -158,23 +157,6 @@ describe("GET /api/auth/callback", () => {
 });
 
 describe("GET /api/auth/me", () => {
-  async function login(email: string): Promise<string> {
-    await fetchWorker(
-      new Request(`${BASE}/api/auth/request-link`, {
-        method: "POST",
-        body: JSON.stringify({ email }),
-      }),
-    );
-    const pending = await testEnv.DB.prepare(
-      "SELECT token FROM magic_links WHERE email = ? ORDER BY created_at DESC LIMIT 1",
-    )
-      .bind(email)
-      .first<{ token: string }>();
-    const res = await fetchWorker(new Request(`${BASE}/api/auth/callback?token=${pending!.token}`));
-    const cookie = extractSessionCookie(res);
-    return cookie!;
-  }
-
   it("returns 401 without a cookie", async () => {
     const res = await fetchWorker(new Request(`${BASE}/api/auth/me`));
     expect(res.status).toBe(401);

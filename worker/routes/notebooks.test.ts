@@ -1,20 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it } from "vitest";
-import worker from "../index";
-import { testEnv, resetDb, extractSessionCookie } from "../test-helpers";
+import { TEST_BASE as BASE, authed, fetchWorker, login, resetDb } from "../test-helpers";
 
 /**
  * End-to-end tests for /api/notebooks routes. Runs inside workerd via
  * @cloudflare/vitest-pool-workers with an in-memory D1 binding that has
  * both the auth tables and the notebooks table created by resetDb().
  */
-
-async function fetchWorker(req: Request): Promise<Response> {
-  if (!worker.fetch) throw new Error("worker has no fetch handler");
-  return worker.fetch(req, testEnv, {} as unknown as ExecutionContext);
-}
-
-const BASE = "http://localhost";
 
 type NotebookRow = {
   readonly id: number;
@@ -28,29 +20,6 @@ type NotebookRow = {
 type NotebookSummary = Omit<NotebookRow, "content_json" | "user_id">;
 
 type NotebookResponse = Omit<NotebookRow, "user_id">;
-
-async function login(email: string): Promise<string> {
-  await fetchWorker(
-    new Request(`${BASE}/api/auth/request-link`, {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-  );
-  const pending = await testEnv.DB.prepare(
-    "SELECT token FROM magic_links WHERE email = ? ORDER BY created_at DESC LIMIT 1",
-  )
-    .bind(email)
-    .first<{ token: string }>();
-  const res = await fetchWorker(new Request(`${BASE}/api/auth/callback?token=${pending!.token}`));
-  return extractSessionCookie(res)!;
-}
-
-function authed(path: string, cookie: string, init?: RequestInit): Request {
-  return new Request(`${BASE}${path}`, {
-    ...init,
-    headers: { cookie: `ps_session=${cookie}`, ...(init?.headers ?? {}) },
-  });
-}
 
 function sampleDoc(marker = "hello"): string {
   return JSON.stringify({

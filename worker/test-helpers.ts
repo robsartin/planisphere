@@ -1,19 +1,24 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /**
- * Small helpers used only by Worker tests — creates the schema on the
- * in-memory D1 binding before each test and extracts the signed session
- * cookie from a `Set-Cookie` header.
+ * Helpers shared across Worker tests — schema bootstrap, a `fetchWorker`
+ * wrapper over the entry point, and the `login(email)` / `authed(...)`
+ * helpers that every authenticated route test needs.
  *
- * The schema DDL is kept identical to `migrations/0001_init.sql`; the
- * migration file is the source of truth for production, and this helper
- * mirrors it for tests. Keep them in sync by hand — small cost, no extra
- * tooling.
+ * The schema DDL mirrors `migrations/0001_init.sql` + `0002_notebooks.sql`
+ * + `0003_magic_link_ttl.sql` — the migration files remain the source of
+ * truth for production; we keep this in sync by hand (small cost, no
+ * extra tooling).
  */
 import { env } from "cloudflare:test";
+import worker from "./index";
 import type { Env } from "./types";
 
 // Re-export the bound env so test files get narrow types.
 export const testEnv = env as unknown as Env;
+
+/** Origin used by every worker-test request. Arbitrary, but shared so the
+ *  redirect Location + CORS assertions all line up. */
+export const TEST_BASE = "http://localhost";
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE users (
@@ -66,4 +71,43 @@ export function extractSessionCookie(res: Response): string | null {
   if (!header) return null;
   const match = header.match(/ps_session=([^;]+)/);
   return match ? match[1]! : null;
+}
+
+/** Invoke the worker's `fetch` handler with the bound `testEnv`. */
+export async function fetchWorker(req: Request): Promise<Response> {
+  if (!worker.fetch) throw new Error("worker has no fetch handler");
+  return worker.fetch(req, testEnv, {} as unknown as ExecutionContext);
+}
+
+/** Request a magic link for `email`, claim it via the callback, and
+ *  return the signed `ps_session` cookie value. Throws if the login
+ *  flow didn't end with a Set-Cookie (signals a broken test fixture
+ *  or a real regression in the auth routes). */
+export async function login(email: string): Promise<string> {
+  await fetchWorker(
+    new Request(`${TEST_BASE}/api/auth/request-link`, {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  );
+  const pending = await testEnv.DB.prepare(
+    "SELECT token FROM magic_links WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+  )
+    .bind(email)
+    .first<{ token: string }>();
+  const res = await fetchWorker(
+    new Request(`${TEST_BASE}/api/auth/callback?token=${pending!.token}`),
+  );
+  const cookie = extractSessionCookie(res);
+  if (cookie === null) throw new Error(`login(${email}) did not yield a session cookie`);
+  return cookie;
+}
+
+/** Build an authenticated `Request` to `path` with the given session
+ *  cookie. Pass `init` for method / body / headers. */
+export function authed(path: string, cookie: string, init?: RequestInit): Request {
+  return new Request(`${TEST_BASE}${path}`, {
+    ...init,
+    headers: { cookie: `ps_session=${cookie}`, ...(init?.headers ?? {}) },
+  });
 }
