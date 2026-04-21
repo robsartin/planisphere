@@ -2,7 +2,7 @@
 import { Editor, type Content } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { createNotebookMentionExtension } from "./notebook-mention";
-import { FONT_FAMILY, TEXT_COLOR } from "./styles";
+import { BORDER_SUBTLE, FONT_FAMILY, SURFACE_LOW, TEXT_COLOR } from "./styles";
 
 /**
  * Thin wrapper around a tiptap `Editor` that exposes only the surface the
@@ -57,8 +57,8 @@ export function createNotebookEditor(options: NotebookEditorOptions): NotebookEd
   host.dataset.testid = "notebook-editor";
   host.style.flex = "1 1 auto";
   host.style.minHeight = "200px";
-  host.style.background = "rgba(255,255,255,0.06)";
-  host.style.border = "1px solid rgba(255,255,255,0.18)";
+  host.style.background = SURFACE_LOW;
+  host.style.border = BORDER_SUBTLE;
   host.style.borderRadius = "6px";
   host.style.color = TEXT_COLOR;
   host.style.fontFamily = FONT_FAMILY;

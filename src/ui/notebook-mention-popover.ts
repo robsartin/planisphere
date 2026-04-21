@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import type { EntityRecord } from "../astro/entities";
 import { resolveEntityLabel, type EntityKind } from "../astro/entities";
-import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
+import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR, TEXT_MUTED } from "./styles";
 
 /**
  * Suggestion popover for the Notebook's @-mention feature (ADR 013).
@@ -61,7 +61,7 @@ export function createMentionPopover(options: MentionPopoverOptions): MentionPop
       empty.dataset.testid = "notebook-mention-empty";
       empty.textContent = "No matches";
       empty.style.padding = "8px 10px";
-      empty.style.color = "rgba(255,255,255,0.55)";
+      empty.style.color = TEXT_MUTED;
       root.appendChild(empty);
       return;
     }
@@ -96,7 +96,7 @@ export function createMentionPopover(options: MentionPopoverOptions): MentionPop
       kindPill.style.fontSize = "10px";
       kindPill.style.textTransform = "uppercase";
       kindPill.style.letterSpacing = "0.05em";
-      kindPill.style.color = "rgba(255,255,255,0.55)";
+      kindPill.style.color = TEXT_MUTED;
       row.appendChild(kindPill);
 
       row.addEventListener("mousedown", (ev) => {
