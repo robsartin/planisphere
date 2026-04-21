@@ -9,6 +9,7 @@ import {
   updateNotebook,
 } from "../notebooks";
 import type { Result } from "../result";
+import { messageFor } from "./error-messages";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
 import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 
@@ -273,7 +274,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     statusLine.textContent = "Loading…";
     const res = await api.get(id);
     if (!res.ok) {
-      renderError(errorToMessage(res.error));
+      renderError(messageFor(res.error));
       statusLine.textContent = "";
       return;
     }
@@ -286,7 +287,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
       content_json: EMPTY_DOC_JSON,
     });
     if (!res.ok) {
-      renderError(errorToMessage(res.error));
+      renderError(messageFor(res.error));
       statusLine.textContent = "";
       return false;
     }
@@ -329,7 +330,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     statusLine.textContent = "Loading…";
     const listRes = await api.list();
     if (!listRes.ok) {
-      renderError(errorToMessage(listRes.error));
+      renderError(messageFor(listRes.error));
       statusLine.textContent = "";
       return;
     }
@@ -338,7 +339,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
     if (first !== undefined) {
       const getRes = await api.get(first.id);
       if (!getRes.ok) {
-        renderError(errorToMessage(getRes.error));
+        renderError(messageFor(getRes.error));
         statusLine.textContent = "";
         return;
       }
@@ -491,17 +492,4 @@ function buildInsertLinkButton(
   });
 
   return btn;
-}
-
-function errorToMessage(error: NotebookError): string {
-  switch (error.kind) {
-    case "unauthenticated":
-      return "Sign in to open your notebook.";
-    case "network":
-      return "Couldn't reach the server. Check your connection.";
-    case "not_found":
-    case "invalid_payload":
-    case "server":
-      return "Something went wrong on our end. Please try again.";
-  }
 }
