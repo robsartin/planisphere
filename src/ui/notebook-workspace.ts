@@ -11,7 +11,18 @@ import {
 import type { Result } from "../result";
 import { messageFor } from "./error-messages";
 import { createNotebookEditor, EMPTY_DOC_JSON, type NotebookEditor } from "./notebook-editor";
-import { createProPill, FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
+import {
+  BORDER_SUBTLE,
+  createProPill,
+  FONT_FAMILY,
+  PANEL_BG,
+  PANEL_BORDER,
+  SURFACE,
+  SURFACE_ACTIVE,
+  SURFACE_LOW,
+  TEXT_COLOR,
+  TEXT_MUTED,
+} from "./styles";
 
 /** Pluggable Notebook API — the workspace receives these so tests can pass
  *  stubs and the production caller wires them to `src/notebooks.ts`. */
@@ -92,8 +103,8 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   titleInput.dataset.testid = "notebook-title";
   titleInput.placeholder = "Untitled notebook";
   titleInput.style.flex = "1 1 auto";
-  titleInput.style.background = "rgba(255,255,255,0.06)";
-  titleInput.style.border = "1px solid rgba(255,255,255,0.18)";
+  titleInput.style.background = SURFACE_LOW;
+  titleInput.style.border = BORDER_SUBTLE;
   titleInput.style.borderRadius = "4px";
   titleInput.style.color = TEXT_COLOR;
   titleInput.style.fontFamily = FONT_FAMILY;
@@ -128,7 +139,7 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
   const statusLine = document.createElement("div");
   statusLine.dataset.testid = "notebook-status";
   statusLine.style.fontSize = "11px";
-  statusLine.style.color = "rgba(255,255,255,0.55)";
+  statusLine.style.color = TEXT_MUTED;
   statusLine.style.minHeight = "14px";
   root.appendChild(statusLine);
 
@@ -177,9 +188,8 @@ export function createNotebookWorkspace(options: NotebookWorkspaceOptions = {}):
       tab.dataset.notebookId = String(s.id);
       tab.dataset.active = s.id === currentId ? "true" : "false";
       tab.textContent = s.title;
-      tab.style.background =
-        s.id === currentId ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)";
-      tab.style.border = "1px solid rgba(255,255,255,0.2)";
+      tab.style.background = s.id === currentId ? SURFACE_ACTIVE : SURFACE_LOW;
+      tab.style.border = PANEL_BORDER;
       tab.style.borderRadius = "999px";
       tab.style.color = TEXT_COLOR;
       tab.style.cursor = "pointer";
@@ -428,8 +438,8 @@ function applyShellStyles(root: HTMLElement): void {
 }
 
 function styleActionButton(btn: HTMLButtonElement): void {
-  btn.style.background = "rgba(255,255,255,0.08)";
-  btn.style.border = "1px solid rgba(255,255,255,0.2)";
+  btn.style.background = SURFACE;
+  btn.style.border = PANEL_BORDER;
   btn.style.borderRadius = "4px";
   btn.style.color = TEXT_COLOR;
   btn.style.cursor = "pointer";
@@ -446,8 +456,8 @@ function buildInsertLinkButton(
   const btn = document.createElement("button");
   btn.type = "button";
   btn.dataset.testid = "notebook-insert-link";
-  btn.style.background = "rgba(255,255,255,0.08)";
-  btn.style.border = "1px solid rgba(255,255,255,0.2)";
+  btn.style.background = SURFACE;
+  btn.style.border = PANEL_BORDER;
   btn.style.borderRadius = "4px";
   btn.style.color = TEXT_COLOR;
   btn.style.cursor = "pointer";

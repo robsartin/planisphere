@@ -10,6 +10,15 @@ export const FONT_SIZE = "13px";
 export const FONT_FAMILY = "sans-serif";
 export const GAP = "8px";
 
+/** Translucent "raised surface" backgrounds used for buttons, tabs, inputs. */
+export const SURFACE_LOW = "rgba(255, 255, 255, 0.06)";
+export const SURFACE = "rgba(255, 255, 255, 0.08)";
+export const SURFACE_ACTIVE = "rgba(255, 255, 255, 0.18)";
+/** Thin border that pairs with SURFACE / SURFACE_LOW. */
+export const BORDER_SUBTLE = "1px solid rgba(255, 255, 255, 0.18)";
+/** Muted caption-text colour for labels and secondary information. */
+export const TEXT_MUTED = "rgba(255, 255, 255, 0.55)";
+
 export function applyBaseText(el: HTMLElement): void {
   el.style.color = TEXT_COLOR;
   el.style.fontSize = FONT_SIZE;
