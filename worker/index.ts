@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { deleteExpiredMagicLinks, deleteExpiredSessions } from "./db";
 import { createEmailSender } from "./email";
+import { logError, logEvent } from "./log";
 import { handleCallback, handleLogout, handleMe, handleRequestLink } from "./routes/auth";
 import {
   handleCreateNotebook,
@@ -58,8 +59,7 @@ export default {
       }
       return notFound();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[worker] unhandled error", err);
+      logError("worker.unhandled", err, { path, method });
       return new Response(JSON.stringify({ error: "server_error" }), {
         status: 500,
         headers: { "content-type": "application/json" },
@@ -74,13 +74,11 @@ export default {
    */
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     try {
-      const links = await deleteExpiredMagicLinks(env.DB);
+      const magicLinks = await deleteExpiredMagicLinks(env.DB);
       const sessions = await deleteExpiredSessions(env.DB);
-      // eslint-disable-next-line no-console
-      console.log(`[sweep] magic_links=${String(links)} sessions=${String(sessions)}`);
+      logEvent("sweep.completed", { magicLinks, sessions });
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[sweep] failed", err);
+      logError("sweep.failed", err);
     }
   },
 } satisfies ExportedHandler<Env>;
