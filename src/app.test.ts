@@ -608,7 +608,7 @@ describe("bootstrap", () => {
     document.body.appendChild(root);
 
     const cesium = await import("cesium");
-    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
     handlerCtor.mockClear();
 
     await bootstrap(root, new URLSearchParams({ fov: "naked-eye" }));
@@ -652,7 +652,7 @@ describe("bootstrap", () => {
     document.body.appendChild(root);
 
     const cesium = await import("cesium");
-    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
     handlerCtor.mockClear();
 
     await bootstrap(root);
@@ -1237,9 +1237,7 @@ describe("handleIntent routing", () => {
   it("open-empty-sky-popover intent calls the popover's open() with alt/az + coords", async () => {
     const ui = await import("./ui");
     const openMock = vi.fn();
-    (
-      ui.createEmptySkyPopover as unknown as { mockReturnValueOnce: (v: unknown) => void }
-    ).mockReturnValueOnce({
+    vi.mocked(ui.createEmptySkyPopover).mockReturnValueOnce({
       element: document.createElement("div"),
       open: openMock,
       close: vi.fn(),
@@ -1263,9 +1261,7 @@ describe("handleIntent routing", () => {
   it("empty-sky click dispatches open-empty-sky-popover", async () => {
     const ui = await import("./ui");
     const openMock = vi.fn();
-    (
-      ui.createEmptySkyPopover as unknown as { mockReturnValueOnce: (v: unknown) => void }
-    ).mockReturnValueOnce({
+    vi.mocked(ui.createEmptySkyPopover).mockReturnValueOnce({
       element: document.createElement("div"),
       open: openMock,
       close: vi.fn(),
@@ -1276,7 +1272,7 @@ describe("handleIntent routing", () => {
     await bootstrap(root);
 
     const cesium = await import("cesium");
-    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
     const handlers = handlerCtor.mock.results.map(
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
     );
@@ -1292,7 +1288,7 @@ describe("handleIntent routing", () => {
     expect(clickFn).not.toBeNull();
 
     // Empty-sky click — scene.pick returns undefined (nothing under cursor).
-    const viewerCtor = cesium.Viewer as unknown as ReturnType<typeof vi.fn>;
+    const viewerCtor = vi.mocked(cesium.Viewer);
     const lastViewer = viewerCtor.mock.results[viewerCtor.mock.results.length - 1]?.value as {
       scene?: { pick?: ReturnType<typeof vi.fn> };
     };
@@ -1466,13 +1462,14 @@ describe("handleIntent routing", () => {
 
   it("side panel setContent is called without a layer-controls child (moved to drawer)", async () => {
     const ui = await import("./ui");
-    const panelMock = ui.createPanel as unknown as ReturnType<typeof vi.fn>;
+    const panelMock = vi.mocked(ui.createPanel);
     const setContent = vi.fn();
     panelMock.mockReturnValueOnce({
       element: document.createElement("div"),
       setContent,
       setCollapsed: vi.fn(),
       setNightVision: vi.fn(),
+      setMode: vi.fn(),
     });
     capturedDispatch = null;
     const { root, panelRoot } = makeRoot();
@@ -1498,9 +1495,7 @@ describe("handleIntent routing", () => {
   }> {
     const ui = await import("./ui");
     const openMock = vi.fn();
-    (
-      ui.createObjectCardsManager as unknown as { mockReturnValueOnce: (v: unknown) => void }
-    ).mockReturnValueOnce({
+    vi.mocked(ui.createObjectCardsManager).mockReturnValueOnce({
       open: openMock,
       close: vi.fn(),
       closeActive: vi.fn(),
@@ -1512,7 +1507,7 @@ describe("handleIntent routing", () => {
     await bootstrap(root);
 
     const cesium = await import("cesium");
-    const handlerCtor = cesium.ScreenSpaceEventHandler as unknown as ReturnType<typeof vi.fn>;
+    const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
     const handlers = handlerCtor.mock.results.map(
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
     );
@@ -1527,7 +1522,7 @@ describe("handleIntent routing", () => {
     }
 
     if (clickFn !== null) {
-      const viewerCtor = cesium.Viewer as unknown as ReturnType<typeof vi.fn>;
+      const viewerCtor = vi.mocked(cesium.Viewer);
       const lastViewer = viewerCtor.mock.results[viewerCtor.mock.results.length - 1]?.value as {
         scene?: { pick?: ReturnType<typeof vi.fn> };
       };
@@ -1950,9 +1945,7 @@ describe("handleIntent routing", () => {
     const mockOpen = vi.fn();
     const mockClose = vi.fn();
     let isOpen = false;
-    (
-      ui.createCommandPalette as unknown as { mockReturnValueOnce: (v: unknown) => void }
-    ).mockReturnValueOnce({
+    vi.mocked(ui.createCommandPalette).mockReturnValueOnce({
       element: document.createElement("div"),
       open: () => {
         isOpen = true;
