@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import guideMarkdown from "../../docs/user-guide.md?raw";
+import { el } from "./dom";
 import { renderMarkdownToSafeHtml } from "./markdown";
 import { PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
 
@@ -78,9 +79,7 @@ let stylesInjected = false;
 
 function injectStylesOnce(): void {
   if (stylesInjected) return;
-  const style = document.createElement("style");
-  style.dataset.testid = "help-modal-styles";
-  style.textContent = HELP_STYLES;
+  const style = el("style", { testid: "help-modal-styles", text: HELP_STYLES });
   document.head.appendChild(style);
   stylesInjected = true;
 }
@@ -88,99 +87,101 @@ function injectStylesOnce(): void {
 export function createHelpModal(options: HelpModalOptions = {}): HelpModal {
   injectStylesOnce();
 
-  const root = document.createElement("div");
-  root.dataset.testid = "help-modal";
-  root.style.display = "none";
-  root.style.position = "fixed";
-  root.style.inset = "0";
-  root.style.zIndex = "2000";
+  const replayBtn =
+    options.onReplayTour !== undefined
+      ? el("button", {
+          testid: "help-modal-replay-tour",
+          type: "button",
+          text: "Replay tour",
+          attrs: { title: "Replay the first-load guided tour" },
+          style: {
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            borderRadius: "6px",
+            color: TEXT_COLOR,
+            cursor: "pointer",
+            fontSize: "12px",
+            padding: "4px 10px",
+          },
+          on: {
+            click: () => {
+              doClose();
+              options.onReplayTour?.();
+            },
+          },
+        })
+      : null;
 
-  const backdrop = document.createElement("div");
-  backdrop.dataset.testid = "help-modal-backdrop";
-  backdrop.style.position = "absolute";
-  backdrop.style.inset = "0";
-  backdrop.style.background = "rgba(0,0,0,0.6)";
+  const headerLeft = el("div", {
+    style: { display: "flex", alignItems: "center", gap: "8px" },
+    children: [replayBtn],
+  });
 
-  const panel = document.createElement("div");
-  panel.style.position = "absolute";
-  panel.style.top = "50%";
-  panel.style.left = "50%";
-  panel.style.transform = "translate(-50%, -50%)";
-  panel.style.width = "min(80vw, 900px)";
-  panel.style.maxWidth = "calc(100vw - 24px)";
-  panel.style.maxHeight = "calc(100vh - 48px)";
-  panel.style.background = PANEL_BG;
-  panel.style.border = PANEL_BORDER;
-  panel.style.borderRadius = "8px";
-  panel.style.display = "flex";
-  panel.style.flexDirection = "column";
-  panel.style.boxSizing = "border-box";
+  const closeBtn = el("button", {
+    testid: "help-modal-close",
+    text: "×",
+    attrs: { title: "Close (Esc)" },
+    style: {
+      background: "rgba(255,255,255,0.1)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      borderRadius: "4px",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      fontSize: "18px",
+      lineHeight: "1",
+      padding: "2px 10px",
+    },
+  });
 
-  // Header with close button (and optionally a "Replay tour" button)
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
-  header.style.padding = "8px 12px";
-  header.style.borderBottom = "1px solid rgba(255,255,255,0.15)";
-  header.style.flexShrink = "0";
-  header.style.gap = "8px";
+  const header = el("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "8px 12px",
+      borderBottom: "1px solid rgba(255,255,255,0.15)",
+      flexShrink: "0",
+      gap: "8px",
+    },
+    children: [headerLeft, closeBtn],
+  });
 
-  // Left side of the header: replay-tour button (only when onReplayTour is wired).
-  const headerLeft = document.createElement("div");
-  headerLeft.style.display = "flex";
-  headerLeft.style.alignItems = "center";
-  headerLeft.style.gap = "8px";
+  const content = el("article", { testid: "help-modal-content" });
 
-  if (options.onReplayTour !== undefined) {
-    const replayBtn = document.createElement("button");
-    replayBtn.dataset.testid = "help-modal-replay-tour";
-    replayBtn.type = "button";
-    replayBtn.textContent = "Replay tour";
-    replayBtn.title = "Replay the first-load guided tour";
-    replayBtn.style.background = "rgba(255,255,255,0.08)";
-    replayBtn.style.border = "1px solid rgba(255,255,255,0.25)";
-    replayBtn.style.borderRadius = "6px";
-    replayBtn.style.color = TEXT_COLOR;
-    replayBtn.style.cursor = "pointer";
-    replayBtn.style.fontSize = "12px";
-    replayBtn.style.padding = "4px 10px";
-    replayBtn.addEventListener("click", () => {
-      doClose();
-      options.onReplayTour?.();
-    });
-    headerLeft.appendChild(replayBtn);
-  }
+  const scroll = el("div", {
+    style: { overflowY: "auto", padding: "20px 24px", flex: "1 1 auto" },
+    children: [content],
+  });
 
-  const closeBtn = document.createElement("button");
-  closeBtn.dataset.testid = "help-modal-close";
-  closeBtn.textContent = "×";
-  closeBtn.title = "Close (Esc)";
-  closeBtn.style.background = "rgba(255,255,255,0.1)";
-  closeBtn.style.border = "1px solid rgba(255,255,255,0.3)";
-  closeBtn.style.borderRadius = "4px";
-  closeBtn.style.color = TEXT_COLOR;
-  closeBtn.style.cursor = "pointer";
-  closeBtn.style.fontSize = "18px";
-  closeBtn.style.lineHeight = "1";
-  closeBtn.style.padding = "2px 10px";
-  header.appendChild(headerLeft);
-  header.appendChild(closeBtn);
+  const panel = el("div", {
+    style: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "min(80vw, 900px)",
+      maxWidth: "calc(100vw - 24px)",
+      maxHeight: "calc(100vh - 48px)",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: "8px",
+      display: "flex",
+      flexDirection: "column",
+      boxSizing: "border-box",
+    },
+    children: [header, scroll],
+  });
 
-  // Scrollable content area
-  const scroll = document.createElement("div");
-  scroll.style.overflowY = "auto";
-  scroll.style.padding = "20px 24px";
-  scroll.style.flex = "1 1 auto";
+  const backdrop = el("div", {
+    testid: "help-modal-backdrop",
+    style: { position: "absolute", inset: "0", background: "rgba(0,0,0,0.6)" },
+  });
 
-  const content = document.createElement("article");
-  content.dataset.testid = "help-modal-content";
-  scroll.appendChild(content);
-
-  panel.appendChild(header);
-  panel.appendChild(scroll);
-  root.appendChild(backdrop);
-  root.appendChild(panel);
+  const root = el("div", {
+    testid: "help-modal",
+    style: { display: "none", position: "fixed", inset: "0", zIndex: "2000" },
+    children: [backdrop, panel],
+  });
 
   let open = false;
   let rendered = false;
