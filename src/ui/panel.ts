@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { isPro } from "../features";
+import { el } from "./dom";
 import {
   PANEL_BG,
   PANEL_BORDER,
@@ -39,134 +40,108 @@ export type PanelOptions = {
   mode?: AppMode;
 };
 
+/** Build an icon button with the common title + applyButton styling. */
+function iconButton(testid: string, icon: string, title: string): HTMLButtonElement {
+  const btn = el("button", { testid, text: icon, attrs: { title } });
+  applyButton(btn);
+  return btn;
+}
+
 export function createPanel(
   container: HTMLElement,
   dispatch: (intent: UIIntent) => void = () => {},
   options: PanelOptions = {},
 ): Panel {
-  const panel = document.createElement("div");
-  panel.style.position = "fixed";
-  panel.style.top = "16px";
-  panel.style.right = "16px";
-  panel.style.width = PANEL_WIDTH;
-  // Let the panel auto-size to its (post-Phase-1) short content. The old
-  // 80vh cap + overflow-y:auto was sized for the pre-Phase-1 UI and now
-  // renders an unwanted scrollbar. See issue #228.
-  panel.style.overflowY = "visible";
-  panel.style.background = PANEL_BG;
-  panel.style.border = PANEL_BORDER;
-  panel.style.borderRadius = PANEL_RADIUS;
-  panel.style.zIndex = "1000";
-  panel.style.boxSizing = "border-box";
-
-  // Header
-  const header = document.createElement("div");
-  header.dataset.testid = "panel-header";
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
-  // Title + 7 icon buttons don't fit on one row inside PANEL_WIDTH. Allow
-  // the row to wrap so the header cannot force horizontal overflow.
-  header.style.flexWrap = "wrap";
-  header.style.gap = "4px";
-  header.style.padding = "8px 12px";
-  header.style.borderBottom = "1px solid rgba(255,255,255,0.15)";
-
-  const title = document.createElement("span");
-  title.textContent = "Planisphere";
-  title.style.color = TEXT_COLOR;
-  title.style.fontSize = "14px";
-  title.style.fontWeight = "bold";
-  title.style.fontFamily = "sans-serif";
-
-  const btnGroup = document.createElement("div");
-  btnGroup.style.display = "flex";
-  btnGroup.style.flexWrap = "wrap";
-  btnGroup.style.gap = "4px";
-  btnGroup.style.alignItems = "center";
-
-  const nightVisionBtn = document.createElement("button");
-  nightVisionBtn.dataset.testid = "panel-night-vision";
-  nightVisionBtn.textContent = "🔴";
-  nightVisionBtn.title = "Toggle night vision";
-  applyButton(nightVisionBtn);
-
-  const copyLinkBtn = document.createElement("button");
-  copyLinkBtn.dataset.testid = "panel-copy-link";
-  copyLinkBtn.textContent = "🔗";
-  copyLinkBtn.title = "Copy link";
-  applyButton(copyLinkBtn);
-
-  const eventsBtn = document.createElement("button");
-  eventsBtn.dataset.testid = "panel-events";
-  eventsBtn.textContent = "\u{1F4C5}";
-  eventsBtn.title = "Upcoming events";
-  applyButton(eventsBtn);
-
-  const tonightBtn = document.createElement("button");
-  tonightBtn.dataset.testid = "panel-tonight";
-  tonightBtn.textContent = "\u2640";
-  tonightBtn.title = "Tonight's sky";
-  applyButton(tonightBtn);
-
-  const helpBtn = document.createElement("button");
-  helpBtn.dataset.testid = "panel-help";
-  helpBtn.textContent = "?";
-  helpBtn.title = "Help";
-  applyButton(helpBtn);
-
-  const settingsBtn = document.createElement("button");
-  settingsBtn.dataset.testid = "panel-settings";
-  settingsBtn.textContent = "\u2699";
-  settingsBtn.title = "Settings";
-  applyButton(settingsBtn);
-
   let currentMode: AppMode = options.mode ?? "planetarium";
-  const modeBtn = document.createElement("button");
-  modeBtn.dataset.testid = "panel-mode";
-  modeBtn.title = "Toggle Planetarium / Notebook";
+
+  const nightVisionBtn = iconButton("panel-night-vision", "🔴", "Toggle night vision");
+  const copyLinkBtn = iconButton("panel-copy-link", "🔗", "Copy link");
+  const eventsBtn = iconButton("panel-events", "\u{1F4C5}", "Upcoming events");
+  const tonightBtn = iconButton("panel-tonight", "♀", "Tonight's sky");
+  const helpBtn = iconButton("panel-help", "?", "Help");
+  const settingsBtn = iconButton("panel-settings", "⚙", "Settings");
+  const toggleBtn = iconButton("panel-toggle", "−", "Toggle panel");
+
+  const modeIcon = el("span", {
+    testid: "panel-mode-icon",
+    text: currentMode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM,
+  });
+  const modeBtn = el("button", {
+    testid: "panel-mode",
+    attrs: { title: "Toggle Planetarium / Notebook" },
+    style: { display: "inline-flex", alignItems: "center", gap: "4px" },
+    children: [modeIcon, isPro() ? null : createProPill("panel-mode-pro")],
+  });
   applyButton(modeBtn);
-  modeBtn.style.display = "inline-flex";
-  modeBtn.style.alignItems = "center";
-  modeBtn.style.gap = "4px";
 
-  const modeIcon = document.createElement("span");
-  modeIcon.dataset.testid = "panel-mode-icon";
-  modeIcon.textContent = currentMode === "notebook" ? MODE_ICON_NOTEBOOK : MODE_ICON_PLANETARIUM;
-  modeBtn.appendChild(modeIcon);
+  const body = el("div", {
+    testid: "panel-body",
+    style: { padding: "8px 12px" },
+  });
 
-  // Pro pill: shown only when the current user isn't on the Pro allowlist.
-  // Discoverable but quiet — signals that Notebook mode is a paid feature
-  // without hiding the toggle (the CTA itself is a conversion surface).
-  if (!isPro()) {
-    modeBtn.appendChild(createProPill("panel-mode-pro"));
-  }
-
-  const toggleBtn = document.createElement("button");
-  toggleBtn.dataset.testid = "panel-toggle";
-  toggleBtn.textContent = "\u2212";
-  toggleBtn.title = "Toggle panel";
-  applyButton(toggleBtn);
-
-  btnGroup.appendChild(nightVisionBtn);
-  btnGroup.appendChild(copyLinkBtn);
-  btnGroup.appendChild(eventsBtn);
-  btnGroup.appendChild(tonightBtn);
-  btnGroup.appendChild(helpBtn);
-  btnGroup.appendChild(settingsBtn);
-  btnGroup.appendChild(modeBtn);
-  btnGroup.appendChild(toggleBtn);
-
-  header.appendChild(title);
-  header.appendChild(btnGroup);
-
-  // Body
-  const body = document.createElement("div");
-  body.dataset.testid = "panel-body";
-  body.style.padding = "8px 12px";
-
-  panel.appendChild(header);
-  panel.appendChild(body);
+  const panel = el("div", {
+    style: {
+      position: "fixed",
+      top: "16px",
+      right: "16px",
+      width: PANEL_WIDTH,
+      // Let the panel auto-size to its (post-Phase-1) short content. The old
+      // 80vh cap + overflow-y:auto was sized for the pre-Phase-1 UI and now
+      // renders an unwanted scrollbar. See issue #228.
+      overflowY: "visible",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: PANEL_RADIUS,
+      zIndex: "1000",
+      boxSizing: "border-box",
+    },
+    children: [
+      el("div", {
+        testid: "panel-header",
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          // Title + 7 icon buttons don't fit on one row inside PANEL_WIDTH.
+          // Allow wrap so the header can't force horizontal overflow.
+          flexWrap: "wrap",
+          gap: "4px",
+          padding: "8px 12px",
+          borderBottom: "1px solid rgba(255,255,255,0.15)",
+        },
+        children: [
+          el("span", {
+            text: "Planisphere",
+            style: {
+              color: TEXT_COLOR,
+              fontSize: "14px",
+              fontWeight: "bold",
+              fontFamily: "sans-serif",
+            },
+          }),
+          el("div", {
+            style: {
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "4px",
+              alignItems: "center",
+            },
+            children: [
+              nightVisionBtn,
+              copyLinkBtn,
+              eventsBtn,
+              tonightBtn,
+              helpBtn,
+              settingsBtn,
+              modeBtn,
+              toggleBtn,
+            ],
+          }),
+        ],
+      }),
+      body,
+    ],
+  });
   container.appendChild(panel);
 
   let collapsed = false;
@@ -229,13 +204,13 @@ export function createPanel(
   toggleBtn.addEventListener("click", () => {
     collapsed = !collapsed;
     body.style.display = collapsed ? "none" : "";
-    toggleBtn.textContent = collapsed ? "\u002B" : "\u2212";
+    toggleBtn.textContent = collapsed ? "+" : "−";
   });
 
   function setCollapsed(value: boolean): void {
     collapsed = value;
     body.style.display = value ? "none" : "";
-    toggleBtn.textContent = value ? "\u002B" : "\u2212";
+    toggleBtn.textContent = value ? "+" : "−";
   }
 
   function setContent(child: HTMLElement): void {
