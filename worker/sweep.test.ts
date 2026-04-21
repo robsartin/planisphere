@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
-import { testEnv, resetDb } from "./test-helpers";
+import { resetDb, testEnv } from "./test-helpers";
 import { deleteExpiredMagicLinks, deleteExpiredSessions } from "./db";
 
 /**
