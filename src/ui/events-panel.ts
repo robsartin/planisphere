@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { applyBaseText, GAP, SURFACE, TEXT_COLOR, TEXT_MUTED } from "./styles";
 import type { CelestialEvent } from "../astro/events";
 import type { UIIntent } from "./index";
@@ -23,7 +24,7 @@ function viewFromEvent(event: CelestialEvent): { az: number; alt: number } | nul
 
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
 function formatLocal(d: Date): string {
-  const y = d.getFullYear();
+  const y = String(d.getFullYear());
   const mo = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   const h = String(d.getHours()).padStart(2, "0");
@@ -44,6 +45,84 @@ function kindColor(kind: CelestialEvent["kind"]): string {
   }
 }
 
+const DATE_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.7)",
+  fontSize: "11px",
+  fontFamily: "sans-serif",
+  marginTop: "2px",
+};
+
+const DESC_STYLE: Partial<CSSStyleDeclaration> = {
+  color: TEXT_MUTED,
+  fontSize: "11px",
+  fontFamily: "sans-serif",
+  marginTop: "2px",
+};
+
+const GOTO_BTN_STYLE: Partial<CSSStyleDeclaration> = {
+  padding: "2px 6px",
+  fontSize: "11px",
+  fontFamily: "sans-serif",
+  background: SURFACE,
+  color: TEXT_COLOR,
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: "3px",
+  cursor: "pointer",
+};
+
+function buildEventRow(event: CelestialEvent, dispatch: (intent: UIIntent) => void): HTMLElement {
+  const gotoBtn = el("button", {
+    testid: "event-goto",
+    text: "Go to",
+    style: GOTO_BTN_STYLE,
+  });
+  gotoBtn.addEventListener("click", () => {
+    dispatch({ type: "set-time", time: event.when });
+    // Aim the camera at the event's view direction when one is available, so
+    // the subject is actually in the user's field of view rather than the
+    // camera staying at whatever direction it was last pointed.
+    const view = viewFromEvent(event);
+    if (view !== null) {
+      dispatch({ type: "set-view", az: view.az, alt: view.alt });
+    }
+  });
+
+  const titleEl = el("span", {
+    testid: "event-title",
+    text: event.title,
+    style: {
+      color: kindColor(event.kind),
+      fontWeight: "bold",
+      fontSize: "12px",
+      fontFamily: "sans-serif",
+    },
+  });
+
+  const titleRow = el("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+    children: [titleEl, gotoBtn],
+  });
+
+  // Grey out eclipsed ISS passes so the user can see the pass exists but knows
+  // the satellite itself will be invisible (in Earth's shadow at peak).
+  const eclipsed = event.kind === "iss-pass" && event.eclipsed;
+
+  return el("div", {
+    testid: "event-row",
+    style: {
+      marginBottom: "8px",
+      paddingBottom: "6px",
+      borderBottom: "1px solid rgba(255,255,255,0.08)",
+      ...(eclipsed ? { opacity: "0.5" } : {}),
+    },
+    children: [
+      titleRow,
+      el("div", { testid: "event-date", text: formatLocal(event.when), style: DATE_STYLE }),
+      el("div", { testid: "event-description", text: event.description, style: DESC_STYLE }),
+    ],
+  });
+}
+
 /**
  * Create the celestial-events side panel.
  *
@@ -54,130 +133,64 @@ export function createEventsPanel(
   events: readonly CelestialEvent[],
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  section.style.marginBottom = GAP;
-
-  // Header
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
-  header.style.marginBottom = "4px";
-
-  const heading = document.createElement("div");
-  heading.dataset.testid = "events-heading";
-  heading.textContent = "Upcoming Events";
-  heading.style.fontWeight = "bold";
+  const heading = el("div", {
+    testid: "events-heading",
+    text: "Upcoming Events",
+    style: { fontWeight: "bold" },
+  });
   applyBaseText(heading);
-  header.appendChild(heading);
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.dataset.testid = "events-toggle";
-  toggleBtn.textContent = "\u25BE";
-  toggleBtn.style.background = "none";
-  toggleBtn.style.border = "none";
-  toggleBtn.style.color = TEXT_COLOR;
-  toggleBtn.style.cursor = "pointer";
-  toggleBtn.style.fontSize = "14px";
-  toggleBtn.style.padding = "0 2px";
-  header.appendChild(toggleBtn);
+  const toggleBtn = el("button", {
+    testid: "events-toggle",
+    text: "▾",
+    style: {
+      background: "none",
+      border: "none",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      fontSize: "14px",
+      padding: "0 2px",
+    },
+  });
 
-  section.appendChild(header);
+  const bodyChildren: HTMLElement[] =
+    events.length === 0
+      ? [
+          el("div", {
+            testid: "events-empty",
+            text: "No upcoming events.",
+            style: {
+              color: "rgba(255,255,255,0.6)",
+              fontSize: "12px",
+              fontFamily: "sans-serif",
+              padding: "4px 0",
+            },
+          }),
+        ]
+      : events.map((event) => buildEventRow(event, dispatch));
 
-  // Body
-  const body = document.createElement("div");
-  body.dataset.testid = "events-body";
+  const body = el("div", { testid: "events-body", children: bodyChildren });
 
   let collapsed = false;
   toggleBtn.addEventListener("click", () => {
     collapsed = !collapsed;
     body.style.display = collapsed ? "none" : "";
-    toggleBtn.textContent = collapsed ? "\u25B8" : "\u25BE";
+    toggleBtn.textContent = collapsed ? "▸" : "▾";
   });
 
-  if (events.length === 0) {
-    const empty = document.createElement("div");
-    empty.dataset.testid = "events-empty";
-    empty.textContent = "No upcoming events.";
-    empty.style.color = "rgba(255,255,255,0.6)";
-    empty.style.fontSize = "12px";
-    empty.style.fontFamily = "sans-serif";
-    empty.style.padding = "4px 0";
-    body.appendChild(empty);
-  } else {
-    for (const event of events) {
-      const row = document.createElement("div");
-      row.dataset.testid = "event-row";
-      row.style.marginBottom = "8px";
-      row.style.paddingBottom = "6px";
-      row.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-
-      // Grey out eclipsed ISS passes so the user can see the pass exists but knows
-      // the satellite itself will be invisible (in Earth's shadow at peak).
-      if (event.kind === "iss-pass" && event.eclipsed) {
-        row.style.opacity = "0.5";
-      }
-
-      const titleRow = document.createElement("div");
-      titleRow.style.display = "flex";
-      titleRow.style.justifyContent = "space-between";
-      titleRow.style.alignItems = "center";
-
-      const titleEl = document.createElement("span");
-      titleEl.dataset.testid = "event-title";
-      titleEl.textContent = event.title;
-      titleEl.style.color = kindColor(event.kind);
-      titleEl.style.fontWeight = "bold";
-      titleEl.style.fontSize = "12px";
-      titleEl.style.fontFamily = "sans-serif";
-      titleRow.appendChild(titleEl);
-
-      const gotoBtn = document.createElement("button");
-      gotoBtn.dataset.testid = "event-goto";
-      gotoBtn.textContent = "Go to";
-      gotoBtn.style.padding = "2px 6px";
-      gotoBtn.style.fontSize = "11px";
-      gotoBtn.style.fontFamily = "sans-serif";
-      gotoBtn.style.background = SURFACE;
-      gotoBtn.style.color = TEXT_COLOR;
-      gotoBtn.style.border = "1px solid rgba(255,255,255,0.2)";
-      gotoBtn.style.borderRadius = "3px";
-      gotoBtn.style.cursor = "pointer";
-      gotoBtn.addEventListener("click", () => {
-        dispatch({ type: "set-time", time: event.when });
-        // Aim the camera at the event's view direction when one is available, so
-        // the subject is actually in the user's field of view rather than the
-        // camera staying at whatever direction it was last pointed.
-        const view = viewFromEvent(event);
-        if (view !== null) {
-          dispatch({ type: "set-view", az: view.az, alt: view.alt });
-        }
-      });
-      titleRow.appendChild(gotoBtn);
-      row.appendChild(titleRow);
-
-      const dateEl = document.createElement("div");
-      dateEl.dataset.testid = "event-date";
-      dateEl.textContent = formatLocal(event.when);
-      dateEl.style.color = "rgba(255,255,255,0.7)";
-      dateEl.style.fontSize = "11px";
-      dateEl.style.fontFamily = "sans-serif";
-      dateEl.style.marginTop = "2px";
-      row.appendChild(dateEl);
-
-      const descEl = document.createElement("div");
-      descEl.dataset.testid = "event-description";
-      descEl.textContent = event.description;
-      descEl.style.color = TEXT_MUTED;
-      descEl.style.fontSize = "11px";
-      descEl.style.fontFamily = "sans-serif";
-      descEl.style.marginTop = "2px";
-      row.appendChild(descEl);
-
-      body.appendChild(row);
-    }
-  }
-
-  section.appendChild(body);
-  return section;
+  return el("div", {
+    style: { marginBottom: GAP },
+    children: [
+      el("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "4px",
+        },
+        children: [heading, toggleBtn],
+      }),
+      body,
+    ],
+  });
 }
