@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import type { SearchResult } from "../astro/search";
 import type { UIIntent } from "./index";
 
@@ -7,6 +8,82 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
   constellation: "constellation",
   body: "planet",
   satellite: "satellite",
+};
+
+const INPUT_STYLE: Partial<CSSStyleDeclaration> = {
+  width: "100%",
+  boxSizing: "border-box",
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "4px",
+  color: "#fff",
+  fontSize: "12px",
+  padding: "6px 8px",
+  fontFamily: "sans-serif",
+  outline: "none",
+};
+
+const DROPDOWN_STYLE: Partial<CSSStyleDeclaration> = {
+  position: "absolute",
+  top: "100%",
+  left: "0",
+  right: "0",
+  background: "rgba(10,10,20,0.97)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: "0 0 4px 4px",
+  zIndex: "2000",
+  maxHeight: "220px",
+  overflowY: "auto",
+  display: "none",
+};
+
+const NO_RESULT_STYLE: Partial<CSSStyleDeclaration> = {
+  padding: "8px 10px",
+  color: "rgba(255,255,255,0.4)",
+  fontSize: "12px",
+  fontFamily: "sans-serif",
+};
+
+const ITEM_STYLE: Partial<CSSStyleDeclaration> = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "7px 10px",
+  cursor: "pointer",
+  borderBottom: "1px solid rgba(255,255,255,0.07)",
+};
+
+const LEFT_STYLE: Partial<CSSStyleDeclaration> = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  flex: "1",
+  minWidth: "0",
+};
+
+const NAME_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "#fff",
+  fontSize: "12px",
+  fontFamily: "sans-serif",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const BELOW_HORIZON_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.38)",
+  fontSize: "10px",
+  fontFamily: "sans-serif",
+  whiteSpace: "nowrap",
+};
+
+const TYPE_LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(100,200,255,0.7)",
+  fontSize: "10px",
+  fontFamily: "sans-serif",
+  marginLeft: "8px",
+  whiteSpace: "nowrap",
+  flexShrink: "0",
 };
 
 /**
@@ -19,100 +96,69 @@ export function createSearch(
   search: (query: string) => SearchResult[],
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText = "position:relative;margin-bottom:8px";
+  const input = el("input", {
+    testid: "search-input",
+    type: "text",
+    placeholder: "Search stars, planets, satellites...",
+    style: INPUT_STYLE,
+  });
 
-  // Input
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "Search stars, planets, satellites...";
-  input.dataset.testid = "search-input";
-  input.style.cssText =
-    "width:100%;box-sizing:border-box;background:rgba(255,255,255,0.1);" +
-    "border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;" +
-    "font-size:12px;padding:6px 8px;font-family:sans-serif;outline:none";
-  wrapper.appendChild(input);
+  const dropdown = el("div", { testid: "search-dropdown", style: DROPDOWN_STYLE });
 
-  // Dropdown
-  const dropdown = document.createElement("div");
-  dropdown.dataset.testid = "search-dropdown";
-  dropdown.style.cssText =
-    "position:absolute;top:100%;left:0;right:0;background:rgba(10,10,20,0.97);" +
-    "border:1px solid rgba(255,255,255,0.2);border-radius:0 0 4px 4px;" +
-    "z-index:2000;max-height:220px;overflow-y:auto;display:none";
-  wrapper.appendChild(dropdown);
+  const wrapper = el("div", {
+    style: { position: "relative", marginBottom: "8px" },
+    children: [input, dropdown],
+  });
 
   function hideDropdown(): void {
     dropdown.style.display = "none";
     dropdown.replaceChildren();
   }
 
-  function showResults(results: SearchResult[]): void {
-    dropdown.replaceChildren();
+  function buildItem(result: SearchResult): HTMLElement {
+    const left = el("div", {
+      style: LEFT_STYLE,
+      children: [
+        el("span", { text: result.name, style: NAME_STYLE }),
+        result.belowHorizon
+          ? el("span", { text: "(below horizon)", style: BELOW_HORIZON_STYLE })
+          : null,
+      ],
+    });
 
+    const typeLabel = el("span", {
+      text: TYPE_LABELS[result.type],
+      style: TYPE_LABEL_STYLE,
+    });
+
+    const item = el("div", {
+      testid: "search-result-item",
+      style: ITEM_STYLE,
+      children: [left, typeLabel],
+    });
+
+    item.addEventListener("mouseenter", () => {
+      item.style.background = "rgba(255,255,255,0.08)";
+    });
+    item.addEventListener("mouseleave", () => {
+      item.style.background = "";
+    });
+    item.addEventListener("click", () => {
+      dispatch({ type: "set-view", az: result.az, alt: result.alt });
+      input.value = "";
+      hideDropdown();
+    });
+
+    return item;
+  }
+
+  function showResults(results: SearchResult[]): void {
     if (results.length === 0) {
-      const noResult = document.createElement("div");
-      noResult.textContent = "No results";
-      noResult.style.cssText =
-        "padding:8px 10px;color:rgba(255,255,255,0.4);font-size:12px;font-family:sans-serif";
-      dropdown.appendChild(noResult);
+      dropdown.replaceChildren(el("div", { text: "No results", style: NO_RESULT_STYLE }));
       dropdown.style.display = "block";
       return;
     }
-
-    for (const result of results) {
-      const item = document.createElement("div");
-      item.dataset.testid = "search-result-item";
-      item.style.cssText =
-        "display:flex;justify-content:space-between;align-items:center;" +
-        "padding:7px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.07)";
-
-      // Left: name + below-horizon indicator
-      const left = document.createElement("div");
-      left.style.cssText = "display:flex;align-items:center;gap:6px;flex:1;min-width:0";
-
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = result.name;
-      nameSpan.style.cssText =
-        "color:#fff;font-size:12px;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-      left.appendChild(nameSpan);
-
-      if (result.belowHorizon) {
-        const belowSpan = document.createElement("span");
-        belowSpan.textContent = "(below horizon)";
-        belowSpan.style.cssText =
-          "color:rgba(255,255,255,0.38);font-size:10px;font-family:sans-serif;white-space:nowrap";
-        left.appendChild(belowSpan);
-      }
-
-      // Right: type label
-      const typeLabel = document.createElement("span");
-      typeLabel.textContent = TYPE_LABELS[result.type];
-      typeLabel.style.cssText =
-        "color:rgba(100,200,255,0.7);font-size:10px;font-family:sans-serif;" +
-        "margin-left:8px;white-space:nowrap;flex-shrink:0";
-
-      item.appendChild(left);
-      item.appendChild(typeLabel);
-
-      // Hover effects
-      item.addEventListener("mouseenter", () => {
-        item.style.background = "rgba(255,255,255,0.08)";
-      });
-      item.addEventListener("mouseleave", () => {
-        item.style.background = "";
-      });
-
-      // Click: dispatch set-view and close
-      item.addEventListener("click", () => {
-        dispatch({ type: "set-view", az: result.az, alt: result.alt });
-        input.value = "";
-        hideDropdown();
-      });
-
-      dropdown.appendChild(item);
-    }
-
+    dropdown.replaceChildren(...results.map(buildItem));
     dropdown.style.display = "block";
   }
 
@@ -122,8 +168,7 @@ export function createSearch(
       hideDropdown();
       return;
     }
-    const results = search(query);
-    showResults(results);
+    showResults(search(query));
   });
 
   // Close dropdown when focus leaves the wrapper
