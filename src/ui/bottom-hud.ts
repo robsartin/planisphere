@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { FONT_FAMILY, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 
@@ -16,6 +17,16 @@ const DAY_PER_MS = 86_400_000;
  * without making small drags overshoot dramatically.
  */
 const SCRUB_MS_PER_PIXEL = 60_000;
+
+const CHIP_STYLE: Partial<CSSStyleDeclaration> = {
+  background: SURFACE,
+  border: "1px solid rgba(255,255,255,0.25)",
+  borderRadius: "999px",
+  padding: "6px 12px",
+  color: TEXT_COLOR,
+  fontFamily: FONT_FAMILY,
+  fontSize: "13px",
+};
 
 export type BottomHud = {
   readonly element: HTMLElement;
@@ -57,7 +68,7 @@ function cardinal(azDeg: number): string {
 
 function formatCompass(azDeg: number): string {
   const a = ((azDeg % 360) + 360) % 360;
-  return `${cardinal(a)} ${Math.round(a)}\u00B0`;
+  return `${cardinal(a)} ${String(Math.round(a))}°`;
 }
 
 function deltaForEvent(e: KeyboardEvent): number | null {
@@ -87,97 +98,84 @@ export function createBottomHud(
   dispatch: (intent: UIIntent) => void,
 ): BottomHud {
   let currentTime = new Date(initial.timeUtc);
-  let currentLat = initial.lat;
-  let currentLon = initial.lon;
 
-  const root = document.createElement("div");
-  root.dataset.testid = "bottom-hud";
-  root.style.position = "fixed";
-  root.style.left = "0";
-  root.style.right = "0";
-  root.style.bottom = "0";
-  root.style.height = "56px";
-  root.style.display = "flex";
-  root.style.alignItems = "center";
-  root.style.justifyContent = "space-between";
-  root.style.gap = "12px";
-  root.style.padding = "0 16px";
-  root.style.boxSizing = "border-box";
-  root.style.background = "rgba(0, 0, 0, 0.55)";
-  root.style.borderTop = PANEL_BORDER;
-  root.style.color = TEXT_COLOR;
-  root.style.fontFamily = FONT_FAMILY;
-  root.style.fontSize = "13px";
-  root.style.zIndex = "1000";
-  root.style.opacity = String(ACTIVE_OPACITY);
-  root.style.transition = "opacity 200ms ease";
-  root.style.userSelect = "none";
-  root.style.touchAction = "none";
-
-  // Left chip — location
-  const locationChip = document.createElement("button");
-  locationChip.dataset.testid = "hud-location";
-  locationChip.type = "button";
-  locationChip.style.background = SURFACE;
-  locationChip.style.border = "1px solid rgba(255,255,255,0.25)";
-  locationChip.style.borderRadius = "999px";
-  locationChip.style.padding = "6px 12px";
-  locationChip.style.color = TEXT_COLOR;
-  locationChip.style.fontFamily = FONT_FAMILY;
-  locationChip.style.fontSize = "13px";
-  locationChip.style.cursor = "pointer";
-  locationChip.title = "Change location";
-  locationChip.textContent = formatObserver(currentLat, currentLon);
+  const locationChip = el("button", {
+    testid: "hud-location",
+    type: "button",
+    text: formatObserver(initial.lat, initial.lon),
+    attrs: { title: "Change location" },
+    style: { ...CHIP_STYLE, cursor: "pointer" },
+  });
   locationChip.addEventListener("click", () => {
     dispatch({ type: "open-location-picker" });
   });
 
-  // Center — time readouts + invisible scrub region
-  const center = document.createElement("div");
-  center.dataset.testid = "hud-scrub";
-  center.style.flex = "1";
-  center.style.display = "flex";
-  center.style.flexDirection = "column";
-  center.style.alignItems = "center";
-  center.style.justifyContent = "center";
-  center.style.cursor = "ew-resize";
-  center.title =
-    "Drag to scrub time; ← / → to step by minute (Shift hour, Alt day); Space play/pause";
+  const utcEl = el("span", {
+    testid: "hud-utc",
+    text: formatUtc(currentTime),
+    style: { fontWeight: "600", fontVariantNumeric: "tabular-nums" },
+  });
 
-  const timeRow = document.createElement("div");
-  timeRow.style.display = "flex";
-  timeRow.style.gap = "12px";
-  timeRow.style.alignItems = "baseline";
+  const localEl = el("span", {
+    testid: "hud-local",
+    text: formatLocal(currentTime),
+    style: { opacity: "0.75", fontVariantNumeric: "tabular-nums" },
+  });
 
-  const utcEl = document.createElement("span");
-  utcEl.dataset.testid = "hud-utc";
-  utcEl.style.fontWeight = "600";
-  utcEl.style.fontVariantNumeric = "tabular-nums";
-  utcEl.textContent = formatUtc(currentTime);
+  const timeRow = el("div", {
+    style: { display: "flex", gap: "12px", alignItems: "baseline" },
+    children: [utcEl, localEl],
+  });
 
-  const localEl = document.createElement("span");
-  localEl.dataset.testid = "hud-local";
-  localEl.style.opacity = "0.75";
-  localEl.style.fontVariantNumeric = "tabular-nums";
-  localEl.textContent = formatLocal(currentTime);
+  const center = el("div", {
+    testid: "hud-scrub",
+    attrs: {
+      title: "Drag to scrub time; ← / → to step by minute (Shift hour, Alt day); Space play/pause",
+    },
+    style: {
+      flex: "1",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "ew-resize",
+    },
+    children: [timeRow],
+  });
 
-  timeRow.appendChild(utcEl);
-  timeRow.appendChild(localEl);
-  center.appendChild(timeRow);
+  const compassChip = el("div", {
+    testid: "hud-compass",
+    text: formatCompass(0),
+    style: { ...CHIP_STYLE, fontVariantNumeric: "tabular-nums" },
+  });
 
-  // Right chip — compass
-  const compassChip = document.createElement("div");
-  compassChip.dataset.testid = "hud-compass";
-  compassChip.style.background = SURFACE;
-  compassChip.style.border = "1px solid rgba(255,255,255,0.25)";
-  compassChip.style.borderRadius = "999px";
-  compassChip.style.padding = "6px 12px";
-  compassChip.style.fontVariantNumeric = "tabular-nums";
-  compassChip.textContent = formatCompass(0);
-
-  root.appendChild(locationChip);
-  root.appendChild(center);
-  root.appendChild(compassChip);
+  const root = el("div", {
+    testid: "bottom-hud",
+    style: {
+      position: "fixed",
+      left: "0",
+      right: "0",
+      bottom: "0",
+      height: "56px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "12px",
+      padding: "0 16px",
+      boxSizing: "border-box",
+      background: "rgba(0, 0, 0, 0.55)",
+      borderTop: PANEL_BORDER,
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "13px",
+      zIndex: "1000",
+      opacity: String(ACTIVE_OPACITY),
+      transition: "opacity 200ms ease",
+      userSelect: "none",
+      touchAction: "none",
+    },
+    children: [locationChip, center, compassChip],
+  });
 
   // --- Idle fade ---
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -280,8 +278,6 @@ export function createBottomHud(
       localEl.textContent = formatLocal(currentTime);
     },
     setObserver(lat: number, lon: number): void {
-      currentLat = lat;
-      currentLon = lon;
       locationChip.textContent = formatObserver(lat, lon);
     },
     setCompass(azDeg: number): void {
