@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { applyBaseText, ACCENT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 import type { LayerVisibility, LayerOpacity } from "../state/state";
@@ -38,7 +39,7 @@ const TOGGLE_LAYERS: LayerDef[] = [
   { key: "planets", label: "Planets ☾" },
   { key: "satellites", label: "Satellites 🛰" },
   { key: "compass", label: "Compass ◎" },
-  { key: "deepSky", label: "Deep Sky \u2726" },
+  { key: "deepSky", label: "Deep Sky ✦" },
 ];
 
 const LINE_LAYERS: LineDef[] = [
@@ -50,77 +51,74 @@ const LINE_LAYERS: LineDef[] = [
   { key: "milkyWay", label: "Milky Way", defaultPct: 30 },
 ];
 
-function appendToggleRow(
-  section: HTMLElement,
+const SLIDER_LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  fontSize: "12px",
+  marginBottom: "2px",
+};
+
+const SLIDER_STYLE: Partial<CSSStyleDeclaration> = {
+  width: "100%",
+  accentColor: ACCENT_COLOR,
+};
+
+function buildToggleRow(
   layer: LayerDef,
   initialChecked: boolean,
   dispatch: (intent: UIIntent) => void,
-): void {
-  const row = document.createElement("div");
-  row.style.display = "flex";
-  row.style.alignItems = "center";
-  row.style.justifyContent = "space-between";
-  row.style.marginBottom = "6px";
-
-  const lbl = document.createElement("label");
-  lbl.style.display = "flex";
-  lbl.style.alignItems = "center";
-  lbl.style.gap = "6px";
-  lbl.style.cursor = "pointer";
-  applyBaseText(lbl);
-
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.dataset.layer = layer.key;
+): HTMLElement {
+  const checkbox = el("input", {
+    type: "checkbox",
+    dataset: { layer: layer.key },
+    style: { accentColor: ACCENT_COLOR, width: "16px", height: "16px" },
+  });
   checkbox.checked = initialChecked;
-  checkbox.style.accentColor = ACCENT_COLOR;
-  checkbox.style.width = "16px";
-  checkbox.style.height = "16px";
-
-  lbl.appendChild(checkbox);
-  lbl.appendChild(document.createTextNode(layer.label));
-  row.appendChild(lbl);
-  section.appendChild(row);
-
   checkbox.addEventListener("change", () => {
     dispatch({ type: "toggle-layer", layer: layer.key });
   });
+
+  const lbl = el("label", {
+    style: { display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" },
+    children: [checkbox, document.createTextNode(layer.label)],
+  });
+  applyBaseText(lbl);
+
+  return el("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: "6px",
+    },
+    children: [lbl],
+  });
 }
 
-function appendOpacityRow(
-  section: HTMLElement,
+function buildOpacityRow(
   ld: LineDef,
   initialValue: number,
   dispatch: (intent: UIIntent) => void,
-): void {
-  const row = document.createElement("div");
-  row.dataset.opacityRow = ld.key;
-  row.style.marginBottom = "6px";
-
-  const lbl = document.createElement("div");
-  lbl.textContent = ld.label;
+): HTMLElement {
+  const lbl = el("div", { text: ld.label, style: SLIDER_LABEL_STYLE });
   applyBaseText(lbl);
-  lbl.style.fontSize = "12px";
-  lbl.style.marginBottom = "2px";
 
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.dataset.opacity = ld.key;
+  const slider = el("input", {
+    type: "range",
+    dataset: { opacity: ld.key },
+    style: SLIDER_STYLE,
+  });
   slider.min = "0";
   slider.max = "100";
   slider.step = "1";
   slider.value = String(Math.round(initialValue * 100));
-  slider.style.width = "100%";
-  slider.style.accentColor = ACCENT_COLOR;
-
   slider.addEventListener("input", () => {
-    const value = Number(slider.value) / 100;
-    dispatch({ type: "set-opacity", layer: ld.key, value });
+    dispatch({ type: "set-opacity", layer: ld.key, value: Number(slider.value) / 100 });
   });
 
-  row.appendChild(lbl);
-  row.appendChild(slider);
-  section.appendChild(row);
+  return el("div", {
+    dataset: { opacityRow: ld.key },
+    style: { marginBottom: "6px" },
+    children: [lbl, slider],
+  });
 }
 
 /**
@@ -131,11 +129,9 @@ export function createVisibilitySection(
   visibility: LayerVisibility,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  for (const layer of TOGGLE_LAYERS) {
-    appendToggleRow(section, layer, visibility[layer.key], dispatch);
-  }
-  return section;
+  return el("div", {
+    children: TOGGLE_LAYERS.map((layer) => buildToggleRow(layer, visibility[layer.key], dispatch)),
+  });
 }
 
 /**
@@ -146,11 +142,9 @@ export function createOpacitySection(
   opacity: LayerOpacity,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  for (const ld of LINE_LAYERS) {
-    appendOpacityRow(section, ld, opacity[ld.key], dispatch);
-  }
-  return section;
+  return el("div", {
+    children: LINE_LAYERS.map((ld) => buildOpacityRow(ld, opacity[ld.key], dispatch)),
+  });
 }
 
 /**
@@ -160,37 +154,58 @@ export function createMagnitudeFilterSection(
   initialMagLimit: number,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  const magRow = document.createElement("div");
-  magRow.style.marginBottom = "6px";
-
-  const magLabel = document.createElement("div");
-  magLabel.dataset.magLabel = "";
-  magLabel.textContent = `Mag \u2264 ${initialMagLimit.toFixed(1)}`;
+  const magLabel = el("div", {
+    dataset: { magLabel: "" },
+    text: `Mag ≤ ${initialMagLimit.toFixed(1)}`,
+    style: SLIDER_LABEL_STYLE,
+  });
   applyBaseText(magLabel);
-  magLabel.style.fontSize = "12px";
-  magLabel.style.marginBottom = "2px";
 
-  const magSlider = document.createElement("input");
-  magSlider.type = "range";
-  magSlider.dataset.mag = "limit";
+  const magSlider = el("input", {
+    type: "range",
+    dataset: { mag: "limit" },
+    style: SLIDER_STYLE,
+  });
   magSlider.min = "1";
   magSlider.max = "6";
   magSlider.step = "0.5";
   magSlider.value = String(initialMagLimit);
-  magSlider.style.width = "100%";
-  magSlider.style.accentColor = ACCENT_COLOR;
-
   magSlider.addEventListener("input", () => {
     const value = Number(magSlider.value);
-    magLabel.textContent = `Mag \u2264 ${value.toFixed(1)}`;
+    magLabel.textContent = `Mag ≤ ${value.toFixed(1)}`;
     dispatch({ type: "set-mag-limit", value });
   });
 
-  magRow.appendChild(magLabel);
-  magRow.appendChild(magSlider);
-  section.appendChild(magRow);
-  return section;
+  return el("div", {
+    children: [el("div", { style: { marginBottom: "6px" }, children: [magLabel, magSlider] })],
+  });
+}
+
+function buildSelectRow<T extends string>(
+  ids: readonly T[],
+  labels: Record<T, string>,
+  initial: T,
+  datasetKey: "language" | "skyculture",
+  onChange: (value: T) => void,
+): HTMLElement {
+  const select = el("select", {
+    dataset: { [datasetKey]: "" },
+    style: { width: "100%", fontSize: "12px" },
+    children: ids.map((id) => {
+      const option = el("option", { text: labels[id] });
+      option.value = id;
+      if (id === initial) option.selected = true;
+      return option;
+    }),
+  });
+  applyBaseText(select);
+  select.addEventListener("change", () => {
+    onChange(select.value as T);
+  });
+
+  return el("div", {
+    children: [el("div", { style: { marginBottom: "6px" }, children: [select] })],
+  });
 }
 
 /**
@@ -200,32 +215,9 @@ export function createLanguageSection(
   initialLanguage: Language,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  const row = document.createElement("div");
-  row.style.marginBottom = "6px";
-
-  const select = document.createElement("select");
-  select.dataset.language = "";
-  select.style.width = "100%";
-  applyBaseText(select);
-  select.style.fontSize = "12px";
-
-  for (const code of LANGUAGES) {
-    const option = document.createElement("option");
-    option.value = code;
-    option.textContent = LANGUAGE_LABELS[code];
-    if (code === initialLanguage) option.selected = true;
-    select.appendChild(option);
-  }
-
-  select.addEventListener("change", () => {
-    const value = select.value as Language;
-    dispatch({ type: "set-language", language: value });
+  return buildSelectRow(LANGUAGES, LANGUAGE_LABELS, initialLanguage, "language", (language) => {
+    dispatch({ type: "set-language", language });
   });
-
-  row.appendChild(select);
-  section.appendChild(row);
-  return section;
 }
 
 /**
@@ -235,30 +227,7 @@ export function createSkycultureSection(
   initialSkyculture: SkycultureId,
   dispatch: (intent: UIIntent) => void,
 ): HTMLElement {
-  const section = document.createElement("div");
-  const row = document.createElement("div");
-  row.style.marginBottom = "6px";
-
-  const select = document.createElement("select");
-  select.dataset.skyculture = "";
-  select.style.width = "100%";
-  applyBaseText(select);
-  select.style.fontSize = "12px";
-
-  for (const id of SKYCULTURES) {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = SKYCULTURE_LABELS[id];
-    if (id === initialSkyculture) option.selected = true;
-    select.appendChild(option);
-  }
-
-  select.addEventListener("change", () => {
-    const value = select.value as SkycultureId;
-    dispatch({ type: "set-skyculture", id: value });
+  return buildSelectRow(SKYCULTURES, SKYCULTURE_LABELS, initialSkyculture, "skyculture", (id) => {
+    dispatch({ type: "set-skyculture", id });
   });
-
-  row.appendChild(select);
-  section.appendChild(row);
-  return section;
 }

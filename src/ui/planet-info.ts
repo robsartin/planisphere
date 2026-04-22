@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { ACCENT_COLOR, applyBaseText, GAP, SURFACE, TEXT_COLOR } from "./styles";
 import type { CelestialBody } from "../astro/bodies";
 import { computeRiseSet } from "../astro/rise-set";
@@ -14,6 +15,123 @@ function formatHHMM(d: Date | null): string {
 /** Format altitude and azimuth as a compact string. */
 function formatAltAz(alt: number, az: number): string {
   return `Alt ${alt.toFixed(1)}° Az ${az.toFixed(1)}°`;
+}
+
+const ALT_AZ_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.65)",
+  fontSize: "11px",
+  fontFamily: "sans-serif",
+  marginTop: "2px",
+};
+
+const RISE_SET_STYLE: Partial<CSSStyleDeclaration> = {
+  fontSize: "11px",
+  fontFamily: "sans-serif",
+};
+
+const BELOW_HORIZON_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.4)",
+  fontSize: "10px",
+  fontFamily: "sans-serif",
+};
+
+function buildRow(
+  celestialBody: CelestialBody,
+  lat: number,
+  lon: number,
+  time: Date,
+  onSelect?: (az: number, alt: number) => void,
+  onShowTrail?: (id: string) => void,
+  trailBodyId?: string | null,
+): HTMLElement {
+  const riseSet = computeRiseSet(celestialBody.id, lat, lon, time);
+
+  const nameEl = el("span", {
+    testid: "planet-name",
+    text: celestialBody.id,
+    style: {
+      color: celestialBody.color,
+      fontWeight: "bold",
+      fontSize: "12px",
+      fontFamily: "sans-serif",
+    },
+  });
+  if (celestialBody.alt > 0 && onSelect) {
+    nameEl.style.cursor = "pointer";
+    nameEl.style.textDecoration = "underline";
+    nameEl.addEventListener("click", () => {
+      onSelect(celestialBody.az, celestialBody.alt);
+    });
+  }
+
+  const nameRow = el("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+    children: [
+      nameEl,
+      celestialBody.alt <= 0
+        ? el("span", {
+            testid: "planet-below-horizon",
+            text: "↓ below",
+            style: BELOW_HORIZON_STYLE,
+          })
+        : null,
+    ],
+  });
+
+  const altAzEl = el("div", {
+    testid: "planet-altaz",
+    text: formatAltAz(celestialBody.alt, celestialBody.az),
+    style: ALT_AZ_STYLE,
+  });
+
+  const riseSetRow = el("div", {
+    style: { display: "flex", gap: "8px", marginTop: "2px" },
+    children: [
+      el("span", {
+        testid: "planet-rise",
+        text: `↑ ${formatHHMM(riseSet.rise)}`,
+        style: { ...RISE_SET_STYLE, color: ACCENT_COLOR },
+      }),
+      el("span", {
+        testid: "planet-set",
+        text: `↓ ${formatHHMM(riseSet.set)}`,
+        style: { ...RISE_SET_STYLE, color: "rgba(255,180,100,0.85)" },
+      }),
+    ],
+  });
+
+  let trailBtn: HTMLElement | null = null;
+  if (celestialBody.alt > 0 && onShowTrail) {
+    const active = trailBodyId === celestialBody.id;
+    trailBtn = el("button", {
+      testid: "planet-show-trail",
+      text: active ? "Hide path" : "Show path",
+      style: {
+        marginTop: "4px",
+        padding: "2px 6px",
+        fontSize: "11px",
+        fontFamily: "sans-serif",
+        background: active ? "rgba(100,160,255,0.25)" : SURFACE,
+        color: TEXT_COLOR,
+        border: "1px solid rgba(255,255,255,0.2)",
+        borderRadius: "3px",
+        cursor: "pointer",
+      },
+    });
+    trailBtn.addEventListener("click", () => {
+      onShowTrail(celestialBody.id);
+    });
+  }
+
+  return el("div", {
+    testid: "planet-info-row",
+    style: {
+      marginBottom: "6px",
+      paddingBottom: "6px",
+      borderBottom: "1px solid rgba(255,255,255,0.08)",
+    },
+    children: [nameRow, altAzEl, riseSetRow, trailBtn],
+  });
 }
 
 /**
@@ -35,39 +153,30 @@ export function createPlanetInfo(
   onShowTrail?: (id: string) => void,
   trailBodyId?: string | null,
 ): HTMLElement {
-  const section = document.createElement("div");
-  section.style.marginBottom = GAP;
-
-  // Header row with heading and collapse toggle
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
-  header.style.marginBottom = "4px";
-
-  const heading = document.createElement("div");
-  heading.dataset.testid = "planet-info-heading";
-  heading.textContent = "Planet Info";
-  heading.style.fontWeight = "bold";
+  const heading = el("div", {
+    testid: "planet-info-heading",
+    text: "Planet Info",
+    style: { fontWeight: "bold" },
+  });
   applyBaseText(heading);
-  header.appendChild(heading);
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.dataset.testid = "planet-info-toggle";
-  toggleBtn.textContent = "▾";
-  toggleBtn.style.background = "none";
-  toggleBtn.style.border = "none";
-  toggleBtn.style.color = TEXT_COLOR;
-  toggleBtn.style.cursor = "pointer";
-  toggleBtn.style.fontSize = "14px";
-  toggleBtn.style.padding = "0 2px";
-  header.appendChild(toggleBtn);
+  const toggleBtn = el("button", {
+    testid: "planet-info-toggle",
+    text: "▾",
+    style: {
+      background: "none",
+      border: "none",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      fontSize: "14px",
+      padding: "0 2px",
+    },
+  });
 
-  section.appendChild(header);
-
-  // Collapsible body
-  const body = document.createElement("div");
-  body.dataset.testid = "planet-info-body";
+  const body = el("div", {
+    testid: "planet-info-body",
+    children: bodies.map((b) => buildRow(b, lat, lon, time, onSelect, onShowTrail, trailBodyId)),
+  });
 
   let collapsed = false;
   toggleBtn.addEventListener("click", () => {
@@ -76,110 +185,19 @@ export function createPlanetInfo(
     toggleBtn.textContent = collapsed ? "▸" : "▾";
   });
 
-  // Build a row for each body
-  for (const celestialBody of bodies) {
-    const riseSet = computeRiseSet(celestialBody.id, lat, lon, time);
-
-    const row = document.createElement("div");
-    row.dataset.testid = "planet-info-row";
-    row.style.marginBottom = "6px";
-    row.style.paddingBottom = "6px";
-    row.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-
-    // Name row
-    const nameRow = document.createElement("div");
-    nameRow.style.display = "flex";
-    nameRow.style.justifyContent = "space-between";
-    nameRow.style.alignItems = "center";
-
-    const nameEl = document.createElement("span");
-    nameEl.dataset.testid = "planet-name";
-    nameEl.textContent = celestialBody.id;
-    nameEl.style.color = celestialBody.color;
-    nameEl.style.fontWeight = "bold";
-    nameEl.style.fontSize = "12px";
-    nameEl.style.fontFamily = "sans-serif";
-
-    if (celestialBody.alt > 0 && onSelect) {
-      nameEl.style.cursor = "pointer";
-      nameEl.style.textDecoration = "underline";
-      nameEl.addEventListener("click", () => {
-        onSelect(celestialBody.az, celestialBody.alt);
-      });
-    }
-
-    nameRow.appendChild(nameEl);
-
-    // Below-horizon indicator
-    if (celestialBody.alt <= 0) {
-      const indicator = document.createElement("span");
-      indicator.dataset.testid = "planet-below-horizon";
-      indicator.textContent = "↓ below";
-      indicator.style.color = "rgba(255,255,255,0.4)";
-      indicator.style.fontSize = "10px";
-      indicator.style.fontFamily = "sans-serif";
-      nameRow.appendChild(indicator);
-    }
-
-    row.appendChild(nameRow);
-
-    // Alt/Az row
-    const altAzEl = document.createElement("div");
-    altAzEl.dataset.testid = "planet-altaz";
-    altAzEl.textContent = formatAltAz(celestialBody.alt, celestialBody.az);
-    altAzEl.style.color = "rgba(255,255,255,0.65)";
-    altAzEl.style.fontSize = "11px";
-    altAzEl.style.fontFamily = "sans-serif";
-    altAzEl.style.marginTop = "2px";
-    row.appendChild(altAzEl);
-
-    // Rise/Set row
-    const riseSetRow = document.createElement("div");
-    riseSetRow.style.display = "flex";
-    riseSetRow.style.gap = "8px";
-    riseSetRow.style.marginTop = "2px";
-
-    const riseEl = document.createElement("span");
-    riseEl.dataset.testid = "planet-rise";
-    riseEl.textContent = `↑ ${formatHHMM(riseSet.rise)}`;
-    riseEl.style.color = ACCENT_COLOR;
-    riseEl.style.fontSize = "11px";
-    riseEl.style.fontFamily = "sans-serif";
-    riseSetRow.appendChild(riseEl);
-
-    const setEl = document.createElement("span");
-    setEl.dataset.testid = "planet-set";
-    setEl.textContent = `↓ ${formatHHMM(riseSet.set)}`;
-    setEl.style.color = "rgba(255,180,100,0.85)";
-    setEl.style.fontSize = "11px";
-    setEl.style.fontFamily = "sans-serif";
-    riseSetRow.appendChild(setEl);
-
-    row.appendChild(riseSetRow);
-
-    if (celestialBody.alt > 0 && onShowTrail) {
-      const trailBtn = document.createElement("button");
-      trailBtn.dataset.testid = "planet-show-trail";
-      const active = trailBodyId === celestialBody.id;
-      trailBtn.textContent = active ? "Hide path" : "Show path";
-      trailBtn.style.marginTop = "4px";
-      trailBtn.style.padding = "2px 6px";
-      trailBtn.style.fontSize = "11px";
-      trailBtn.style.fontFamily = "sans-serif";
-      trailBtn.style.background = active ? "rgba(100,160,255,0.25)" : SURFACE;
-      trailBtn.style.color = TEXT_COLOR;
-      trailBtn.style.border = "1px solid rgba(255,255,255,0.2)";
-      trailBtn.style.borderRadius = "3px";
-      trailBtn.style.cursor = "pointer";
-      trailBtn.addEventListener("click", () => {
-        onShowTrail(celestialBody.id);
-      });
-      row.appendChild(trailBtn);
-    }
-
-    body.appendChild(row);
-  }
-
-  section.appendChild(body);
-  return section;
+  return el("div", {
+    style: { marginBottom: GAP },
+    children: [
+      el("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "4px",
+        },
+        children: [heading, toggleBtn],
+      }),
+      body,
+    ],
+  });
 }
