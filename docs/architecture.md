@@ -1,10 +1,12 @@
 # Architecture
 
-Planisphere is a static single-page application with no backend. All computation runs in the browser. This document describes the module structure, data flow, layer model, worker offload, TLE loading strategy, and the post-v1 feature subsystems.
+Planisphere is a static single-page application with a small Cloudflare Worker behind `/api/*` for the Phase 2 Notebook feature. All astronomy computation runs in the browser; the Worker only handles auth, notebook persistence, and email. This document describes the module structure, data flow, layer model, worker offload, TLE loading strategy, the post-v1 feature subsystems, and the Phase 2 backend.
 
 The v1 baseline design lives in `docs/specs/2026-04-15-planisphere-v1-design.md`. Everything in this file reflects the current state of the repo, including features added since v1 (star colors, Milky Way, Messier, search, planet info, RA/Dec grid + ecliptic, boundaries, view direction controls, trackball camera, Web Worker, fast RA/Dec math, PWA/service worker, copy-link, night vision, magnitude filter, "Now" button, object trails, multi-language constellation names, telescope FOV reticle, upcoming-celestial-events panel, ISS pass predictions with illumination, alternate skycultures, in-app help modal).
 
-Plan 07 (`docs/plans/2026-04-19-07-ux-transformation.md`) then reshaped the chrome entirely: the always-on side panel that used to carry Time / Events / Layers / Planet Info has been replaced by an ambient bottom HUD, four icon-rail drawers (events / settings / tonight's sky / help), a ⌘K command palette, click-to-pin object cards, and an empty-sky reticle popover. The computation layers in `astro/` and `sat/` are unchanged — Phase 1 is purely a UI / chrome refactor. See [UX architecture](#ux-architecture) below.
+Plan 07 (`docs/plans/2026-04-19-07-ux-transformation.md`) then reshaped the chrome entirely: the always-on side panel that used to carry Time / Events / Layers / Planet Info has been replaced by an ambient bottom HUD, four icon-rail drawers (events / settings / tonight's sky / help), a ⌘K command palette, click-to-pin object cards, and an empty-sky reticle popover. The computation layers in `astro/` and `sat/` are unchanged — Phase 1 is purely a UI / chrome refactor. Phase 2 adds a paid **Notebook mode** with magic-link email auth and tiptap-based notes persisted to Cloudflare D1 via a companion Worker. See [UX architecture](#ux-architecture) and [Worker backend (Phase 2)](#worker-backend-phase-2) below.
+
+For the chronological decision trail see the [ADR index](./adr/README.md).
 
 ## Module dependency graph
 
@@ -15,14 +17,20 @@ graph TD
     app["app.ts<br/>(composition root)"]
     main["main.ts<br/>(entrypoint + SW register)"]
     state["state/<br/>URL-synced app state"]
-    astro["astro/<br/>pure astro math<br/>(incl. events)"]
+    astro["astro/<br/>pure astro math<br/>(incl. events, entities)"]
     sat["sat/<br/>TLE + SGP4"]
     passes["sat/passes<br/>pass detection"]
     illum["sat/illumination<br/>umbra + magnitude"]
     scene["scene/<br/>CesiumJS rendering<br/>(incl. project, animation-math)"]
-    ui["ui/<br/>HUD, drawers, palette,<br/>object cards, overlays"]
+    ui["ui/<br/>HUD, drawers, palette,<br/>object cards, overlays,<br/>notebook UI, dom+styles"]
     workers["workers/<br/>astro Web Worker"]
+    auth["auth.ts<br/>/api/auth/* client"]
+    notebooks["notebooks.ts<br/>/api/notebooks/* client"]
+    features["features.ts<br/>isPro() gate"]
     result["result/<br/>Result&lt;T,E&gt; helpers"]
+    worker["worker/<br/>Cloudflare Worker<br/>(auth • notebooks • cron • email)"]
+    d1[("D1 — SQLite at edge<br/>users • sessions<br/>magic links • notebooks")]
+    resend["Resend<br/>(magic-link email)"]
 
     main --> app
     app --> state
@@ -31,6 +39,8 @@ graph TD
     app --> scene
     app --> ui
     app --> workers
+    app --> auth
+    app --> notebooks
 
     state --> result
     state --> astro
@@ -46,33 +56,51 @@ graph TD
 
     ui --> state
     ui --> astro
+    ui --> features
+    ui --> auth
+    ui --> notebooks
+
+    auth --> result
+    notebooks --> result
+
+    auth -.HTTP.-> worker
+    notebooks -.HTTP.-> worker
+    worker --> d1
+    worker --> resend
 ```
 
 **Boundary rules enforced at review:**
 
 - `astro/` and `sat/` are pure and framework-free — no CesiumJS imports, no DOM.
 - `scene/` is the only module permitted to import CesiumJS types.
-- `ui/` reads `state/` types and emits `UIIntent` values; it does not compute positions.
+- `ui/` reads `state/` types and emits `UIIntent` values; it does not compute positions and it never calls `fetch` against `/api/*` directly.
 - `workers/` is the only module that constructs `Worker` instances. The worker entry (`src/workers/astro-worker.ts`) imports only from `src/workers/worker-math.ts` and has no DOM, Cesium, or astronomy-engine dependencies.
 - `result/` has no dependencies within the project.
 - `state/` imports narrow types from `astro/` (`Language`, `FovPresetId`, `SkycultureId`) for URL parsing but no math.
 - `astro/events.ts` is the one place in `astro/` that reaches into `sat/` — it imports `computeUpcomingPasses` and `isIssRecord` so the combined upcoming-events list can include ISS passes without `ui/` having to orchestrate two separate sources. `sat/` does not depend on `astro/events` (the edge goes one way).
+- `src/auth.ts` and `src/notebooks.ts` are the **only** client modules that call `/api/*`. They convert HTTP responses to `Result<T, AuthError | NotebookError>` at the boundary; everything else in `src/` consumes the typed domain union.
+- `worker/` has no DOM, no Cesium, no `src/*` imports. It runs against D1 + Resend and is tested under `@cloudflare/vitest-pool-workers`.
 
 ## Module inventory
 
 Per-module summary of what lives where. Filenames omit the `.ts` extension; each module also has a `*.test.ts` sibling.
 
-| Module         | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Responsibility                                                                                                                                                                                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/result/`  | `result`                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                                                                                                                                 |
-| `src/state/`   | `state`                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `AppState`, URL parse/serialize, defaults.                                                                                                                                                                                                                              |
-| `src/astro/`   | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search`, `skycultures`, `events`                                                                                                                                                                              | Pure astronomy math. No DOM, no Cesium, no `Worker`. `events` composes the upcoming-events list (reaches into `sat/passes` for ISS passes).                                                                                                                             |
-| `src/sat/`     | `fetch`, `tle`, `propagate`, `passes`, `illumination`                                                                                                                                                                                                                                                                                                                                                                                                      | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az, per-satellite pass detection, umbra/magnitude model.                                                                                                                     |
-| `src/scene/`   | `viewer`, `camera`, `animation-math`, `project`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                                                                                                                                                                                                | CesiumJS primitives, one `create*Layer` factory per visual layer, camera + gesture setup, screen↔sky projection. `animation-math` is pure (FOV clamp, ease-out cubic, az/alt lerp, drag-inertia integral); `project` exposes `projectAltAzToScreen` / `screenToAltAz`. |
-| `src/ui/`      | **Chrome:** `bottom-hud`, `drawer`, `events-drawer`, `settings-drawer`, `tonight-drawer`, `help-modal`, `markdown`, `command-palette`, `palette-results`, `location-picker-overlay`, `empty-sky-popover`, `object-card`, `object-cards-manager`, `panel`, `styles`. **Legacy controls** (still rendered inside `panel`): `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `events-panel`. | DOM chrome + controls, `UIIntent` union, layout/styles. After Plan 07 the drawers / palette / cards are the primary surfaces; the legacy `panel` still hosts search / view / location / FOV and wires the icon-rail buttons through to the drawers.                     |
-| `src/workers/` | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                                                                                                                                                                                                                       | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.                                                                                                                             |
-| `src/app.ts`   | —                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild.                                                                                                                  |
-| `src/main.ts`  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                                                                                                                                           |
+| Module              | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Responsibility                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/result/`       | `result`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `Result<T, E>` discriminated union, `ok`/`err` helpers.                                                                                                                                                                                                                                                                                           |
+| `src/state/`        | `state`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `AppState`, URL parse/serialize, defaults.                                                                                                                                                                                                                                                                                                        |
+| `src/astro/`        | `catalog`, `coords`, `fast-coords`, `magnitude`, `visibility`, `moon-phase`, `bodies`, `rise-set`, `constellations`, `boundaries`, `grid`, `ecliptic`, `star-color`, `messier`, `milkyway`, `trails`, `constellation-names`, `fov-presets`, `search`, `skycultures`, `entities`, `events`                                                                                                                                                                                                                                                                                                                                                                                                                                         | Pure astronomy math. No DOM, no Cesium, no `Worker`. `entities` resolves a stable `kind:id` string to a labelled record (bodies, stars, constellations, deep-sky, satellites) — shared by the search index and the notebook mention popover. `events` composes the upcoming-events list (reaches into `sat/passes` for ISS passes).               |
+| `src/sat/`          | `fetch`, `tle`, `propagate`, `passes`, `illumination`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | TLE fetch with bundled fallback, TLE parsing to `SatelliteRecord`, SGP4 propagation to Alt/Az, per-satellite pass detection, umbra/magnitude model.                                                                                                                                                                                               |
+| `src/scene/`        | `viewer`, `camera`, `animation-math`, `project`, `cesium-collections`, `stars`, `bodies`, `constellations`, `boundaries`, `satellites`, `compass`, `grid`, `ecliptic`, `messier`, `milkyway`, `trail-layer`, `reticle`, `tooltip`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | CesiumJS primitives, one `create*Layer` factory per visual layer, camera + gesture setup, screen↔sky projection. `animation-math` is pure (FOV clamp, ease-out cubic, az/alt lerp, drag-inertia integral); `project` exposes `projectAltAzToScreen` / `screenToAltAz`; `cesium-collections` centralises the `setCollectionVisible` cast helpers. |
+| `src/ui/`           | **Shared primitives:** `dom` (`el()` factory), `styles` (palette + `applyButton` / `applyBaseText` / `createProPill`), `error-messages`, `markdown`. **Chrome:** `bottom-hud`, `drawer`, `events-drawer`, `settings-drawer`, `tonight-drawer`, `help-modal`, `command-palette`, `palette-results`, `location-picker-overlay`, `empty-sky-popover`, `onboarding-overlay`, `object-card`, `object-cards-manager`, `panel`. **Controls** (still rendered inside `panel`): `time-controls`, `location-controls`, `view-controls`, `layer-controls`, `planet-info`, `search`, `fov-controls`, `events-panel`. **Notebook UI:** `login-modal`, `notebook-workspace`, `notebook-editor`, `notebook-mention`, `notebook-mention-popover`. | DOM chrome + controls, `UIIntent` union, layout/styles, Notebook surface. After Plan 07 the drawers / palette / cards are the primary surfaces; the legacy `panel` still hosts search / view / location / FOV and wires the icon-rail buttons through to the drawers. The notebook UI appears only in Notebook mode (toggled via the panel icon). |
+| `src/workers/`      | `astro-worker`, `astro-worker-client`, `worker-math`, `star-builder`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Web Worker for star alt/az math; pure math extracted for testing; array builders that bridge `StarRecord[]` ↔ transferable `Float64Array`.                                                                                                                                                                                                       |
+| `src/auth.ts`       | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Client wrapper for `/api/auth/*` (request magic link, consume callback, `currentUser()`, logout). Returns `Result<T, AuthError>`.                                                                                                                                                                                                                 |
+| `src/notebooks.ts`  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Client wrapper for `/api/notebooks/*` (list / get / create / update / delete). Carries a tiptap JSON string as opaque `content_json`. Returns `Result<T, NotebookError>`.                                                                                                                                                                         |
+| `src/features.ts`   | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Runtime feature flags. Currently exposes `isPro()` — the Notebook gate — so UI modules can show a Pro pill or silently allow entry.                                                                                                                                                                                                               |
+| `src/app.ts`        | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Composition root. Wires state → computation → layers → UI; debounced rerender; intent dispatch; trail and reticle orchestration; search index rebuild; mode toggle (planetarium ↔ notebook).                                                                                                                                                     |
+| `src/main.ts`       | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Browser entrypoint. Calls `bootstrap()` and registers the service worker (`/sw.js`) only when `import.meta.env.PROD` is true.                                                                                                                                                                                                                     |
+| `src/test-setup.ts` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Vitest setup file — installs a no-op `HTMLCanvasElement.getContext("2d")` stub so scene-layer sprite builders (compass, messier, satellites) don't flood stderr under jsdom. See [Test environment](#test-environment).                                                                                                                           |
+| `worker/`           | `index`, `routes/auth`, `routes/notebooks`, `session`, `db`, `email`, `http`, `log`, `crypto`, `types`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Phase 2 Cloudflare Worker — magic-link auth, notebook CRUD, HMAC-signed session cookies, cron sweep for expired links/sessions, Resend email delivery, structured logging. See [Worker backend (Phase 2)](#worker-backend-phase-2).                                                                                                               |
 
 ## Data flow
 
@@ -276,6 +304,39 @@ The UI never mutates `AppState` directly. It emits a typed `UIIntent` (see `src/
 `show-trail` / `hide-trail` are ephemeral — the current trail selection lives as a local variable in `bootstrap()` and is not serialised to the URL. Neither are any of the drawer / card / popover intents: **Phase 1 deliberately introduced no new URL params**. Open drawers and pinned cards reset on reload, which matches the "URL is shareable sky snapshot, not session transcript" principle of v1.
 
 `set-language` and `set-skyculture` interact: non-Western skycultures ship their own native constellation names, so changing the language implicitly forces `skyculture = "western"` — otherwise the "Chinese" or "Māori" labels would be silently replaced by Latin translations that don't exist in those sets. The reverse isn't symmetric: selecting a non-Western skyculture keeps the language value as-is (it simply ceases to affect the currently-rendered labels until the user switches back to Western).
+
+## Shared UI utilities
+
+Two primitives carry most of the `src/ui/` surface and are worth reaching for by default instead of hand-rolling DOM.
+
+### `src/ui/dom.ts` — `el(tag, opts)` factory
+
+Collapses the common `createElement` + `dataset.testid` + `style.*` setter sequence + `addEventListener` + `appendChild(children)` idiom into one declarative call:
+
+```ts
+const btn = el("button", {
+  testid: "notebook-new",
+  type: "button",
+  text: "+ New",
+  style: { padding: "6px 10px", fontSize: "12px" },
+  on: { click: () => createFresh() },
+});
+```
+
+Supported options: `testid`, `text`, `html`, `id`, `className`, `type`, `placeholder`, `href`, `style` (a `Partial<CSSStyleDeclaration>`), `dataset`, `attrs`, `on` (keyed by `HTMLElementEventMap`), `children` (tolerates `Node | string | null | undefined | false`). The returned node is still a plain `HTMLElement` — no framework, no virtual DOM; all native DOM APIs continue to work. Reach for `document.createElement` directly when the factory can't express what you need (e.g. when you must read back layout or attach things in a specific order).
+
+### `src/ui/styles.ts` — palette constants + small helpers
+
+Palette: `TEXT_COLOR`, `TEXT_MUTED`, `PANEL_BG`, `PANEL_BORDER`, `PANEL_RADIUS`, `PANEL_WIDTH`, `SURFACE`, `SURFACE_LOW`, `SURFACE_ACTIVE`, `BORDER_SUBTLE`, `ACCENT_COLOR`, `FONT_FAMILY`, `GAP`. Helpers: `applyBaseText(node)` for the default body-text look, `applyButton(node)` for the default button look, and `createProPill(testid)` for the "PRO" pip rendered next to gated controls.
+
+Don't invent new `rgba(…)` / `#xxxxxx` literals in `ui/` — either pick an existing palette constant or extend `styles.ts`. That's what issue #253 was tracking, and the per-file PRs under it have brought the `ui/` tree onto this convention.
+
+## Test environment
+
+Vitest runs under `jsdom` (see `vitest.config.ts`). Two things are worth knowing:
+
+- **`src/test-setup.ts` — canvas stub.** jsdom 25 doesn't implement `HTMLCanvasElement.prototype.getContext` and emits an "Not implemented" line to stderr on every call. `src/scene/{compass,messier,satellites}.ts` build billboard sprites by writing into an off-screen canvas during `app.test.ts` bootstrap, which flooded the terminal. The setup file installs a Proxy-backed no-op 2D context so those paths succeed silently. Tests that actually need real pixel output should mock at the component boundary, not rely on the stub.
+- **Worker tests are a separate pool.** `worker/**/*.test.ts` uses `@cloudflare/vitest-pool-workers` via `vitest.worker.config.ts`; run with `pnpm test:worker`. The SPA config does not include `worker/` and the Worker config does not include `src/`.
 
 ## UX architecture
 
@@ -1017,33 +1078,67 @@ These secrets are already configured in the `robsartin/planisphere` repo. They'r
 - **GitHub PR checks:** The "Workers Builds: planisphere" check shows pass/fail and links to the Cloudflare build log.
 - **Production URL:** After deploy, the site is live immediately. No cache invalidation needed — Cloudflare handles it.
 
-## Phase 2 runtime environment
+## Worker backend (Phase 2)
 
-> Stub. Phase 2 infrastructure (Notebook / paid tier) has not shipped yet. This section records the shape of the chosen backend so that subsequent issues (#218 onward) can land against a written target. For the decision rationale see [ADR 009 — Backend selection: Cloudflare Workers + D1](./adr/009-backend-selection.md).
+Phase 2 keeps the static SPA on Cloudflare Pages unchanged and adds a companion **Cloudflare Worker** behind `/api/*` for auth and notebook persistence. The decision rationale is in [ADR 009](./adr/009-backend-selection.md) (Workers + D1); the auth mechanism as shipped is [ADR 011](./adr/011-auth-mechanism-shipped.md) (magic-link + HMAC-signed cookies; supersedes the JWT + OAuth target in [ADR 010](./adr/010-auth-mechanism.md)); email goes through [Resend](./adr/014-email-delivery.md); the editor uses [tiptap](./adr/013-notebook-editor.md).
 
-Phase 2 keeps the static SPA on Cloudflare Pages unchanged and adds a **Cloudflare Worker** alongside it for all server-side concerns: auth callbacks (magic-link / OAuth), notebook CRUD, Stripe webhooks, and OpenGraph thumbnail SSR. The Worker is the only piece that talks to the database — the browser never sees D1 directly, it hits `/api/*` on the same origin as the SPA. Pages continues to serve the bundled HTML/JS/CSS/data from the edge cache; the Worker handles anything that isn't a static asset.
+Stripe webhooks, OAuth providers, and OpenGraph SSR were **not** included in the first Phase 2 shipping slice — magic-link auth + notebook CRUD + cron sweep is what's live. Billing is still pending.
 
-Persistent state lives in **D1**, Cloudflare's edge SQLite. The schema (to be landed with the first auth milestone) covers users, sessions, notebooks, and subscription state. Reads are single-row or short-list queries keyed by user id; there is no heavy analytical workload. If that changes — vector search for linked entities, for instance — the ADR flags Neon-behind-Workers as the natural escape hatch without client-visible impact.
+### What's in `worker/`
 
-Auth tokens are JWTs minted by the Worker after a magic-link or OAuth round-trip and stored in an HTTP-only, SameSite=Lax cookie scoped to the app's origin. The Worker verifies the cookie on every authenticated request; the browser never stores a bearer token in JS. Pro-only routes that don't need any free-tier handling — e.g. the 4K export endpoint — are additionally fronted by **Cloudflare Access** (Rung 3 of the entitlement ladder), which enforces the paid-subscriber claim at the edge before the Worker runs. Mixed free/trial/paid routes (most of the Notebook API) stay gated in Worker code against D1 because they need to return tier-specific responses rather than 403.
+| File                   | Role                                                                                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`             | Worker entrypoint. `fetch` handler routes `/api/auth/*` + `/api/notebooks/*` to their route modules; `scheduled` handler runs the cron sweep.                                          |
+| `routes/auth.ts`       | `POST /api/auth/request-link` (mint magic link, email it), `GET /api/auth/callback` (consume magic link → set session cookie), `GET /api/auth/me` (who am I), `POST /api/auth/logout`. |
+| `routes/notebooks.ts`  | List / get / create / update / delete handlers against the `notebooks` table, keyed by the authenticated user's id.                                                                    |
+| `session.ts`           | HMAC-SHA-256 signs a session id into a cookie payload (see ADR 011). Verifies incoming cookies, rotates on fresh sign-in.                                                              |
+| `db.ts`                | Narrow D1 helpers — `getUserByEmail`, `createSession`, `deleteExpiredMagicLinks`, `deleteExpiredSessions`, notebook CRUD row mappers. The only file that references `env.DB`.          |
+| `email.ts`             | `createEmailSender(env)` — wraps the Resend HTTP API. In dev with `EMAIL_FROM` unset it logs the magic link to stderr so contributors don't need a Resend key.                         |
+| `http.ts`              | `ok`, `badRequest`, `notFound`, `methodNotAllowed`, `unauthorized` response helpers — a single place where we set `Content-Type`, `Cache-Control`, and CORS headers.                   |
+| `log.ts`               | Structured `logEvent` / `logError` — Worker-side stderr is the only telemetry surface; the shape is a JSON line so Cloudflare Logs can parse it.                                       |
+| `crypto.ts`            | Wraps `crypto.subtle` HMAC / base64url for the session cookie + magic-link token. Isolated so the test helpers can share a mock.                                                       |
+| `types.ts`, `env.d.ts` | `Env` binding + API error codes shared between routes and tests.                                                                                                                       |
+| `test-helpers.ts`      | Fixture DB setup + cookie forging for tests that run under `@cloudflare/vitest-pool-workers`.                                                                                          |
 
-Local development runs the full stack via `wrangler dev`: a local Worker instance bound to a local D1 (SQLite file), with the Pages SPA served by Vite against it. Contributors need `wrangler` on their PATH; no Docker, no separate database process. Migrations are committed as SQL files and applied with `wrangler d1 migrations apply`. Secrets (`JWT_SIGNING_KEY`, Stripe keys, OAuth client secrets) live in `wrangler secret` for production and a gitignored `.dev.vars` for local.
+### Data model (D1)
+
+Migrations live in `migrations/*.sql` and are applied with `pnpm exec wrangler d1 migrations apply planisphere-dev --local` (for dev) or without `--local` (for production).
+
+- `users(id, email, tier, created_at)` — `tier` is `free` or `pro`; on first magic-link sign-in the user is inserted with `tier = "free"`.
+- `magic_links(token_hash, email, expires_at, consumed_at)` — tokens are one-shot; the cron sweep deletes expired rows.
+- `sessions(id, user_id, expires_at)` — HMAC-signed cookie carries `id`; the Worker looks it up on every authenticated request. TTL matches [ADR 011](./adr/011-auth-mechanism-shipped.md).
+- `notebooks(id, user_id, title, content_json, created_at, updated_at)` — `content_json` is a tiptap document serialised as a string; the Worker does not parse it.
+
+### Request flow
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>(static SPA)"]
-    Pages["Cloudflare Pages<br/>(dist/ — HTML/JS/CSS/data)"]
-    Worker["Cloudflare Worker<br/>/api/* handlers<br/>auth • notebooks • stripe • og"]
-    Access["Cloudflare Access<br/>(Pro-only route gate)"]
-    D1[("D1 — SQLite at edge<br/>users • sessions<br/>notebooks • subs")]
-    Stripe["Stripe<br/>(webhooks)"]
+    Browser["Browser (SPA)"]
+    Pages["Cloudflare Pages<br/>(static SPA)"]
+    Worker["Cloudflare Worker<br/>/api/auth/* • /api/notebooks/*<br/>+ scheduled cron"]
+    D1[("D1 — SQLite at edge<br/>users • sessions<br/>magic_links • notebooks")]
+    Resend["Resend HTTP API<br/>(magic-link email)"]
+    Cron["Cloudflare Cron<br/>(scheduled trigger)"]
 
     Browser -->|HTML/JS load| Pages
     Browser -->|fetch /api/*| Worker
-    Browser -->|fetch /api/pro/*| Access
-    Access -->|JWT verified| Worker
     Worker --> D1
-    Stripe -->|webhook| Worker
+    Worker -->|POST emails| Resend
+    Cron -->|scheduled| Worker
 ```
 
-No infrastructure code has landed yet — this section describes the target. See the Phase 2 milestones in `docs/plans/2026-04-19-07-ux-transformation.md` for the issue sequence (#218 auth first, then notebook CRUD, then billing).
+Auth round-trip: the SPA calls `src/auth.ts::requestMagicLink(email)` → Worker inserts a one-shot token into `magic_links` → Resend sends the email → user clicks the link → `GET /api/auth/callback?token=…` → Worker verifies the token hash, inserts a `sessions` row, sets an HMAC-signed `__Host-session` cookie, and redirects to `/`. The cookie is HTTP-only, `SameSite=Lax`, and scoped to the same origin as the SPA — there is no cross-origin fetch. Subsequent `/api/*` calls carry the cookie automatically.
+
+Cron sweep: the `scheduled` handler fires on a cron trigger defined in `wrangler.jsonc` and calls `deleteExpiredMagicLinks` + `deleteExpiredSessions`. It has no user-facing effect; it just keeps `magic_links` / `sessions` from growing unboundedly.
+
+### Local dev
+
+`pnpm dev` runs Vite (SPA on `:5173`) and `wrangler dev` (Worker on `:8787`) in parallel via `concurrently`. The SPA proxies `/api/*` to the Worker. First-time setup:
+
+```
+pnpm exec wrangler d1 migrations apply planisphere-dev --local
+```
+
+Secrets live in `wrangler secret` for production (`SESSION_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`) and in a gitignored `.dev.vars` for local. With `EMAIL_FROM` unset locally the magic-link is logged to the Worker console — grep `[auth] magic link for` — so contributors can sign in without a Resend account.
+
+See [`worker/README.md`](../worker/README.md) for the full runbook.
