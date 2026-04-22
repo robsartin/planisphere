@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { applyBaseText, GAP } from "./styles";
 import type { UIIntent } from "./index";
 
@@ -22,6 +23,41 @@ const PRESET_CITIES: City[] = [
   { name: "Deerfield", lat: 42.54, lon: -72.61 },
 ];
 
+const NUMBER_INPUT_STYLE: Partial<CSSStyleDeclaration> = {
+  flex: "1",
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "4px",
+  color: "#fff",
+  fontSize: "12px",
+  padding: "4px",
+};
+
+const SELECT_STYLE: Partial<CSSStyleDeclaration> = {
+  width: "100%",
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "4px",
+  color: "#fff",
+  fontSize: "12px",
+  padding: "4px",
+};
+
+const LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "#fff",
+  fontSize: "12px",
+  width: "30px",
+  fontFamily: "sans-serif",
+};
+
+const PRESET_LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "#fff",
+  fontSize: "12px",
+  marginTop: "6px",
+  marginBottom: "4px",
+  fontFamily: "sans-serif",
+};
+
 export function createLocationControls(
   initialLat: number,
   initialLon: number,
@@ -30,16 +66,6 @@ export function createLocationControls(
   let currentLat = initialLat;
   let currentLon = initialLon;
 
-  const section = document.createElement("div");
-  section.style.marginBottom = GAP;
-
-  const heading = document.createElement("div");
-  heading.textContent = "Location";
-  heading.style.fontWeight = "bold";
-  heading.style.marginBottom = GAP;
-  applyBaseText(heading);
-  section.appendChild(heading);
-
   function makeNumberInput(
     label: string,
     field: "lat" | "lon",
@@ -47,34 +73,15 @@ export function createLocationControls(
     min: number,
     max: number,
   ): HTMLElement {
-    const row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.gap = "6px";
-    row.style.marginBottom = "4px";
-
-    const lbl = document.createElement("label");
-    lbl.textContent = label;
-    lbl.style.color = "#fff";
-    lbl.style.fontSize = "12px";
-    lbl.style.width = "30px";
-    lbl.style.fontFamily = "sans-serif";
-
-    const input = document.createElement("input");
-    input.type = "number";
-    input.dataset.field = field;
+    const input = el("input", {
+      type: "number",
+      dataset: { field },
+      style: NUMBER_INPUT_STYLE,
+    });
     input.value = String(value);
     input.min = String(min);
     input.max = String(max);
     input.step = "0.01";
-    input.style.flex = "1";
-    input.style.background = "rgba(255,255,255,0.1)";
-    input.style.border = "1px solid rgba(255,255,255,0.3)";
-    input.style.borderRadius = "4px";
-    input.style.color = "#fff";
-    input.style.fontSize = "12px";
-    input.style.padding = "4px";
-
     input.addEventListener("change", () => {
       if (input.value === "") return;
       const n = Number(input.value);
@@ -84,44 +91,42 @@ export function createLocationControls(
       dispatch({ type: "set-observer", lat: currentLat, lon: currentLon });
     });
 
-    row.appendChild(lbl);
-    row.appendChild(input);
-    return row;
+    return el("div", {
+      style: { display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" },
+      children: [el("label", { text: label, style: LABEL_STYLE }), input],
+    });
   }
 
-  section.appendChild(makeNumberInput("Lat", "lat", initialLat, -90, 90));
-  section.appendChild(makeNumberInput("Lon", "lon", initialLon, -180, 180));
-
-  // Preset dropdown
-  const presetLabel = document.createElement("div");
-  presetLabel.textContent = "City preset";
-  presetLabel.style.color = "#fff";
-  presetLabel.style.fontSize = "12px";
-  presetLabel.style.marginTop = "6px";
-  presetLabel.style.marginBottom = "4px";
-  presetLabel.style.fontFamily = "sans-serif";
-  section.appendChild(presetLabel);
-
-  const select = document.createElement("select");
-  select.style.width = "100%";
-  select.style.background = "rgba(255,255,255,0.1)";
-  select.style.border = "1px solid rgba(255,255,255,0.3)";
-  select.style.borderRadius = "4px";
-  select.style.color = "#fff";
-  select.style.fontSize = "12px";
-  select.style.padding = "4px";
-
-  const placeholder = document.createElement("option");
+  const placeholder = el("option", { text: "— Select city —" });
   placeholder.value = "";
-  placeholder.textContent = "— Select city —";
-  select.appendChild(placeholder);
 
-  for (const city of PRESET_CITIES) {
-    const opt = document.createElement("option");
+  const cityOptions = PRESET_CITIES.map((city) => {
+    const opt = el("option", { text: city.name });
     opt.value = JSON.stringify({ lat: city.lat, lon: city.lon });
-    opt.textContent = city.name;
-    select.appendChild(opt);
-  }
+    return opt;
+  });
+
+  const select = el("select", {
+    style: SELECT_STYLE,
+    children: [placeholder, ...cityOptions],
+  });
+
+  const heading = el("div", {
+    text: "Location",
+    style: { fontWeight: "bold", marginBottom: GAP },
+  });
+  applyBaseText(heading);
+
+  const section = el("div", {
+    style: { marginBottom: GAP },
+    children: [
+      heading,
+      makeNumberInput("Lat", "lat", initialLat, -90, 90),
+      makeNumberInput("Lon", "lon", initialLon, -180, 180),
+      el("div", { text: "City preset", style: PRESET_LABEL_STYLE }),
+      select,
+    ],
+  });
 
   select.addEventListener("change", () => {
     if (!select.value) return;
@@ -129,7 +134,6 @@ export function createLocationControls(
       const { lat, lon } = JSON.parse(select.value) as { lat: number; lon: number };
       currentLat = lat;
       currentLon = lon;
-      // Update inputs
       const latInput = section.querySelector<HTMLInputElement>("input[data-field='lat']");
       const lonInput = section.querySelector<HTMLInputElement>("input[data-field='lon']");
       if (latInput) latInput.value = String(lat);
@@ -139,8 +143,6 @@ export function createLocationControls(
       // ignore malformed value
     }
   });
-
-  section.appendChild(select);
 
   return section;
 }
