@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import citiesJson from "../../data/cities.json";
+import { el } from "./dom";
 import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
 
@@ -59,10 +60,9 @@ function injectStylesOnce(): void {
   if (stylesInjected) return;
   // jsdom test env may not expose document.head until a full DOM is present.
   if (typeof document === "undefined" || !document.head) return;
-  const style = document.createElement("style");
-  style.dataset.testid = "location-picker-styles";
-  style.textContent = OVERLAY_STYLES;
-  document.head.appendChild(style);
+  document.head.appendChild(
+    el("style", { testid: "location-picker-styles", text: OVERLAY_STYLES }),
+  );
   stylesInjected = true;
 }
 
@@ -72,103 +72,39 @@ function clamp(n: number, min: number, max: number): number {
   return n;
 }
 
+const NUMBER_INPUT_STYLE: Partial<CSSStyleDeclaration> = {
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "6px",
+  color: TEXT_COLOR,
+  fontSize: "14px",
+  padding: "8px",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const FIELD_LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  fontSize: "12px",
+  opacity: "0.8",
+};
+
+const CITY_PILL_STYLE: Partial<CSSStyleDeclaration> = {
+  background: SURFACE,
+  border: "1px solid rgba(255,255,255,0.25)",
+  borderRadius: "999px",
+  color: TEXT_COLOR,
+  fontSize: "12px",
+  padding: "6px 12px",
+  cursor: "pointer",
+  fontFamily: FONT_FAMILY,
+};
+
 export function createLocationPickerOverlay(
   opts: LocationPickerOverlayOptions,
 ): LocationPickerOverlay {
   injectStylesOnce();
   let currentLat = opts.initialLat;
   let currentLon = opts.initialLon;
-
-  const root = document.createElement("div");
-  root.dataset.testid = "location-picker";
-  root.style.display = "none";
-  root.style.position = "fixed";
-  root.style.inset = "0";
-  root.style.zIndex = "2100";
-
-  const backdrop = document.createElement("div");
-  backdrop.dataset.testid = "location-picker-backdrop";
-  backdrop.style.position = "absolute";
-  backdrop.style.inset = "0";
-  backdrop.style.background = "rgba(0,0,0,0.6)";
-
-  const panel = document.createElement("div");
-  panel.dataset.testid = "location-picker-panel";
-  panel.style.position = "absolute";
-  panel.style.left = "50%";
-  panel.style.top = "50%";
-  panel.style.transform = "translate(-50%, -50%)";
-  panel.style.width = "min(520px, 92vw)";
-  panel.style.maxHeight = "min(80vh, calc(100vh - 24px))";
-  panel.style.background = PANEL_BG;
-  panel.style.border = PANEL_BORDER;
-  panel.style.borderRadius = "10px";
-  panel.style.color = TEXT_COLOR;
-  panel.style.fontFamily = FONT_FAMILY;
-  panel.style.boxSizing = "border-box";
-  panel.style.display = "flex";
-  panel.style.flexDirection = "column";
-
-  // Header
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.alignItems = "center";
-  header.style.justifyContent = "space-between";
-  header.style.padding = "12px 16px";
-  header.style.borderBottom = "1px solid rgba(255,255,255,0.15)";
-  header.style.flexShrink = "0";
-
-  const title = document.createElement("div");
-  title.textContent = "Set observer location";
-  title.style.fontWeight = "600";
-  title.style.fontSize = "15px";
-
-  const closeBtn = document.createElement("button");
-  closeBtn.dataset.testid = "location-picker-close";
-  closeBtn.type = "button";
-  closeBtn.textContent = "×";
-  closeBtn.title = "Close (Esc)";
-  closeBtn.style.background = "rgba(255,255,255,0.1)";
-  closeBtn.style.border = "1px solid rgba(255,255,255,0.3)";
-  closeBtn.style.borderRadius = "4px";
-  closeBtn.style.color = TEXT_COLOR;
-  closeBtn.style.cursor = "pointer";
-  closeBtn.style.fontSize = "18px";
-  closeBtn.style.lineHeight = "1";
-  closeBtn.style.padding = "2px 10px";
-
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-
-  // Scrollable body
-  const body = document.createElement("div");
-  body.style.overflowY = "auto";
-  body.style.padding = "16px";
-  body.style.flex = "1 1 auto";
-  body.style.display = "flex";
-  body.style.flexDirection = "column";
-  body.style.gap = "14px";
-
-  // "Use my location" big button
-  const useMyLocationBtn = document.createElement("button");
-  useMyLocationBtn.dataset.testid = "location-picker-use-my-location";
-  useMyLocationBtn.type = "button";
-  useMyLocationBtn.textContent = "\u{1F4CD} Use my location";
-  useMyLocationBtn.style.background = ACCENT_COLOR;
-  useMyLocationBtn.style.color = "#003322";
-  useMyLocationBtn.style.border = "none";
-  useMyLocationBtn.style.borderRadius = "8px";
-  useMyLocationBtn.style.padding = "12px 16px";
-  useMyLocationBtn.style.fontSize = "15px";
-  useMyLocationBtn.style.fontWeight = "600";
-  useMyLocationBtn.style.cursor = "pointer";
-
-  // Numeric lat/lon row
-  const latLonRow = document.createElement("div");
-  latLonRow.style.display = "grid";
-  latLonRow.style.gridTemplateColumns = "1fr 1fr auto";
-  latLonRow.style.gap = "8px";
-  latLonRow.style.alignItems = "end";
 
   function makeNumberField(
     label: string,
@@ -177,99 +113,172 @@ export function createLocationPickerOverlay(
     min: number,
     max: number,
   ): { wrapper: HTMLElement; input: HTMLInputElement } {
-    const wrapper = document.createElement("div");
-    wrapper.style.display = "flex";
-    wrapper.style.flexDirection = "column";
-    wrapper.style.gap = "4px";
-
-    const lbl = document.createElement("label");
-    lbl.textContent = label;
-    lbl.style.fontSize = "12px";
-    lbl.style.opacity = "0.8";
-
-    const input = document.createElement("input");
-    input.type = "number";
-    input.dataset.field = field;
+    const input = el("input", {
+      type: "number",
+      dataset: { field },
+      style: NUMBER_INPUT_STYLE,
+    });
     input.value = String(value);
     input.min = String(min);
     input.max = String(max);
     input.step = "0.01";
-    input.style.background = "rgba(255,255,255,0.1)";
-    input.style.border = "1px solid rgba(255,255,255,0.3)";
-    input.style.borderRadius = "6px";
-    input.style.color = TEXT_COLOR;
-    input.style.fontSize = "14px";
-    input.style.padding = "8px";
-    input.style.width = "100%";
-    input.style.boxSizing = "border-box";
 
-    wrapper.appendChild(lbl);
-    wrapper.appendChild(input);
+    const wrapper = el("div", {
+      style: { display: "flex", flexDirection: "column", gap: "4px" },
+      children: [el("label", { text: label, style: FIELD_LABEL_STYLE }), input],
+    });
     return { wrapper, input };
   }
 
   const latField = makeNumberField("Latitude", "picker-lat", currentLat, LAT_MIN, LAT_MAX);
   const lonField = makeNumberField("Longitude", "picker-lon", currentLon, LON_MIN, LON_MAX);
 
-  const setBtn = document.createElement("button");
-  setBtn.dataset.testid = "location-picker-set";
-  setBtn.type = "button";
-  setBtn.textContent = "Set location";
-  setBtn.style.background = "rgba(255,255,255,0.12)";
-  setBtn.style.border = "1px solid rgba(255,255,255,0.4)";
-  setBtn.style.borderRadius = "6px";
-  setBtn.style.color = TEXT_COLOR;
-  setBtn.style.padding = "8px 14px";
-  setBtn.style.fontSize = "14px";
-  setBtn.style.cursor = "pointer";
-  setBtn.style.fontWeight = "600";
+  const setBtn = el("button", {
+    testid: "location-picker-set",
+    type: "button",
+    text: "Set location",
+    style: {
+      background: "rgba(255,255,255,0.12)",
+      border: "1px solid rgba(255,255,255,0.4)",
+      borderRadius: "6px",
+      color: TEXT_COLOR,
+      padding: "8px 14px",
+      fontSize: "14px",
+      cursor: "pointer",
+      fontWeight: "600",
+    },
+  });
 
-  latLonRow.appendChild(latField.wrapper);
-  latLonRow.appendChild(lonField.wrapper);
-  latLonRow.appendChild(setBtn);
+  const latLonRow = el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr auto",
+      gap: "8px",
+      alignItems: "end",
+    },
+    children: [latField.wrapper, lonField.wrapper, setBtn],
+  });
 
-  // City pills
-  const citiesHeader = document.createElement("div");
-  citiesHeader.textContent = "Quick picks";
-  citiesHeader.style.fontSize = "12px";
-  citiesHeader.style.opacity = "0.8";
-  citiesHeader.style.marginTop = "4px";
+  const useMyLocationBtn = el("button", {
+    testid: "location-picker-use-my-location",
+    type: "button",
+    text: "📍 Use my location",
+    style: {
+      background: ACCENT_COLOR,
+      color: "#003322",
+      border: "none",
+      borderRadius: "8px",
+      padding: "12px 16px",
+      fontSize: "15px",
+      fontWeight: "600",
+      cursor: "pointer",
+    },
+  });
 
-  const citiesGrid = document.createElement("div");
-  citiesGrid.style.display = "flex";
-  citiesGrid.style.flexWrap = "wrap";
-  citiesGrid.style.gap = "6px";
+  const citiesGrid = el("div", {
+    style: { display: "flex", flexWrap: "wrap", gap: "6px" },
+    children: CITIES.map((city) => {
+      const pill = el("button", {
+        testid: "location-picker-city",
+        type: "button",
+        text: city.name,
+        attrs: { title: `${city.name}, ${city.country}` },
+        style: CITY_PILL_STYLE,
+      });
+      pill.addEventListener("click", () => {
+        opts.dispatch({ type: "set-observer", lat: city.lat, lon: city.lon });
+        doClose();
+      });
+      return pill;
+    }),
+  });
 
-  for (const city of CITIES) {
-    const pill = document.createElement("button");
-    pill.dataset.testid = "location-picker-city";
-    pill.type = "button";
-    pill.textContent = city.name;
-    pill.title = `${city.name}, ${city.country}`;
-    pill.style.background = SURFACE;
-    pill.style.border = "1px solid rgba(255,255,255,0.25)";
-    pill.style.borderRadius = "999px";
-    pill.style.color = TEXT_COLOR;
-    pill.style.fontSize = "12px";
-    pill.style.padding = "6px 12px";
-    pill.style.cursor = "pointer";
-    pill.style.fontFamily = FONT_FAMILY;
-    pill.addEventListener("click", () => {
-      opts.dispatch({ type: "set-observer", lat: city.lat, lon: city.lon });
-      doClose();
-    });
-    citiesGrid.appendChild(pill);
-  }
+  const body = el("div", {
+    style: {
+      overflowY: "auto",
+      padding: "16px",
+      flex: "1 1 auto",
+      display: "flex",
+      flexDirection: "column",
+      gap: "14px",
+    },
+    children: [
+      useMyLocationBtn,
+      latLonRow,
+      el("div", {
+        text: "Quick picks",
+        style: { fontSize: "12px", opacity: "0.8", marginTop: "4px" },
+      }),
+      citiesGrid,
+    ],
+  });
 
-  body.appendChild(useMyLocationBtn);
-  body.appendChild(latLonRow);
-  body.appendChild(citiesHeader);
-  body.appendChild(citiesGrid);
+  const closeBtn = el("button", {
+    testid: "location-picker-close",
+    type: "button",
+    text: "×",
+    attrs: { title: "Close (Esc)" },
+    style: {
+      background: "rgba(255,255,255,0.1)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      borderRadius: "4px",
+      color: TEXT_COLOR,
+      cursor: "pointer",
+      fontSize: "18px",
+      lineHeight: "1",
+      padding: "2px 10px",
+    },
+  });
 
-  panel.appendChild(header);
-  panel.appendChild(body);
-  root.appendChild(backdrop);
-  root.appendChild(panel);
+  const header = el("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 16px",
+      borderBottom: "1px solid rgba(255,255,255,0.15)",
+      flexShrink: "0",
+    },
+    children: [
+      el("div", {
+        text: "Set observer location",
+        style: { fontWeight: "600", fontSize: "15px" },
+      }),
+      closeBtn,
+    ],
+  });
+
+  const panel = el("div", {
+    testid: "location-picker-panel",
+    style: {
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "min(520px, 92vw)",
+      maxHeight: "min(80vh, calc(100vh - 24px))",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: "10px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      boxSizing: "border-box",
+      display: "flex",
+      flexDirection: "column",
+    },
+    children: [header, body],
+  });
+
+  const backdrop = el("div", {
+    testid: "location-picker-backdrop",
+    style: { position: "absolute", inset: "0", background: "rgba(0,0,0,0.6)" },
+  });
+
+  const root = el("div", {
+    testid: "location-picker",
+    style: { display: "none", position: "fixed", inset: "0", zIndex: "2100" },
+    children: [backdrop, panel],
+  });
 
   let open = false;
 
