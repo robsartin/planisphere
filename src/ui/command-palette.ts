@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { buildPaletteResults, type PaletteResult, type PaletteSources } from "./palette-results";
 import type { PaletteSettingSource } from "./palette-results";
 import { FONT_FAMILY, PANEL_BG, PANEL_BORDER, TEXT_COLOR } from "./styles";
@@ -32,6 +33,51 @@ const TYPE_LABEL_MAP: Record<string, string> = {
   recent: "recent",
 };
 
+const MONO_FONT = "ui-monospace, SFMono-Regular, Menlo, monospace";
+const SELECTED_BG = "rgba(100,160,255,0.15)";
+
+const ITEM_STYLE: Partial<CSSStyleDeclaration> = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "10px 14px",
+  cursor: "pointer",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+};
+
+const ITEM_LEFT_STYLE: Partial<CSSStyleDeclaration> = {
+  display: "flex",
+  flexDirection: "column",
+  minWidth: "0",
+  flex: "1",
+};
+
+const LABEL_STYLE: Partial<CSSStyleDeclaration> = {
+  color: TEXT_COLOR,
+  fontSize: "14px",
+  fontFamily: FONT_FAMILY,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const HINT_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.55)",
+  fontSize: "11px",
+  fontFamily: FONT_FAMILY,
+  marginTop: "2px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const EMPTY_STYLE: Partial<CSSStyleDeclaration> = {
+  padding: "16px 14px",
+  color: "rgba(255,255,255,0.55)",
+  fontSize: "13px",
+  fontFamily: FONT_FAMILY,
+};
+
 function resultTypeLabel(r: PaletteResult): string {
   if (r.kind === "object") return TYPE_LABEL_MAP[`object_${r.type}`] ?? "object";
   return TYPE_LABEL_MAP[r.kind] ?? r.kind;
@@ -51,43 +97,6 @@ function resultColor(r: PaletteResult): string {
   }
 }
 
-function makeItem(r: PaletteResult, selected: boolean): HTMLElement {
-  const item = document.createElement("div");
-  item.dataset.testid = "palette-item";
-  item.dataset.resultId = r.id;
-  item.dataset.resultKind = r.kind;
-  item.setAttribute("role", "option");
-  item.setAttribute("aria-selected", String(selected));
-  item.style.cssText =
-    "display:flex;justify-content:space-between;align-items:center;" +
-    "padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);" +
-    `background:${selected ? "rgba(100,160,255,0.15)" : "transparent"}`;
-
-  const left = document.createElement("div");
-  left.style.cssText = "display:flex;flex-direction:column;min-width:0;flex:1";
-
-  const label = document.createElement("span");
-  label.textContent = r.label;
-  label.style.cssText = `color:${TEXT_COLOR};font-size:14px;font-family:${FONT_FAMILY};white-space:nowrap;overflow:hidden;text-overflow:ellipsis`;
-  left.appendChild(label);
-
-  const hint = subLine(r);
-  if (hint !== null) {
-    const hintEl = document.createElement("span");
-    hintEl.textContent = hint;
-    hintEl.style.cssText = `color:rgba(255,255,255,0.55);font-size:11px;font-family:${FONT_FAMILY};margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis`;
-    left.appendChild(hintEl);
-  }
-
-  const typeLabel = document.createElement("span");
-  typeLabel.textContent = resultTypeLabel(r);
-  typeLabel.style.cssText = `color:${resultColor(r)};font-size:11px;font-family:${FONT_FAMILY};margin-left:10px;white-space:nowrap;flex-shrink:0;text-transform:uppercase;letter-spacing:0.04em`;
-
-  item.appendChild(left);
-  item.appendChild(typeLabel);
-  return item;
-}
-
 function subLine(r: PaletteResult): string | null {
   if (r.kind === "place" && r.country !== undefined) return r.country;
   if (r.kind === "event" && r.description !== undefined && r.description.length > 0) {
@@ -95,6 +104,40 @@ function subLine(r: PaletteResult): string | null {
   }
   if ((r.kind === "action" || r.kind === "recent") && r.hint !== undefined) return r.hint;
   return null;
+}
+
+function makeItem(r: PaletteResult, selected: boolean): HTMLElement {
+  const hint = subLine(r);
+
+  const left = el("div", {
+    style: ITEM_LEFT_STYLE,
+    children: [
+      el("span", { text: r.label, style: LABEL_STYLE }),
+      hint !== null ? el("span", { text: hint, style: HINT_STYLE }) : null,
+    ],
+  });
+
+  const typeLabel = el("span", {
+    text: resultTypeLabel(r),
+    style: {
+      color: resultColor(r),
+      fontSize: "11px",
+      fontFamily: FONT_FAMILY,
+      marginLeft: "10px",
+      whiteSpace: "nowrap",
+      flexShrink: "0",
+      textTransform: "uppercase",
+      letterSpacing: "0.04em",
+    },
+  });
+
+  return el("div", {
+    testid: "palette-item",
+    dataset: { resultId: r.id, resultKind: r.kind },
+    attrs: { role: "option", "aria-selected": String(selected) },
+    style: { ...ITEM_STYLE, background: selected ? SELECTED_BG : "transparent" },
+    children: [left, typeLabel],
+  });
 }
 
 /**
@@ -149,56 +192,85 @@ function executeResult(
  * global ⌘K/Ctrl+K keybinding that toggles open/close.
  */
 export function createCommandPalette(opts: CommandPaletteOptions): CommandPalette {
-  const root = document.createElement("div");
-  root.dataset.testid = "palette-root";
-  root.style.display = "none";
-  root.style.position = "fixed";
-  root.style.inset = "0";
-  root.style.zIndex = "3000";
+  const kbd = el("span", {
+    text: "⌘K",
+    style: {
+      color: "rgba(255,255,255,0.5)",
+      fontFamily: MONO_FONT,
+      fontSize: "11px",
+      marginRight: "10px",
+      padding: "2px 6px",
+      border: "1px solid rgba(255,255,255,0.2)",
+      borderRadius: "4px",
+    },
+  });
 
-  const backdrop = document.createElement("div");
-  backdrop.dataset.testid = "palette-backdrop";
-  backdrop.style.cssText =
-    "position:absolute;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px)";
-  root.appendChild(backdrop);
+  const input = el("input", {
+    testid: "palette-input",
+    type: "text",
+    placeholder: "Search objects, events, places, settings…",
+    attrs: { "aria-label": "Command palette" },
+    style: {
+      flex: "1",
+      background: "transparent",
+      border: "none",
+      outline: "none",
+      color: TEXT_COLOR,
+      fontSize: "16px",
+      fontFamily: MONO_FONT,
+    },
+  });
 
-  const panel = document.createElement("div");
-  panel.style.cssText =
-    "position:absolute;top:12vh;left:50%;transform:translateX(-50%);" +
-    `width:min(96vw, 620px);background:${PANEL_BG};border:${PANEL_BORDER};` +
-    "border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.6);" +
-    "display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box";
+  const inputWrapper = el("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      padding: "10px 14px",
+      borderBottom: "1px solid rgba(255,255,255,0.12)",
+    },
+    children: [kbd, input],
+  });
 
-  const inputWrapper = document.createElement("div");
-  inputWrapper.style.cssText =
-    "display:flex;align-items:center;padding:10px 14px;" +
-    "border-bottom:1px solid rgba(255,255,255,0.12)";
+  const list = el("div", {
+    testid: "palette-list",
+    attrs: { role: "listbox" },
+    style: { maxHeight: "50vh", overflowY: "auto" },
+  });
 
-  const kbd = document.createElement("span");
-  kbd.textContent = "\u2318K";
-  kbd.style.cssText =
-    `color:rgba(255,255,255,0.5);font-family:ui-monospace, SFMono-Regular, Menlo, monospace;` +
-    "font-size:11px;margin-right:10px;padding:2px 6px;border:1px solid rgba(255,255,255,0.2);border-radius:4px";
-  inputWrapper.appendChild(kbd);
+  const panel = el("div", {
+    style: {
+      position: "absolute",
+      top: "12vh",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "min(96vw, 620px)",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: "10px",
+      boxShadow: "0 18px 60px rgba(0,0,0,0.6)",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      boxSizing: "border-box",
+    },
+    children: [inputWrapper, list],
+  });
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.dataset.testid = "palette-input";
-  input.placeholder = "Search objects, events, places, settings…";
-  input.style.cssText =
-    "flex:1;background:transparent;border:none;outline:none;" +
-    `color:${TEXT_COLOR};font-size:16px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace`;
-  input.setAttribute("aria-label", "Command palette");
-  inputWrapper.appendChild(input);
+  const backdrop = el("div", {
+    testid: "palette-backdrop",
+    style: {
+      position: "absolute",
+      inset: "0",
+      background: "rgba(0,0,0,0.55)",
+      backdropFilter: "blur(2px)",
+    },
+  });
 
-  const list = document.createElement("div");
-  list.dataset.testid = "palette-list";
-  list.style.cssText = "max-height:50vh;overflow-y:auto";
-  list.setAttribute("role", "listbox");
-
-  panel.appendChild(inputWrapper);
-  panel.appendChild(list);
-  root.appendChild(panel);
+  const root = el("div", {
+    testid: "palette-root",
+    style: { display: "none", position: "fixed", inset: "0", zIndex: "3000" },
+    children: [backdrop, panel],
+  });
 
   // Prevent the backdrop-click handler from firing when the user clicks inside the panel.
   panel.addEventListener("click", (e) => {
@@ -210,18 +282,17 @@ export function createCommandPalette(opts: CommandPaletteOptions): CommandPalett
   let selectedIndex = 0;
 
   function render(): void {
-    list.replaceChildren();
     if (results.length === 0) {
-      const empty = document.createElement("div");
-      empty.dataset.testid = "palette-empty";
-      empty.textContent = input.value.trim().length === 0 ? "No actions available" : "No results";
-      empty.style.cssText =
-        "padding:16px 14px;color:rgba(255,255,255,0.55);" +
-        `font-size:13px;font-family:${FONT_FAMILY}`;
-      list.appendChild(empty);
+      list.replaceChildren(
+        el("div", {
+          testid: "palette-empty",
+          text: input.value.trim().length === 0 ? "No actions available" : "No results",
+          style: EMPTY_STYLE,
+        }),
+      );
       return;
     }
-    results.forEach((r, i) => {
+    const items = results.map((r, i) => {
       const item = makeItem(r, i === selectedIndex);
       item.addEventListener("click", () => {
         selectedIndex = i;
@@ -232,16 +303,17 @@ export function createCommandPalette(opts: CommandPaletteOptions): CommandPalett
         selectedIndex = i;
         updateSelection();
       });
-      list.appendChild(item);
+      return item;
     });
+    list.replaceChildren(...items);
   }
 
   function updateSelection(): void {
     const items = list.querySelectorAll<HTMLElement>("[data-testid='palette-item']");
-    items.forEach((el, i) => {
+    items.forEach((node, i) => {
       const sel = i === selectedIndex;
-      el.setAttribute("aria-selected", String(sel));
-      el.style.background = sel ? "rgba(100,160,255,0.15)" : "transparent";
+      node.setAttribute("aria-selected", String(sel));
+      node.style.background = sel ? SELECTED_BG : "transparent";
     });
     const current = items[selectedIndex];
     if (current !== undefined && typeof current.scrollIntoView === "function") {
