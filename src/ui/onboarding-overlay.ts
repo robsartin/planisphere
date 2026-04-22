@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+import { el } from "./dom";
 import { ACCENT_COLOR, FONT_FAMILY, PANEL_BG, PANEL_BORDER, SURFACE, TEXT_COLOR } from "./styles";
 
 export const ONBOARDING_STORAGE_KEY = "planisphere.onboarding.v1";
@@ -32,6 +33,11 @@ const SPOTLIGHT_PAD = 8;
 const CARD_WIDTH_PX = 320;
 const CARD_GAP_PX = 16;
 
+const FRAME_STYLE: Partial<CSSStyleDeclaration> = {
+  position: "absolute",
+  background: "rgba(0,0,0,0.65)",
+};
+
 function persistDismissed(): void {
   try {
     globalThis.localStorage?.setItem(ONBOARDING_STORAGE_KEY, "dismissed");
@@ -61,155 +67,161 @@ function clampIntoViewport(
 export function createOnboardingOverlay(opts: OnboardingOverlayOptions): OnboardingOverlay {
   const steps = opts.steps;
 
-  const root = document.createElement("div");
-  root.dataset.testid = "onboarding-overlay";
-  root.style.display = "none";
-  root.style.position = "fixed";
-  root.style.inset = "0";
-  root.style.zIndex = "4000";
-  root.style.pointerEvents = "none";
-  root.style.fontFamily = FONT_FAMILY;
+  const counter = el("div", {
+    testid: "onboarding-counter",
+    style: {
+      fontSize: "11px",
+      opacity: "0.7",
+      marginBottom: "6px",
+      letterSpacing: "0.04em",
+    },
+  });
 
-  // Backdrop — dim layer behind everything else. Pointer events captured by
-  // the backdrop so clicks outside the card don't fall through to the scene.
-  const backdrop = document.createElement("div");
-  backdrop.dataset.testid = "onboarding-backdrop";
-  backdrop.style.position = "absolute";
-  backdrop.style.inset = "0";
-  backdrop.style.background = "rgba(0,0,0,0.65)";
-  backdrop.style.pointerEvents = "auto";
-  backdrop.style.transition = "opacity 150ms ease";
-  backdrop.style.opacity = "1";
+  const title = el("div", {
+    testid: "onboarding-title",
+    style: { fontSize: "16px", fontWeight: "600", marginBottom: "6px" },
+  });
+
+  const body = el("div", {
+    testid: "onboarding-body",
+    style: { fontSize: "14px", lineHeight: "1.45", opacity: "0.9" },
+  });
+
+  const skipBtn = el("button", {
+    testid: "onboarding-skip",
+    type: "button",
+    text: "Skip",
+    style: {
+      background: "transparent",
+      border: "none",
+      color: TEXT_COLOR,
+      opacity: "0.7",
+      fontSize: "12px",
+      cursor: "pointer",
+      padding: "6px 4px",
+    },
+  });
+
+  const backBtn = el("button", {
+    testid: "onboarding-back",
+    type: "button",
+    text: "Back",
+    style: {
+      background: SURFACE,
+      border: "1px solid rgba(255,255,255,0.25)",
+      color: TEXT_COLOR,
+      borderRadius: "6px",
+      padding: "6px 12px",
+      fontSize: "13px",
+      cursor: "pointer",
+    },
+  });
+
+  const nextBtn = el("button", {
+    testid: "onboarding-next",
+    type: "button",
+    text: "Next",
+    style: {
+      background: ACCENT_COLOR,
+      color: "#003322",
+      border: "none",
+      borderRadius: "6px",
+      padding: "6px 14px",
+      fontSize: "13px",
+      fontWeight: "600",
+      cursor: "pointer",
+    },
+  });
+
+  const actionRow = el("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "8px",
+      marginTop: "14px",
+    },
+    children: [
+      skipBtn,
+      el("div", { style: { display: "flex", gap: "6px" }, children: [backBtn, nextBtn] }),
+    ],
+  });
+
+  const card = el("div", {
+    testid: "onboarding-card",
+    style: {
+      position: "absolute",
+      width: `${String(CARD_WIDTH_PX)}px`,
+      maxWidth: "calc(100vw - 24px)",
+      background: PANEL_BG,
+      border: PANEL_BORDER,
+      borderRadius: "10px",
+      color: TEXT_COLOR,
+      padding: "16px 18px",
+      boxSizing: "border-box",
+      pointerEvents: "auto",
+      transition: "opacity 150ms ease",
+      opacity: "1",
+      boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
+    },
+    children: [counter, title, body, actionRow],
+  });
+
+  const frameTop = el("div", { style: FRAME_STYLE });
+  const frameBottom = el("div", { style: FRAME_STYLE });
+  const frameLeft = el("div", { style: FRAME_STYLE });
+  const frameRight = el("div", { style: FRAME_STYLE });
+  const ring = el("div", {
+    testid: "onboarding-spotlight-ring",
+    style: {
+      position: "absolute",
+      border: `2px solid ${ACCENT_COLOR}`,
+      borderRadius: "8px",
+      boxShadow: "0 0 0 2px rgba(0, 255, 136, 0.25)",
+      pointerEvents: "none",
+    },
+  });
 
   // Spotlight frame — 4 black (opaque) rectangles surrounding the target's
   // bounding rect to carve out a cut-out effect over the dim backdrop. Simpler
   // and more compatible than clip-path with evenodd across environments.
-  const spotlight = document.createElement("div");
-  spotlight.dataset.testid = "onboarding-spotlight";
-  spotlight.style.position = "absolute";
-  spotlight.style.inset = "0";
-  spotlight.style.pointerEvents = "none";
-  spotlight.style.display = "none";
+  const spotlight = el("div", {
+    testid: "onboarding-spotlight",
+    style: {
+      position: "absolute",
+      inset: "0",
+      pointerEvents: "none",
+      display: "none",
+    },
+    children: [frameTop, frameBottom, frameLeft, frameRight, ring],
+  });
 
-  const frameTop = document.createElement("div");
-  const frameBottom = document.createElement("div");
-  const frameLeft = document.createElement("div");
-  const frameRight = document.createElement("div");
-  const ring = document.createElement("div");
-  ring.dataset.testid = "onboarding-spotlight-ring";
-  for (const el of [frameTop, frameBottom, frameLeft, frameRight]) {
-    el.style.position = "absolute";
-    el.style.background = "rgba(0,0,0,0.65)";
-  }
-  ring.style.position = "absolute";
-  ring.style.border = `2px solid ${ACCENT_COLOR}`;
-  ring.style.borderRadius = "8px";
-  ring.style.boxShadow = `0 0 0 2px rgba(0, 255, 136, 0.25)`;
-  ring.style.pointerEvents = "none";
-  spotlight.appendChild(frameTop);
-  spotlight.appendChild(frameBottom);
-  spotlight.appendChild(frameLeft);
-  spotlight.appendChild(frameRight);
-  spotlight.appendChild(ring);
+  // Backdrop — dim layer behind everything else. Pointer events captured by
+  // the backdrop so clicks outside the card don't fall through to the scene.
+  const backdrop = el("div", {
+    testid: "onboarding-backdrop",
+    style: {
+      position: "absolute",
+      inset: "0",
+      background: "rgba(0,0,0,0.65)",
+      pointerEvents: "auto",
+      transition: "opacity 150ms ease",
+      opacity: "1",
+    },
+  });
 
-  // Instruction card — anchored relative to spotlight when present, otherwise
-  // centered. Holds title, body, counter, Back/Next, Skip.
-  const card = document.createElement("div");
-  card.dataset.testid = "onboarding-card";
-  card.style.position = "absolute";
-  card.style.width = `${String(CARD_WIDTH_PX)}px`;
-  card.style.maxWidth = "calc(100vw - 24px)";
-  card.style.background = PANEL_BG;
-  card.style.border = PANEL_BORDER;
-  card.style.borderRadius = "10px";
-  card.style.color = TEXT_COLOR;
-  card.style.padding = "16px 18px";
-  card.style.boxSizing = "border-box";
-  card.style.pointerEvents = "auto";
-  card.style.transition = "opacity 150ms ease";
-  card.style.opacity = "1";
-  card.style.boxShadow = "0 6px 24px rgba(0,0,0,0.4)";
-
-  const counter = document.createElement("div");
-  counter.dataset.testid = "onboarding-counter";
-  counter.style.fontSize = "11px";
-  counter.style.opacity = "0.7";
-  counter.style.marginBottom = "6px";
-  counter.style.letterSpacing = "0.04em";
-
-  const title = document.createElement("div");
-  title.dataset.testid = "onboarding-title";
-  title.style.fontSize = "16px";
-  title.style.fontWeight = "600";
-  title.style.marginBottom = "6px";
-
-  const body = document.createElement("div");
-  body.dataset.testid = "onboarding-body";
-  body.style.fontSize = "14px";
-  body.style.lineHeight = "1.45";
-  body.style.opacity = "0.9";
-
-  const actionRow = document.createElement("div");
-  actionRow.style.display = "flex";
-  actionRow.style.alignItems = "center";
-  actionRow.style.justifyContent = "space-between";
-  actionRow.style.gap = "8px";
-  actionRow.style.marginTop = "14px";
-
-  const skipBtn = document.createElement("button");
-  skipBtn.dataset.testid = "onboarding-skip";
-  skipBtn.type = "button";
-  skipBtn.textContent = "Skip";
-  skipBtn.style.background = "transparent";
-  skipBtn.style.border = "none";
-  skipBtn.style.color = TEXT_COLOR;
-  skipBtn.style.opacity = "0.7";
-  skipBtn.style.fontSize = "12px";
-  skipBtn.style.cursor = "pointer";
-  skipBtn.style.padding = "6px 4px";
-
-  const navGroup = document.createElement("div");
-  navGroup.style.display = "flex";
-  navGroup.style.gap = "6px";
-
-  const backBtn = document.createElement("button");
-  backBtn.dataset.testid = "onboarding-back";
-  backBtn.type = "button";
-  backBtn.textContent = "Back";
-  backBtn.style.background = SURFACE;
-  backBtn.style.border = "1px solid rgba(255,255,255,0.25)";
-  backBtn.style.color = TEXT_COLOR;
-  backBtn.style.borderRadius = "6px";
-  backBtn.style.padding = "6px 12px";
-  backBtn.style.fontSize = "13px";
-  backBtn.style.cursor = "pointer";
-
-  const nextBtn = document.createElement("button");
-  nextBtn.dataset.testid = "onboarding-next";
-  nextBtn.type = "button";
-  nextBtn.textContent = "Next";
-  nextBtn.style.background = ACCENT_COLOR;
-  nextBtn.style.color = "#003322";
-  nextBtn.style.border = "none";
-  nextBtn.style.borderRadius = "6px";
-  nextBtn.style.padding = "6px 14px";
-  nextBtn.style.fontSize = "13px";
-  nextBtn.style.fontWeight = "600";
-  nextBtn.style.cursor = "pointer";
-
-  navGroup.appendChild(backBtn);
-  navGroup.appendChild(nextBtn);
-  actionRow.appendChild(skipBtn);
-  actionRow.appendChild(navGroup);
-
-  card.appendChild(counter);
-  card.appendChild(title);
-  card.appendChild(body);
-  card.appendChild(actionRow);
-
-  root.appendChild(backdrop);
-  root.appendChild(spotlight);
-  root.appendChild(card);
+  const root = el("div", {
+    testid: "onboarding-overlay",
+    style: {
+      display: "none",
+      position: "fixed",
+      inset: "0",
+      zIndex: "4000",
+      pointerEvents: "none",
+      fontFamily: FONT_FAMILY,
+    },
+    children: [backdrop, spotlight, card],
+  });
 
   let active = false;
   let index = 0;
@@ -222,9 +234,9 @@ export function createOnboardingOverlay(opts: OnboardingOverlayOptions): Onboard
   function tryResolveTarget(selector: string | undefined): DOMRect | null {
     if (selector === undefined) return null;
     try {
-      const el = document.querySelector<HTMLElement>(selector);
-      if (el === null) return null;
-      const rect = el.getBoundingClientRect();
+      const target = document.querySelector<HTMLElement>(selector);
+      if (target === null) return null;
+      const rect = target.getBoundingClientRect();
       // jsdom returns 0-sized rects — treat as "not really visible", fall back.
       if (rect.width === 0 && rect.height === 0) return null;
       return rect;
