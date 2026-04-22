@@ -4,7 +4,7 @@ Durable guidance for working in this repo. For the full design, see `docs/specs/
 
 ## What this is
 
-A web-based **planisphere** — an interactive star chart showing the sky from a chosen location/time, with artificial-satellite overlays. Static single-page app. No backend.
+A web-based **planisphere** — an interactive star chart showing the sky from a chosen location/time, with artificial-satellite overlays. Built as a static single-page app (Cloudflare Pages). Phase 2 adds a paid **Notebook mode** backed by a Cloudflare Worker + D1 (SQLite) — see [ADR 009](docs/adr/009-backend-selection.md) for the scope expansion and the [ADR index](docs/adr/README.md) for the full decision trail.
 
 ## Stack
 
@@ -12,8 +12,11 @@ A web-based **planisphere** — an interactive star chart showing the sky from a
 - **CesiumJS** for 3D rendering
 - **satellite.js** for SGP4 / TLE propagation
 - **Astronomy Engine** for ephemerides and coordinate transforms
-- **Vitest** for tests (v8 coverage)
-- Deployed to **Cloudflare Pages**; CI on **GitHub Actions**
+- **tiptap / ProseMirror** for the Notebook editor (Phase 2, [ADR 013](docs/adr/013-notebook-editor.md))
+- **Cloudflare Workers + D1** for auth and notebook persistence (Phase 2)
+- **Resend** for magic-link email delivery ([ADR 014](docs/adr/014-email-delivery.md))
+- **Vitest** for tests (v8 coverage); **@cloudflare/vitest-pool-workers** for Worker-side tests
+- Deployed to **Cloudflare Pages** + **Cloudflare Workers**; CI on **GitHub Actions**
 
 ## License
 
@@ -39,9 +42,12 @@ Errors are typed domain unions (e.g. `TleParseError`, `ObserverInputError`) — 
 
 ### Coverage gates (CI-enforced)
 
+Thresholds live in `vitest.config.ts`:
+
 - Pure modules (`astro/`, `sat/`, `result/`, `state/`): **≥ 90%** line, ≥ 85% branch.
-- Integration modules (`scene/`, `ui/`, `app.ts`): **≥ 80%** line.
-- Project floor: **≥ 85%** line.
+- Integration modules (`scene/`, `ui/`, `app.ts`): **≥ 80%** line, ≥ 70% branch.
+- Workers (`src/workers/`): ≥ 60% line, ≥ 50% branch (the `astro-worker.ts` entry runs inside a Web Worker and is not jsdom-testable; `star-builder.ts` is fully tested).
+- Project floor: **≥ 85%** line, ≥ 80% branch.
 
 Don't lower a threshold to make a PR pass. Add tests or narrow the change.
 
@@ -50,6 +56,8 @@ Don't lower a threshold to make a PR pass. Add tests or narrow the change.
 - `astro/` and `sat/` are pure and framework-free. They return plain data + `Result`; they never import Cesium or React.
 - `scene/` is the only module allowed to import CesiumJS types.
 - `ui/` reads state and dispatches intents; it does not compute positions.
+- `src/auth.ts` and `src/notebooks.ts` are the **client** wrappers for the Phase 2 Worker surface; they return `Result<T, AuthError | NotebookError>`. The SPA never calls `fetch` against `/api/*` directly — go through these.
+- `worker/` is the Cloudflare Worker entrypoint. It talks to D1 and Resend. It has **no** DOM, no Cesium, no astronomy-engine imports; tests run against `@cloudflare/vitest-pool-workers`.
 
 Violating a boundary is a review-blocking issue.
 
@@ -57,19 +65,42 @@ Violating a boundary is a review-blocking issue.
 
 ```
 src/
-  astro/     pure astro math: time, coords, catalogs, ephemerides
+  astro/     pure astro math: time, coords, catalogs, ephemerides, entities
   sat/       TLE loading + SGP4 wrappers
-  scene/     CesiumJS viewer, entities, camera
-  ui/        controls (time, location, layers)
+  scene/     CesiumJS viewer, layers, camera, collection helpers
+  ui/        HUD, drawers, palette, object cards, overlays, notebook UI
   state/     URL-synced app state
   result/    Result<T, E> + helpers
+  workers/   Web Worker for star alt/az math
+  auth.ts    Phase 2 — client wrapper for /api/auth/*
+  notebooks.ts Phase 2 — client wrapper for /api/notebooks/*
+  features.ts runtime feature flags (Pro gate)
+  test-setup.ts Vitest setup — jsdom canvas stub
   app.ts     composition root
-data/        bundled star, constellation, TLE data
+  main.ts    browser entrypoint + SW register
+worker/      Phase 2 — Cloudflare Worker (auth, notebooks, cron, email)
+  routes/    /api/auth/* and /api/notebooks/* handlers
+migrations/  D1 schema migrations
+data/        bundled star, constellation, TLE, asterism data
 docs/
   specs/     design specs (source of truth)
-  adr/       short decision records
+  adr/       short decision records (see adr/README.md for the index)
   plans/     implementation plans (one per feature)
+  architecture.md   current module structure + diagrams
+  user-guide.md     end-user manual (also rendered inside the in-app Help)
 ```
+
+## Shared UI utilities
+
+Reach for these before hand-rolling DOM or inline styles:
+
+- **`src/ui/dom.ts` — `el(tag, opts)`** — declarative factory that collapses the usual `createElement` + `dataset.testid` + `.style.*` + `.addEventListener` + `.appendChild(child)` sequence into one call. Keep using `document.createElement` directly when the factory can't express what you need (e.g. when you must read back layout before attaching children); otherwise default to `el()`.
+- **`src/ui/styles.ts` palette constants** — `TEXT_COLOR`, `TEXT_MUTED`, `PANEL_BG`, `PANEL_BORDER`, `SURFACE`, `SURFACE_LOW`, `SURFACE_ACTIVE`, `BORDER_SUBTLE`, `ACCENT_COLOR`, `FONT_FAMILY`, `GAP`. Plus the helpers `applyBaseText`, `applyButton`, and `createProPill(testid)`. Don't invent new `rgba(…)` / `#xxxxxx` literals — pick from the palette or extend the palette.
+
+## Test environment
+
+- Vitest runs under **jsdom**. `vitest.config.ts` wires `src/test-setup.ts` as a setup file — it installs a Proxy-backed no-op stub for `HTMLCanvasElement.prototype.getContext("2d")` so the scene layers (compass, messier, satellites) that synthesise billboard canvases during `app.test.ts` bootstrap don't flood stderr with jsdom's "Not implemented" noise. The stub does **not** paint real pixels; tests that need real canvas output should mock at the component boundary, not rely on the setup.
+- Worker-side tests live next to their production files under `worker/` and use `@cloudflare/vitest-pool-workers`; `vitest.worker.config.ts` points at that pool. The SPA and Worker test suites are kept in separate configs so their environments don't collide.
 
 ## Commands
 
