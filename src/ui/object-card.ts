@@ -3,7 +3,8 @@ import type { AltAzStar, CelestialBody, VisibleMessier, VisibleConstellation } f
 import type { VisibleSatellite } from "../sat";
 import type { UIIntent } from "./index";
 import { computeRiseSet } from "../astro/rise-set";
-import { TEXT_MUTED } from "./styles";
+import { el } from "./dom";
+import { SURFACE, TEXT_COLOR, TEXT_MUTED } from "./styles";
 
 export type ObjectCardData =
   | { readonly kind: "star"; readonly star: AltAzStar }
@@ -55,21 +56,43 @@ const CARD_WIDTH_PX = 240;
 const CARD_OFFSET_PX = 16;
 const ESTIMATED_HEIGHT_PX = 150;
 
-const CARD_STYLE =
-  "position:absolute;width:240px;background:rgba(10,20,40,0.96);color:#fff;" +
-  "font:12px/1.45 sans-serif;padding:10px 12px 10px 12px;border-radius:6px;" +
-  "border:1px solid rgba(100,160,255,0.8);z-index:1200;pointer-events:auto;" +
-  "box-shadow:0 4px 16px rgba(0,0,0,0.5);transition:opacity 150ms ease;" +
-  "box-sizing:border-box";
+const CARD_STYLE: Partial<CSSStyleDeclaration> = {
+  position: "absolute",
+  width: `${String(CARD_WIDTH_PX)}px`,
+  background: "rgba(10,20,40,0.96)",
+  color: TEXT_COLOR,
+  font: "12px/1.45 sans-serif",
+  padding: "10px 12px",
+  borderRadius: "6px",
+  border: "1px solid rgba(100,160,255,0.8)",
+  zIndex: "1200",
+  pointerEvents: "auto",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+  transition: "opacity 150ms ease",
+  boxSizing: "border-box",
+};
 
-const CLOSE_BTN_STYLE =
-  "background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;" +
-  "font:16px/1 sans-serif;padding:0;margin:0 0 0 8px;line-height:1";
+const CLOSE_BTN_STYLE: Partial<CSSStyleDeclaration> = {
+  background: "none",
+  border: "none",
+  color: "rgba(255,255,255,0.7)",
+  cursor: "pointer",
+  font: "16px/1 sans-serif",
+  padding: "0",
+  margin: "0 0 0 8px",
+  lineHeight: "1",
+};
 
-const ACTION_BTN_STYLE =
-  "background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);" +
-  "border-radius:3px;color:#fff;cursor:pointer;font:11px/1.3 sans-serif;" +
-  "padding:3px 8px;margin:0";
+const ACTION_BTN_STYLE: Partial<CSSStyleDeclaration> = {
+  background: SURFACE,
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: "3px",
+  color: TEXT_COLOR,
+  cursor: "pointer",
+  font: "11px/1.3 sans-serif",
+  padding: "3px 8px",
+  margin: "0",
+};
 
 function formatRa(raDeg: number): string {
   const hours = raDeg / 15;
@@ -83,7 +106,7 @@ function formatDec(dec: number): string {
   const abs = Math.abs(dec);
   const d = Math.floor(abs);
   const m = Math.round((abs - d) * 60);
-  return `${sign}${String(d)}\u00B0 ${String(m)}\u2032`;
+  return `${sign}${String(d)}° ${String(m)}′`;
 }
 
 function formatHHMM(d: Date | null): string {
@@ -132,7 +155,7 @@ function cardTitleForData(data: ObjectCardData): { title: string; subtitle: stri
     case "messier": {
       const mLabel =
         data.messier.name.length > 0
-          ? `M${String(data.messier.m)} \u2014 ${data.messier.name}`
+          ? `M${String(data.messier.m)} — ${data.messier.name}`
           : `M${String(data.messier.m)}`;
       return { title: mLabel, subtitle: `Deep-sky (${data.messier.type})` };
     }
@@ -157,39 +180,39 @@ function objectIdForData(data: ObjectCardData): string {
 }
 
 function appendAttrRow(container: HTMLElement, label: string, value: string): void {
-  const row = document.createElement("div");
-  row.style.display = "flex";
-  row.style.justifyContent = "space-between";
-  row.style.color = "rgba(255,255,255,0.85)";
-  row.style.marginTop = "2px";
-  const l = document.createElement("span");
-  l.textContent = label;
-  l.style.color = TEXT_MUTED;
-  const v = document.createElement("span");
-  v.textContent = value;
-  row.appendChild(l);
-  row.appendChild(v);
-  container.appendChild(row);
+  container.append(
+    el("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        color: "rgba(255,255,255,0.85)",
+        marginTop: "2px",
+      },
+      children: [
+        el("span", { text: label, style: { color: TEXT_MUTED } }),
+        el("span", { text: value }),
+      ],
+    }),
+  );
 }
 
 function buildAttributes(data: ObjectCardData): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.dataset.testid = "object-card-attrs";
-  wrap.style.marginTop = "6px";
-  wrap.style.fontFamily = "monospace";
-  wrap.style.fontSize = "11px";
+  const wrap = el("div", {
+    testid: "object-card-attrs",
+    style: { marginTop: "6px", fontFamily: "monospace", fontSize: "11px" },
+  });
 
   switch (data.kind) {
     case "star": {
       const s = data.star;
-      appendAttrRow(wrap, "Alt / Az", `${s.alt.toFixed(1)}\u00B0 / ${s.az.toFixed(1)}\u00B0`);
+      appendAttrRow(wrap, "Alt / Az", `${s.alt.toFixed(1)}° / ${s.az.toFixed(1)}°`);
       appendAttrRow(wrap, "RA / Dec", `${formatRa(s.ra)} ${formatDec(s.dec)}`);
       appendAttrRow(wrap, "Magnitude", s.mag.toFixed(2));
       break;
     }
     case "body": {
       const b = data.body;
-      appendAttrRow(wrap, "Alt / Az", `${b.alt.toFixed(1)}\u00B0 / ${b.az.toFixed(1)}\u00B0`);
+      appendAttrRow(wrap, "Alt / Az", `${b.alt.toFixed(1)}° / ${b.az.toFixed(1)}°`);
       appendAttrRow(wrap, "RA / Dec", `${formatRa(b.ra)} ${formatDec(b.dec)}`);
       appendAttrRow(wrap, "Magnitude", b.mag.toFixed(2));
       if (b.illumination !== undefined) {
@@ -203,7 +226,7 @@ function buildAttributes(data: ObjectCardData): HTMLElement {
     }
     case "satellite": {
       const sat = data.satellite;
-      appendAttrRow(wrap, "Alt / Az", `${sat.alt.toFixed(1)}\u00B0 / ${sat.az.toFixed(1)}\u00B0`);
+      appendAttrRow(wrap, "Alt / Az", `${sat.alt.toFixed(1)}° / ${sat.az.toFixed(1)}°`);
       appendAttrRow(wrap, "Height", `${String(Math.round(sat.height))} km`);
       appendAttrRow(wrap, "Velocity", `${sat.velocity.toFixed(2)} km/s`);
       appendAttrRow(wrap, "NORAD ID", String(sat.noradId));
@@ -211,7 +234,7 @@ function buildAttributes(data: ObjectCardData): HTMLElement {
     }
     case "messier": {
       const m = data.messier;
-      appendAttrRow(wrap, "Alt / Az", `${m.alt.toFixed(1)}\u00B0 / ${m.az.toFixed(1)}\u00B0`);
+      appendAttrRow(wrap, "Alt / Az", `${m.alt.toFixed(1)}° / ${m.az.toFixed(1)}°`);
       appendAttrRow(wrap, "RA / Dec", `${formatRa(m.ra)} ${formatDec(m.dec)}`);
       appendAttrRow(wrap, "Magnitude", m.mag.toFixed(1));
       break;
@@ -221,7 +244,7 @@ function buildAttributes(data: ObjectCardData): HTMLElement {
       appendAttrRow(
         wrap,
         "Centroid Alt / Az",
-        `${c.centroid.alt.toFixed(1)}\u00B0 / ${c.centroid.az.toFixed(1)}\u00B0`,
+        `${c.centroid.alt.toFixed(1)}° / ${c.centroid.az.toFixed(1)}°`,
       );
       appendAttrRow(wrap, "Visible lines", String(c.lines.length));
       break;
@@ -236,63 +259,70 @@ function buildActions(
   dispatch: (i: UIIntent) => void,
   upcomingEvent: UpcomingEvent | undefined,
 ): HTMLElement {
-  const row = document.createElement("div");
-  row.dataset.testid = "object-card-actions";
-  row.style.display = "flex";
-  row.style.flexWrap = "wrap";
-  row.style.gap = "4px";
-  row.style.marginTop = "8px";
-
   const id = objectIdForData(data);
 
-  const pinBtn = document.createElement("button");
-  pinBtn.dataset.testid = "object-card-pin";
-  pinBtn.textContent = "Pin";
-  pinBtn.style.cssText = ACTION_BTN_STYLE;
-  pinBtn.addEventListener("click", () => {
-    dispatch({ type: "pin-object", id });
+  const pinBtn = el("button", {
+    testid: "object-card-pin",
+    text: "Pin",
+    style: ACTION_BTN_STYLE,
+    on: {
+      click: () => {
+        dispatch({ type: "pin-object", id });
+      },
+    },
   });
-  row.appendChild(pinBtn);
 
-  if (data.kind === "body") {
-    const trailBtn = document.createElement("button");
-    trailBtn.dataset.testid = "object-card-trail";
-    trailBtn.textContent = "Trail";
-    trailBtn.style.cssText = ACTION_BTN_STYLE;
-    trailBtn.addEventListener("click", () => {
-      dispatch({ type: "show-trail", objectKind: "body", id: data.body.id });
-    });
-    row.appendChild(trailBtn);
-  }
+  const trailBtn =
+    data.kind === "body"
+      ? el("button", {
+          testid: "object-card-trail",
+          text: "Trail",
+          style: ACTION_BTN_STYLE,
+          on: {
+            click: () => {
+              dispatch({ type: "show-trail", objectKind: "body", id: data.body.id });
+            },
+          },
+        })
+      : null;
 
-  if (upcomingEvent !== undefined && (data.kind === "body" || data.kind === "satellite")) {
-    const peakBtn = document.createElement("button");
-    peakBtn.dataset.testid = "object-card-go-to-peak";
-    peakBtn.textContent = "Go to peak";
-    peakBtn.style.cssText = ACTION_BTN_STYLE;
-    peakBtn.addEventListener("click", () => {
-      dispatch({ type: "set-time", time: upcomingEvent.when });
-      dispatch({ type: "set-view", az: upcomingEvent.viewAz, alt: upcomingEvent.viewAlt });
-    });
-    row.appendChild(peakBtn);
-  }
+  const peakBtn =
+    upcomingEvent !== undefined && (data.kind === "body" || data.kind === "satellite")
+      ? el("button", {
+          testid: "object-card-go-to-peak",
+          text: "Go to peak",
+          style: ACTION_BTN_STYLE,
+          on: {
+            click: () => {
+              dispatch({ type: "set-time", time: upcomingEvent.when });
+              dispatch({ type: "set-view", az: upcomingEvent.viewAz, alt: upcomingEvent.viewAlt });
+            },
+          },
+        })
+      : null;
 
-  const copyBtn = document.createElement("button");
-  copyBtn.dataset.testid = "object-card-copy-link";
-  copyBtn.textContent = "Copy link";
-  copyBtn.style.cssText = ACTION_BTN_STYLE;
-  copyBtn.addEventListener("click", () => {
-    // The app frames the object in URL state via vaz/valt on set-view, then copy-link
-    // serializes current state. Dispatch set-view first when we have a position, then copy.
-    const pos = dataPosition(data);
-    if (pos) {
-      dispatch({ type: "set-view", az: pos.az, alt: pos.alt });
-    }
-    dispatch({ type: "copy-link" });
+  const copyBtn = el("button", {
+    testid: "object-card-copy-link",
+    text: "Copy link",
+    style: ACTION_BTN_STYLE,
+    on: {
+      click: () => {
+        // The app frames the object in URL state via vaz/valt on set-view, then copy-link
+        // serializes current state. Dispatch set-view first when we have a position, then copy.
+        const pos = dataPosition(data);
+        if (pos) {
+          dispatch({ type: "set-view", az: pos.az, alt: pos.alt });
+        }
+        dispatch({ type: "copy-link" });
+      },
+    },
   });
-  row.appendChild(copyBtn);
 
-  return row;
+  return el("div", {
+    testid: "object-card-actions",
+    style: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px" },
+    children: [pinBtn, trailBtn, peakBtn, copyBtn],
+  });
 }
 
 function dataPosition(data: ObjectCardData): { alt: number; az: number } | null {
@@ -311,9 +341,59 @@ function dataPosition(data: ObjectCardData): { alt: number; az: number } | null 
 }
 
 export function createObjectCard(props: ObjectCardProps): ObjectCard {
-  const root = document.createElement("div");
-  root.dataset.testid = "object-card";
-  root.style.cssText = CARD_STYLE;
+  const { title, subtitle } = cardTitleForData(props.data);
+
+  const closeBtn = el("button", {
+    testid: "object-card-close",
+    type: "button",
+    text: "×",
+    attrs: { title: "Close" },
+    style: CLOSE_BTN_STYLE,
+  });
+  if (props.onClose) {
+    const fn = props.onClose;
+    closeBtn.addEventListener("click", () => {
+      fn();
+    });
+  }
+
+  const header = el("div", {
+    style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
+    children: [
+      el("div", {
+        style: { flex: "1 1 auto", minWidth: "0" },
+        children: [
+          el("div", {
+            testid: "object-card-title",
+            text: title,
+            style: {
+              fontWeight: "bold",
+              fontSize: "13px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            },
+          }),
+          el("div", {
+            testid: "object-card-subtitle",
+            text: subtitle,
+            style: { fontSize: "10px", color: TEXT_MUTED, marginTop: "1px" },
+          }),
+        ],
+      }),
+      closeBtn,
+    ],
+  });
+
+  const root = el("div", {
+    testid: "object-card",
+    style: CARD_STYLE,
+    children: [
+      header,
+      buildAttributes(props.data),
+      buildActions(props.data, props.dispatch, props.upcomingEvent),
+    ],
+  });
 
   const applyPosition = (x: number, y: number): void => {
     const pos = smartPosition(x, y, props.viewportWidth, props.viewportHeight);
@@ -321,58 +401,6 @@ export function createObjectCard(props: ObjectCardProps): ObjectCard {
     root.style.top = `${String(pos.top)}px`;
   };
   applyPosition(props.screenX, props.screenY);
-
-  // Header: title + close button
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "flex-start";
-
-  const { title, subtitle } = cardTitleForData(props.data);
-  const headerText = document.createElement("div");
-  headerText.style.flex = "1 1 auto";
-  headerText.style.minWidth = "0";
-  const titleEl = document.createElement("div");
-  titleEl.dataset.testid = "object-card-title";
-  titleEl.textContent = title;
-  titleEl.style.fontWeight = "bold";
-  titleEl.style.fontSize = "13px";
-  titleEl.style.overflow = "hidden";
-  titleEl.style.textOverflow = "ellipsis";
-  titleEl.style.whiteSpace = "nowrap";
-  headerText.appendChild(titleEl);
-
-  const subtitleEl = document.createElement("div");
-  subtitleEl.dataset.testid = "object-card-subtitle";
-  subtitleEl.textContent = subtitle;
-  subtitleEl.style.fontSize = "10px";
-  subtitleEl.style.color = TEXT_MUTED;
-  subtitleEl.style.marginTop = "1px";
-  headerText.appendChild(subtitleEl);
-
-  header.appendChild(headerText);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.dataset.testid = "object-card-close";
-  closeBtn.type = "button";
-  closeBtn.textContent = "\u00D7";
-  closeBtn.title = "Close";
-  closeBtn.style.cssText = CLOSE_BTN_STYLE;
-  if (props.onClose) {
-    const fn = props.onClose;
-    closeBtn.addEventListener("click", () => {
-      fn();
-    });
-  }
-  header.appendChild(closeBtn);
-
-  root.appendChild(header);
-
-  const attrs = buildAttributes(props.data);
-  root.appendChild(attrs);
-
-  const actions = buildActions(props.data, props.dispatch, props.upcomingEvent);
-  root.appendChild(actions);
 
   let belowEl: HTMLElement | null = null;
 
@@ -382,14 +410,12 @@ export function createObjectCard(props: ObjectCardProps): ObjectCard {
       applyPosition(u.screenX, u.screenY);
       if (u.belowHorizon) {
         if (belowEl === null) {
-          const el = document.createElement("div");
-          el.dataset.testid = "object-card-below-horizon";
-          el.textContent = "\u2193 Below horizon";
-          el.style.marginTop = "4px";
-          el.style.color = "rgba(255,180,100,0.9)";
-          el.style.fontSize = "10px";
-          root.appendChild(el);
-          belowEl = el;
+          belowEl = el("div", {
+            testid: "object-card-below-horizon",
+            text: "↓ Below horizon",
+            style: { marginTop: "4px", color: "rgba(255,180,100,0.9)", fontSize: "10px" },
+          });
+          root.append(belowEl);
         }
       } else if (belowEl !== null) {
         belowEl.remove();
