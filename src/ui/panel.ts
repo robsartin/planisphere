@@ -184,14 +184,14 @@ export function createPanel(
         void navigator.clipboard.writeText(text);
       } else {
         // Fallback for older browsers
-        const textarea = document.createElement("textarea");
+        const textarea = el("textarea", {
+          style: { position: "fixed", opacity: "0" },
+        });
         textarea.value = text;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
+        document.body.append(textarea);
         textarea.select();
         document.execCommand("copy");
-        document.body.removeChild(textarea);
+        textarea.remove();
       }
     };
     copy(url);

@@ -2,6 +2,7 @@
 import { Editor, type Content } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { createNotebookMentionExtension } from "./notebook-mention";
+import { el } from "./dom";
 import { BORDER_SUBTLE, FONT_FAMILY, SURFACE_LOW, TEXT_COLOR } from "./styles";
 
 /**
@@ -53,20 +54,23 @@ function parseOrNull(s: string | undefined): Content {
 export function createNotebookEditor(options: NotebookEditorOptions): NotebookEditor {
   const { container, initialContent, onChange } = options;
 
-  const host = document.createElement("div");
-  host.dataset.testid = "notebook-editor";
-  host.style.flex = "1 1 auto";
-  host.style.minHeight = "200px";
-  host.style.background = SURFACE_LOW;
-  host.style.border = BORDER_SUBTLE;
-  host.style.borderRadius = "6px";
-  host.style.color = TEXT_COLOR;
-  host.style.fontFamily = FONT_FAMILY;
-  host.style.fontSize = "13px";
-  host.style.padding = "10px 12px";
-  host.style.boxSizing = "border-box";
-  host.style.overflowY = "auto";
-  container.appendChild(host);
+  const host = el("div", {
+    testid: "notebook-editor",
+    style: {
+      flex: "1 1 auto",
+      minHeight: "200px",
+      background: SURFACE_LOW,
+      border: BORDER_SUBTLE,
+      borderRadius: "6px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "13px",
+      padding: "10px 12px",
+      boxSizing: "border-box",
+      overflowY: "auto",
+    },
+  });
+  container.append(host);
 
   const initialDoc: Content = parseOrNull(initialContent) ?? parseOrNull(EMPTY_DOC_JSON);
 
