@@ -1331,13 +1331,13 @@ export async function bootstrap(
     },
     {
       title: "Drag the time bar to move through time",
-      body: "The bottom bar shows the current time. Drag it left or right to scrub, or use the ← / → arrow keys.",
+      body: "The bottom bar shows the current time. Drag it left or right to scrub, or use ← / → for one-minute steps — hold Shift for hours, Alt for days. Space plays real-time.",
       selector: "[data-testid='hud-scrub']",
       position: "top",
     },
     {
       title: "Explore with the top-right icons",
-      body: "Tap \u2699 for layer settings, \u{1F4C5} for upcoming events, \u2640 for tonight's planets, and ? for help.",
+      body: "Tap \u2699 for layer settings, \u{1F4C5} for upcoming events, \u2640 for tonight's planets, ? for help, and \u{1F303}/\u{1F4D3} to switch to Notebook mode (Pro). \u{1F534} toggles night vision.",
       selector: "[data-testid='panel-header']",
       position: "left",
     },
