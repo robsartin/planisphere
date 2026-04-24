@@ -42,6 +42,7 @@ export type AppState = {
   readonly fov: FovPresetId; // telescope FOV reticle preset, default "off"
   readonly skyculture: SkycultureId; // asterism set, default "western"
   readonly mode: AppMode; // app-surface mode, default "planetarium"
+  readonly activePlanSlug: string | null; // URL-synced via ?plan=<slug>
 };
 
 export type StateParseError =
@@ -84,6 +85,7 @@ export const DEFAULT_LANGUAGE: Language = "la";
 export const DEFAULT_FOV: FovPresetId = "off";
 export const DEFAULT_SKYCULTURE: SkycultureId = "western";
 export const DEFAULT_MODE: AppMode = "planetarium";
+export const DEFAULT_ACTIVE_PLAN_SLUG: string | null = null;
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
@@ -97,7 +99,15 @@ export const DEFAULT_STATE: AppState = {
   fov: DEFAULT_FOV,
   skyculture: DEFAULT_SKYCULTURE,
   mode: DEFAULT_MODE,
+  activePlanSlug: DEFAULT_ACTIVE_PLAN_SLUG,
 };
+
+const PLAN_SLUG_PATTERN = /^[a-z0-9-]{1,64}$/;
+
+function parseActivePlanSlug(raw: string | null): string | null {
+  if (raw === null) return null;
+  return PLAN_SLUG_PATTERN.test(raw) ? raw : null;
+}
 
 function parseLat(raw: string): Result<number, StateParseError> {
   const n = Number(raw);
@@ -214,6 +224,7 @@ export function parseStateFromSearchParams(
   const fov = parseFovPreset(params.get("fov"));
   const skyculture = parseSkyculture(params.get("sky"));
   const mode = parseMode(params.get("mode"));
+  const activePlanSlug = parseActivePlanSlug(params.get("plan"));
 
   return ok({
     observer: { lat, lon },
@@ -227,6 +238,7 @@ export function parseStateFromSearchParams(
     fov,
     skyculture,
     mode,
+    activePlanSlug,
   });
 }
 
@@ -292,6 +304,10 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.mode !== DEFAULT_MODE) {
     params.set("mode", state.mode);
+  }
+
+  if (state.activePlanSlug !== null) {
+    params.set("plan", state.activePlanSlug);
   }
 
   return params;
