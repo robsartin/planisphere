@@ -745,6 +745,10 @@ The 📍 button in the time controls fires a `now` intent. `app.ts::handleIntent
 
 The 🔗 button in the panel header reads the current URL (which is already kept in sync with state by `updateUrl`) and writes it to the clipboard via `navigator.clipboard.writeText` with a `document.execCommand("copy")` fallback. No server round-trip and no extra state — it is a thin helper on top of the URL-is-state principle.
 
+## Viewing Plans
+
+Pro-gated read-only content module. `worker/routes/plans.ts` exposes `GET /api/plans` (summaries) and `GET /api/plans/:slug` (detail), both fronted by the session + `users.tier='pro'` check. D1 schema lives in `migrations/0004_plans.sql`. Client side, `src/plans.ts` mirrors the `src/notebooks.ts` `Result<T, PlanError>` wrapper pattern with a small in-module cache for detail lookups. UI is split across `src/ui/plans-drawer.ts` (feed + hemisphere filter + six render states) and `src/ui/plans-modal.ts` (reader overlay + linked-entity chips that dispatch `open-object-card`). State is synced via `AppState.activePlanSlug` and `?plan=<slug>`. Content is authored as Markdown in `data/plans/<slug>.md` with a JSON frontmatter fence, ingested by `scripts/seed-plans.mjs` and committed to D1 via `pnpm seed-plans [--remote]`. See [ADR 015](adr/015-viewing-plans-storage-and-pro-gate.md) for the tier-gate and content-model rationale.
+
 ## PWA and service worker
 
 `public/manifest.json` registers Planisphere as an installable PWA. `public/sw.js` is a hand-rolled service worker registered from `src/main.ts` **only when `import.meta.env.PROD` is true** (registering in dev caches Vite's HMR chunks and makes the site look broken on refresh). Caching policy:

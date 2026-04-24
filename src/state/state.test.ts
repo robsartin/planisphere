@@ -481,3 +481,39 @@ describe("mode — serialize round-trip", () => {
     expect(s2.mode).toBe("notebook");
   });
 });
+
+describe("activePlanSlug", () => {
+  it("defaults to null", () => {
+    expect(DEFAULT_STATE.activePlanSlug).toBeNull();
+  });
+
+  it("parses ?plan=<slug>", () => {
+    const r = parseStateFromSearchParams(new URLSearchParams("lat=0&lon=0&plan=2026-04"));
+    expect(isOk(r)).toBe(true);
+    const s = expectOk(r);
+    expect(s.activePlanSlug).toBe("2026-04");
+  });
+
+  it("serializes only when non-null", () => {
+    const withSlug = serializeStateToSearchParams({ ...DEFAULT_STATE, activePlanSlug: "2026-04" });
+    expect(withSlug.get("plan")).toBe("2026-04");
+
+    const withNull = serializeStateToSearchParams({ ...DEFAULT_STATE, activePlanSlug: null });
+    expect(withNull.has("plan")).toBe(false);
+  });
+
+  it("round-trips", () => {
+    const encoded = serializeStateToSearchParams({ ...DEFAULT_STATE, activePlanSlug: "2026-04" });
+    const decoded = parseStateFromSearchParams(encoded);
+    expect(isOk(decoded)).toBe(true);
+    const s = expectOk(decoded);
+    expect(s.activePlanSlug).toBe("2026-04");
+  });
+
+  it("rejects malformed slug — falls back to null", () => {
+    const r = parseStateFromSearchParams(new URLSearchParams("lat=0&lon=0&plan=Not%20A%20Slug"));
+    expect(isOk(r)).toBe(true);
+    const s = expectOk(r);
+    expect(s.activePlanSlug).toBeNull();
+  });
+});

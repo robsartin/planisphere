@@ -391,6 +391,18 @@ Switching back to 🌃 Planetarium at any time returns you to the sky view; your
 
 ---
 
+## Viewing Plans (Pro)
+
+Viewing Plans are short monthly reads that highlight what's worth looking at this month, with one-click jumps into the sky from your location. Click the **📜 Plans** button in the HUD to open the drawer. Each plan card shows the month and a preview; click to open the full read.
+
+Plans are filtered by your hemisphere — a Northern-hemisphere observer won't see plans tagged for the South, and vice versa. Plans tagged `both` show everywhere.
+
+Every plan has a shareable deep link. `https://planisphere.app/?plan=2026-04` opens the app directly to the April 2026 plan. If someone without Pro access opens the link they'll see the Pro-upgrade prompt instead.
+
+Target chips at the bottom of each plan (Andromeda Galaxy, Jupiter, etc.) open the object card for that target in the sky and close the reader so you can see it from where you're standing.
+
+---
+
 ## Reading the Sky
 
 **Stars** are shown in their natural color, mapped from each star's B−V color index:

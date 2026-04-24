@@ -87,8 +87,12 @@ import {
   createOnboardingOverlay,
   createNotebookWorkspace,
   createLoginModal,
+  createPlansDrawer,
+  createPlansModal,
   ONBOARDING_STORAGE_KEY,
 } from "./ui";
+import type { PlansDrawerView } from "./ui";
+import { getPlan, listPlans } from "./plans";
 import { currentUser, requestMagicLink } from "./auth";
 import { isPro, setUser } from "./features";
 import type { OnboardingStep } from "./ui";
@@ -1069,6 +1073,8 @@ export async function bootstrap(
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
   let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
   let loginModal: ReturnType<typeof createLoginModal> | null = null;
+  let plansDrawer: ReturnType<typeof createPlansDrawer> | null = null;
+  let plansModal: ReturnType<typeof createPlansModal> | null = null;
 
   // Intent handler — dispatches to category-specific handlers below. Each
   // handler mutates `state` and fires whatever side effects the category
@@ -1282,6 +1288,33 @@ export async function bootstrap(
     }
   }
 
+  async function refreshPlansView(): Promise<void> {
+    plansDrawer?.setView({ kind: "loading" }, state.observer.lat);
+    const res = await listPlans();
+    if (res.ok) {
+      plansDrawer?.setView({ kind: "list", plans: res.value }, state.observer.lat);
+      return;
+    }
+    const view: PlansDrawerView =
+      res.error.kind === "unauthenticated"
+        ? { kind: "unauthenticated" }
+        : res.error.kind === "not_pro"
+          ? { kind: "not_pro" }
+          : { kind: "error" };
+    plansDrawer?.setView(view, state.observer.lat);
+  }
+
+  async function openPlanBySlug(slug: string): Promise<void> {
+    const res = await getPlan(slug);
+    if (res.ok) {
+      plansModal?.setPlan(res.value);
+      return;
+    }
+    plansModal?.setError(slug, res.error.kind);
+    // Clear the active slug so a reload doesn't render the broken state forever.
+    handleIntent({ type: "set-active-plan", slug: null });
+  }
+
   function handleIntent(intent: UIIntent): void {
     switch (intent.type) {
       case "set-time":
@@ -1311,6 +1344,24 @@ export async function bootstrap(
       case "open-object-card":
       case "open-empty-sky-popover":
         return handleUIIntent(intent);
+      case "set-active-plan": {
+        state = { ...state, activePlanSlug: intent.slug };
+        updateUrl(state);
+        if (intent.slug === null) {
+          plansModal?.setPlan(null);
+        } else {
+          void openPlanBySlug(intent.slug);
+        }
+        return;
+      }
+      case "open-sign-in": {
+        loginModal?.open();
+        return;
+      }
+      case "retry-plans": {
+        void refreshPlansView();
+        return;
+      }
     }
   }
 
@@ -1428,6 +1479,15 @@ export async function bootstrap(
   });
   document.body.appendChild(loginModal.element);
 
+  // Viewing Plans drawer + reader modal (#220). Drawer renders six states
+  // (loading / list / empty / error / unauthenticated / not_pro). Modal
+  // opens on `set-active-plan` with a slug; fetched via the Pro-gated
+  // `/api/plans/:slug` route through `src/plans.ts`.
+  plansDrawer = createPlansDrawer({ dispatch: handleIntent });
+  document.body.appendChild(plansDrawer.element);
+  plansModal = createPlansModal({ dispatch: handleIntent });
+  document.body.appendChild(plansModal.element);
+
   // Pick up any existing server session — if the ps_session cookie is valid
   // the Worker will return the authenticated user; mirror the email into
   // features.setUser so isPro() still reflects the Rung-1 allowlist during
@@ -1504,6 +1564,14 @@ export async function bootstrap(
         if (settingsDrawer.isOpen()) settingsDrawer.close();
         tonightDrawer?.open();
       },
+      onOpenPlans: () => {
+        if (helpModal.isOpen()) helpModal.close();
+        if (eventsDrawer?.isOpen()) eventsDrawer.close();
+        if (settingsDrawer.isOpen()) settingsDrawer.close();
+        if (tonightDrawer?.isOpen()) tonightDrawer.close();
+        plansDrawer?.openPanel();
+        void refreshPlansView();
+      },
       onProRequired: () => {
         loginModal?.open();
       },
@@ -1546,6 +1614,12 @@ export async function bootstrap(
     setTimeout(() => {
       onboardingOverlay.start();
     }, 500);
+  }
+
+  // Hydrate ?plan=<slug> on boot so reload / share-links open the reader modal.
+  // The malformed-slug case is already dropped to null by parseStateFromSearchParams.
+  if (state.activePlanSlug !== null) {
+    void openPlanBySlug(state.activePlanSlug);
   }
 }
 

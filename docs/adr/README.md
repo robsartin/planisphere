@@ -24,6 +24,7 @@ Template: [`000-template.md`](000-template.md).
 | 012 | [Worker dev deps: `@cloudflare/vitest-pool-workers` + `concurrently`](012-worker-deps.md)         | 2026-04-18 |
 | 013 | [Notebook editor: tiptap (ProseMirror, MIT)](013-notebook-editor.md)                              | 2026-04-20 |
 | 014 | [Email delivery: Resend HTTP API](014-email-delivery.md)                                          | 2026-04-20 |
+| 015 | [Viewing Plans storage and Pro-gate enforcement](015-viewing-plans-storage-and-pro-gate.md)       | 2026-04-24 |
 
 ## Conventions
 

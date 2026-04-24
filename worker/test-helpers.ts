@@ -5,9 +5,9 @@
  * helpers that every authenticated route test needs.
  *
  * The schema DDL mirrors `migrations/0001_init.sql` + `0002_notebooks.sql`
- * + `0003_magic_link_ttl.sql` — the migration files remain the source of
- * truth for production; we keep this in sync by hand (small cost, no
- * extra tooling).
+ * + `0003_magic_link_ttl.sql` + `0004_plans.sql` — the migration files
+ * remain the source of truth for production; we keep this in sync by
+ * hand (small cost, no extra tooling).
  */
 import { env } from "cloudflare:test";
 import worker from "./index";
@@ -50,13 +50,28 @@ const SCHEMA_STATEMENTS = [
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`,
+  `CREATE TABLE plans (
+    slug         TEXT PRIMARY KEY,
+    title        TEXT NOT NULL,
+    month        TEXT NOT NULL,
+    hemisphere   TEXT NOT NULL CHECK (hemisphere IN ('n','s','both')),
+    summary      TEXT NOT NULL,
+    body_md      TEXT NOT NULL,
+    objects_json TEXT NOT NULL,
+    author       TEXT NOT NULL,
+    published_at INTEGER NOT NULL,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+  )`,
   `CREATE INDEX idx_magic_links_email ON magic_links(email)`,
   `CREATE INDEX idx_magic_links_expires ON magic_links(expires_at)`,
   `CREATE INDEX idx_sessions_expires ON sessions(expires_at)`,
   `CREATE INDEX idx_notebooks_user_updated ON notebooks(user_id, updated_at DESC)`,
+  `CREATE INDEX idx_plans_month ON plans(month)`,
 ] as const;
 
 export async function resetDb(): Promise<void> {
+  await testEnv.DB.prepare("DROP TABLE IF EXISTS plans").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS notebooks").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS sessions").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS magic_links").run();
