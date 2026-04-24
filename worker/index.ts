@@ -11,6 +11,7 @@ import {
   handleListNotebooks,
   handleUpdateNotebook,
 } from "./routes/notebooks";
+import { handleGetPlan, handleListPlans } from "./routes/plans";
 import type { Env } from "./types";
 
 /**
@@ -57,6 +58,15 @@ export default {
         if (method === "PUT") return await handleUpdateNotebook(request, env, id);
         if (method === "DELETE") return await handleDeleteNotebook(request, env, id);
         return methodNotAllowed();
+      }
+      if (path === "/api/plans") {
+        if (method !== "GET") return methodNotAllowed();
+        return await handleListPlans(request, env);
+      }
+      const planDetailMatch = /^\/api\/plans\/([^/]+)$/.exec(path);
+      if (planDetailMatch !== null) {
+        if (method !== "GET") return methodNotAllowed();
+        return await handleGetPlan(request, env, planDetailMatch[1]!);
       }
       return notFound();
     } catch (err) {
