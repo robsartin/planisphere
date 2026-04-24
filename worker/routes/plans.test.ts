@@ -51,7 +51,7 @@ describe("GET /api/plans", () => {
     await seedPlan();
     const res = await fetchWorker(authed("/api/plans", cookie));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { plans: Array<Record<string, unknown>> };
+    const body: { plans: Array<Record<string, unknown>> } = await res.json();
     expect(body.plans).toHaveLength(1);
     expect(body.plans[0]!.slug).toBe("2026-04");
     expect(body.plans[0]!.publishedAt).toBe(new Date(1_700_000_000_000).toISOString());
@@ -69,7 +69,7 @@ describe("GET /api/plans/:slug", () => {
     await seedPlan();
     const res = await fetchWorker(authed("/api/plans/2026-04", cookie));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body: Record<string, unknown> = await res.json();
     expect(body.slug).toBe("2026-04");
     expect(body.bodyMd).toBe("# Body\n\nProse.");
     expect(body.objects).toEqual([{ kind: "messier", id: "31", label: "M31" }]);

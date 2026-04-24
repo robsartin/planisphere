@@ -49,7 +49,7 @@ function planToWire(row: PlanRow) {
   // Fail closed: if objects_json is corrupted, surface an empty list rather than 500.
   let objects: readonly unknown[] = [];
   try {
-    const parsed = JSON.parse(row.objectsJson);
+    const parsed: unknown = JSON.parse(row.objectsJson);
     if (Array.isArray(parsed)) objects = parsed;
   } catch {
     objects = [];

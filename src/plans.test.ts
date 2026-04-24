@@ -3,12 +3,12 @@ import { describe, test, expect, beforeEach, vi } from "vitest";
 import { listPlans, getPlan, __clearPlanCacheForTests } from "./plans";
 
 function mockFetch(response: Response): void {
-  globalThis.fetch = vi.fn(async () => response) as typeof fetch;
+  globalThis.fetch = vi.fn(() => Promise.resolve(response)) as typeof fetch;
 }
 
 function mockFetchSequence(responses: Response[]): void {
   let i = 0;
-  globalThis.fetch = vi.fn(async () => responses[i++]!) as typeof fetch;
+  globalThis.fetch = vi.fn(() => Promise.resolve(responses[i++]!)) as typeof fetch;
 }
 
 function okJson(data: unknown, status = 200): Response {
@@ -71,9 +71,7 @@ describe("listPlans", () => {
   });
 
   test("fetch throws → network", async () => {
-    globalThis.fetch = vi.fn(async () => {
-      throw new TypeError("fail");
-    }) as typeof fetch;
+    globalThis.fetch = vi.fn(() => Promise.reject(new TypeError("fail"))) as typeof fetch;
     const res = await listPlans();
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.kind).toBe("network");
