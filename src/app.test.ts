@@ -239,6 +239,7 @@ let capturedPanelOptions: {
   onOpenSettings?: () => void;
   onOpenHelp?: () => void;
   onOpenTonight?: () => void;
+  onOpenPlans?: () => void;
   onProRequired?: () => void;
   mode?: "planetarium" | "notebook";
 } | null = null;
@@ -274,6 +275,21 @@ let onboardingOverlayMock: {
 } | null = null;
 let capturedHelpModalOptions: { onReplayTour?: () => void } | null = null;
 
+let plansDrawerMock: {
+  element: HTMLElement;
+  openPanel: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  isOpen: ReturnType<typeof vi.fn>;
+  setView: ReturnType<typeof vi.fn>;
+  dispatch: ((intent: unknown) => void) | null;
+} | null = null;
+let plansModalMock: {
+  element: HTMLElement;
+  setPlan: ReturnType<typeof vi.fn>;
+  setError: ReturnType<typeof vi.fn>;
+  dispatch: ((intent: unknown) => void) | null;
+} | null = null;
+
 // Captured events-drawer setEvents spy — lets tests assert it was called when
 // `set-time` / `set-observer` / `now` intents fire.
 const eventsDrawerSetEvents = vi.fn();
@@ -295,6 +311,7 @@ vi.mock("./ui", () => ({
         onOpenSettings?: () => void;
         onOpenHelp?: () => void;
         onOpenTonight?: () => void;
+        onOpenPlans?: () => void;
         onProRequired?: () => void;
         mode?: "planetarium" | "notebook";
       },
@@ -481,7 +498,69 @@ vi.mock("./ui", () => ({
     onboardingOverlayMock = mock;
     return mock;
   }),
+  createPlansDrawer: vi.fn().mockImplementation((opts: { dispatch: (intent: unknown) => void }) => {
+    const element = document.createElement("div");
+    element.dataset.testid = "plans-drawer";
+    const mock = {
+      element,
+      openPanel: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+      setView: vi.fn(),
+      dispatch: opts.dispatch,
+    };
+    plansDrawerMock = mock;
+    return mock;
+  }),
+  createPlansModal: vi.fn().mockImplementation((opts: { dispatch: (intent: unknown) => void }) => {
+    const element = document.createElement("div");
+    element.dataset.testid = "plans-modal";
+    element.hidden = true;
+    const mock = {
+      element,
+      setPlan: vi.fn().mockImplementation((plan: unknown) => {
+        element.hidden = plan === null;
+      }),
+      setError: vi.fn().mockImplementation(() => {
+        element.hidden = false;
+      }),
+      dispatch: opts.dispatch,
+    };
+    plansModalMock = mock;
+    return mock;
+  }),
   ONBOARDING_STORAGE_KEY: "planisphere.onboarding.v1",
+}));
+
+// Mock the plans client wrapper — tests flip the list/detail responses so
+// the app-side state machine can be exercised without hitting the Worker.
+let listPlansResult: unknown = { ok: true, value: [] };
+let getPlanResult: unknown = {
+  ok: true,
+  value: {
+    slug: "2026-04",
+    title: "April",
+    month: "2026-04",
+    hemisphere: "both",
+    summary: "Stub",
+    author: "Rob",
+    publishedAt: "2026-04-01T00:00:00.000Z",
+    bodyMd: "Body",
+    objects: [],
+  },
+};
+vi.mock("./plans", () => ({
+  listPlans: vi.fn().mockImplementation(() => Promise.resolve(listPlansResult)),
+  getPlan: vi
+    .fn()
+    .mockImplementation((slug: string) =>
+      Promise.resolve(
+        typeof getPlanResult === "function"
+          ? (getPlanResult as (s: string) => unknown)(slug)
+          : getPlanResult,
+      ),
+    ),
+  __clearPlanCacheForTests: vi.fn(),
 }));
 
 // Mock the TLE bundled data
@@ -1965,5 +2044,243 @@ describe("handleIntent routing", () => {
     expect(mockOpen).toHaveBeenCalled();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
+  });
+
+  describe("set-active-plan intent", () => {
+    it("non-null slug updates state and URL and opens the modal", async () => {
+      capturedDispatch = null;
+      plansModalMock = null;
+      listPlansResult = { ok: true, value: [] };
+      getPlanResult = {
+        ok: true,
+        value: {
+          slug: "2026-04",
+          title: "April",
+          month: "2026-04",
+          hemisphere: "both",
+          summary: "Stub",
+          author: "Rob",
+          publishedAt: "2026-04-01T00:00:00.000Z",
+          bodyMd: "Body",
+          objects: [],
+        },
+      };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      const spy = vi.spyOn(globalThis.history, "replaceState");
+      capturedDispatch!({ type: "set-active-plan", slug: "2026-04" });
+      // Give the openPlanBySlug microtask a tick.
+      await Promise.resolve();
+      await Promise.resolve();
+      const urls = spy.mock.calls.map((c) => String(c[2]));
+      const lastUrl = urls[urls.length - 1]!;
+      expect(lastUrl).toContain("plan=2026-04");
+      expect(plansModalMock).not.toBeNull();
+      expect(plansModalMock!.setPlan).toHaveBeenCalled();
+      spy.mockRestore();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("null slug clears state, drops the URL param, and hides the modal", async () => {
+      capturedDispatch = null;
+      plansModalMock = null;
+      listPlansResult = { ok: true, value: [] };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root, new URLSearchParams({ plan: "2026-04" }));
+      await Promise.resolve();
+      const spy = vi.spyOn(globalThis.history, "replaceState");
+      capturedDispatch!({ type: "set-active-plan", slug: null });
+      const urls = spy.mock.calls.map((c) => String(c[2]));
+      const lastUrl = urls[urls.length - 1]!;
+      expect(lastUrl).not.toContain("plan=");
+      expect(plansModalMock).not.toBeNull();
+      expect(plansModalMock!.setPlan).toHaveBeenCalledWith(null);
+      spy.mockRestore();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("getPlan error clears the active slug and surfaces setError on the modal", async () => {
+      capturedDispatch = null;
+      plansModalMock = null;
+      listPlansResult = { ok: true, value: [] };
+      getPlanResult = { ok: false, error: { kind: "not_found" } };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      const spy = vi.spyOn(globalThis.history, "replaceState");
+      capturedDispatch!({ type: "set-active-plan", slug: "missing-slug" });
+      // Wait for openPlanBySlug to resolve + the clearing dispatch to run.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(plansModalMock).not.toBeNull();
+      expect(plansModalMock!.setError).toHaveBeenCalledWith("missing-slug", "not_found");
+      // Final URL should not carry the plan= param because the handler clears it.
+      const urls = spy.mock.calls.map((c) => String(c[2]));
+      const lastUrl = urls[urls.length - 1]!;
+      expect(lastUrl).not.toContain("plan=");
+      spy.mockRestore();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+      // Reset for other tests
+      getPlanResult = {
+        ok: true,
+        value: {
+          slug: "2026-04",
+          title: "April",
+          month: "2026-04",
+          hemisphere: "both",
+          summary: "Stub",
+          author: "Rob",
+          publishedAt: "2026-04-01T00:00:00.000Z",
+          bodyMd: "Body",
+          objects: [],
+        },
+      };
+    });
+  });
+
+  describe("?plan= hydration", () => {
+    it("boot with ?plan=<slug> opens the reader modal", async () => {
+      plansModalMock = null;
+      getPlanResult = {
+        ok: true,
+        value: {
+          slug: "2026-04",
+          title: "April",
+          month: "2026-04",
+          hemisphere: "both",
+          summary: "Stub",
+          author: "Rob",
+          publishedAt: "2026-04-01T00:00:00.000Z",
+          bodyMd: "Body",
+          objects: [],
+        },
+      };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root, new URLSearchParams({ plan: "2026-04" }));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(plansModalMock).not.toBeNull();
+      expect(plansModalMock!.setPlan).toHaveBeenCalled();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("boot with a malformed ?plan= value leaves the modal closed", async () => {
+      plansModalMock = null;
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root, new URLSearchParams({ plan: "Not A Slug" }));
+      await Promise.resolve();
+      expect(plansModalMock).not.toBeNull();
+      expect(plansModalMock!.setPlan).not.toHaveBeenCalled();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+  });
+
+  describe("retry-plans + open-sign-in + onOpenPlans", () => {
+    it("retry-plans intent re-fetches the list", async () => {
+      capturedDispatch = null;
+      plansDrawerMock = null;
+      listPlansResult = { ok: true, value: [] };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(plansDrawerMock).not.toBeNull();
+      plansDrawerMock!.setView.mockClear();
+      capturedDispatch!({ type: "retry-plans" });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(plansDrawerMock!.setView).toHaveBeenCalled();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("open-sign-in intent opens the login modal", async () => {
+      capturedDispatch = null;
+      loginModalMock = null;
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(loginModalMock).not.toBeNull();
+      capturedDispatch!({ type: "open-sign-in" });
+      expect(loginModalMock!.open).toHaveBeenCalled();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("onOpenPlans panel callback opens the drawer and triggers a refresh", async () => {
+      plansDrawerMock = null;
+      capturedPanelOptions = null;
+      listPlansResult = { ok: true, value: [] };
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(capturedPanelOptions).not.toBeNull();
+      expect(capturedPanelOptions!.onOpenPlans).toBeDefined();
+      capturedPanelOptions!.onOpenPlans!();
+      await Promise.resolve();
+      expect(plansDrawerMock).not.toBeNull();
+      expect(plansDrawerMock!.openPanel).toHaveBeenCalled();
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+    });
+
+    it("refreshPlansView maps not_pro error to the not_pro view", async () => {
+      plansDrawerMock = null;
+      listPlansResult = { ok: false, error: { kind: "not_pro" } };
+      capturedDispatch = null;
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(plansDrawerMock).not.toBeNull();
+      plansDrawerMock!.setView.mockClear();
+      capturedDispatch!({ type: "retry-plans" });
+      await Promise.resolve();
+      await Promise.resolve();
+      const calls = plansDrawerMock!.setView.mock.calls;
+      const last = calls[calls.length - 1];
+      expect(last?.[0]).toEqual({ kind: "not_pro" });
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+      // reset
+      listPlansResult = { ok: true, value: [] };
+    });
+
+    it("refreshPlansView maps unauthenticated error to the unauthenticated view", async () => {
+      plansDrawerMock = null;
+      listPlansResult = { ok: false, error: { kind: "unauthenticated" } };
+      capturedDispatch = null;
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(plansDrawerMock).not.toBeNull();
+      plansDrawerMock!.setView.mockClear();
+      capturedDispatch!({ type: "retry-plans" });
+      await Promise.resolve();
+      await Promise.resolve();
+      const calls = plansDrawerMock!.setView.mock.calls;
+      const last = calls[calls.length - 1];
+      expect(last?.[0]).toEqual({ kind: "unauthenticated" });
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+      listPlansResult = { ok: true, value: [] };
+    });
+
+    it("refreshPlansView maps other errors to the error view", async () => {
+      plansDrawerMock = null;
+      listPlansResult = { ok: false, error: { kind: "server" } };
+      capturedDispatch = null;
+      const { root, panelRoot } = makeRoot();
+      await bootstrap(root);
+      expect(plansDrawerMock).not.toBeNull();
+      plansDrawerMock!.setView.mockClear();
+      capturedDispatch!({ type: "retry-plans" });
+      await Promise.resolve();
+      await Promise.resolve();
+      const calls = plansDrawerMock!.setView.mock.calls;
+      const last = calls[calls.length - 1];
+      expect(last?.[0]).toEqual({ kind: "error" });
+      document.body.removeChild(root);
+      document.body.removeChild(panelRoot);
+      listPlansResult = { ok: true, value: [] };
+    });
   });
 });

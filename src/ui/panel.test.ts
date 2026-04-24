@@ -178,6 +178,28 @@ describe("createPanel", () => {
     });
   });
 
+  describe("plans button", () => {
+    it("renders a plans button in the header", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector("[data-testid='panel-plans']");
+      expect(btn).not.toBeNull();
+    });
+
+    it("clicking the plans button invokes onOpenPlans", () => {
+      const onOpenPlans = vi.fn();
+      const { element } = createPanel(container, vi.fn(), { onOpenPlans });
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-plans']")!;
+      btn.click();
+      expect(onOpenPlans).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the plans button is a no-op when no callback is provided", () => {
+      const { element } = createPanel(container);
+      const btn = element.querySelector<HTMLButtonElement>("[data-testid='panel-plans']")!;
+      expect(() => btn.click()).not.toThrow();
+    });
+  });
+
   describe("settings button", () => {
     it("renders a settings button in the header", () => {
       const { element } = createPanel(container);

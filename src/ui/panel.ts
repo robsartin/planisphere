@@ -29,6 +29,7 @@ export type PanelOptions = {
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
   onOpenTonight?: () => void;
+  onOpenPlans?: () => void;
   /**
    * Invoked when a non-Pro user clicks the mode-toggle while planetarium is
    * the active mode (i.e. they're trying to enter Notebook). When supplied,
@@ -58,6 +59,7 @@ export function createPanel(
   const copyLinkBtn = iconButton("panel-copy-link", "🔗", "Copy link");
   const eventsBtn = iconButton("panel-events", "\u{1F4C5}", "Upcoming events");
   const tonightBtn = iconButton("panel-tonight", "♀", "Tonight's sky");
+  const plansBtn = iconButton("panel-plans", "\u{1F4DC}", "Viewing Plans");
   const helpBtn = iconButton("panel-help", "?", "Help");
   const settingsBtn = iconButton("panel-settings", "⚙", "Settings");
   const toggleBtn = iconButton("panel-toggle", "−", "Toggle panel");
@@ -131,6 +133,7 @@ export function createPanel(
               copyLinkBtn,
               eventsBtn,
               tonightBtn,
+              plansBtn,
               helpBtn,
               settingsBtn,
               modeBtn,
@@ -160,6 +163,10 @@ export function createPanel(
 
   tonightBtn.addEventListener("click", () => {
     options.onOpenTonight?.();
+  });
+
+  plansBtn.addEventListener("click", () => {
+    options.onOpenPlans?.();
   });
 
   settingsBtn.addEventListener("click", () => {
