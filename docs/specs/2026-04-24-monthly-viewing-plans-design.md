@@ -124,7 +124,10 @@ export type PlanError =
 
 ### 4.4 Seed-file frontmatter — `data/plans/<slug>.md`
 
-```md
+The frontmatter block between the `---` fences is strict JSON — no trailing commas, no comments, no single-quoted strings. `JSON.parse` is the validator.
+
+<!-- prettier-ignore -->
+```text
 ---
 {
   "slug": "2026-04",
@@ -134,7 +137,9 @@ export type PlanError =
   "summary": "One-line preview for the drawer card.",
   "author": "Rob Sartin",
   "publishedAt": "2026-04-01T00:00:00Z",
-  "objects": [{ "kind": "messier", "id": "31", "label": "Andromeda Galaxy (M31)" }],
+  "objects": [
+    { "kind": "messier", "id": "31", "label": "Andromeda Galaxy (M31)" }
+  ]
 }
 ---
 
