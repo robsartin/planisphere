@@ -180,19 +180,41 @@ function pickHtml(picked: PickedObject): string {
 }
 
 const HOVER_STYLE =
-  "position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
+  "position:fixed;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
   "color:#fff;font:12px/1.4 monospace;padding:6px 10px;border-radius:4px;" +
   "border:1px solid rgba(255,255,255,0.2);white-space:nowrap;z-index:10";
 
 export function createTooltip(
   viewer: Viewer,
-  container: HTMLElement,
+  _container: HTMLElement,
   options: TooltipOptions = {},
 ): Tooltip {
   // Hover tooltip only — pinned / card presentation now lives in ui/object-cards-manager.
+  // Mounted on document.body (not the caller-supplied container) so the popup's
+  // `position: fixed` containing block is the viewport regardless of how the
+  // host app wraps the canvas. The container parameter is kept in the signature
+  // for backward compatibility with existing callers.
   const hoverEl = document.createElement("div");
+  hoverEl.dataset.tooltipHover = "";
   hoverEl.style.cssText = HOVER_STYLE;
-  container.appendChild(hoverEl);
+  document.body.appendChild(hoverEl);
+
+  // Parallel DOM mousemove tracker on the canvas. Cesium's
+  // ScreenSpaceEventType.MOUSE_MOVE delivers `endPosition` in canvas-local
+  // coords, which is correct for picking but cannot be reliably converted
+  // back to viewport coords for popup placement: `getBoundingClientRect()`
+  // breaks under any ancestor with `filter` / `transform` / `will-change`
+  // (e.g. the night-vision filter on `body`), which create new containing
+  // blocks for `position: fixed` descendants. Capture clientX/clientY off
+  // the DOM event — universally viewport-relative — and use those for
+  // placement, while still using Cesium's endPosition for the pick.
+  let lastClientX = 0;
+  let lastClientY = 0;
+  function trackPointer(e: MouseEvent): void {
+    lastClientX = e.clientX;
+    lastClientY = e.clientY;
+  }
+  viewer.scene.canvas.addEventListener("mousemove", trackPointer);
 
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 
@@ -201,8 +223,8 @@ export function createTooltip(
     if (picked !== null) {
       hoverEl.innerHTML = pickHtml(picked);
       hoverEl.style.display = "block";
-      hoverEl.style.left = `${String(movement.endPosition.x + 14)}px`;
-      hoverEl.style.top = `${String(movement.endPosition.y + 14)}px`;
+      hoverEl.style.left = `${String(lastClientX + 14)}px`;
+      hoverEl.style.top = `${String(lastClientY + 14)}px`;
     } else {
       hoverEl.style.display = "none";
     }
@@ -215,6 +237,7 @@ export function createTooltip(
   }, ScreenSpaceEventType.LEFT_CLICK);
 
   function destroy(): void {
+    viewer.scene.canvas.removeEventListener("mousemove", trackPointer);
     handler.destroy();
     hoverEl.remove();
   }
