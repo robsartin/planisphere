@@ -54,6 +54,13 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
           material: Material.fromType("Color", {
             color: Color.WHITE.withAlpha(0.25),
           }),
+          // Attach the VisibleConstellation as the picked id so hovering a
+          // line segment (e.g. anywhere along Scorpius's stick figure) opens
+          // the constellation popup. Without this the polyline picks but
+          // returns picked.id=undefined and the type-guard chain in
+          // pickObject falls through to null. Labels are tiny and rare
+          // pick targets; lines are most of the visible footprint.
+          id: constellation,
         });
         addedPolylines.push(pl as never);
       }
