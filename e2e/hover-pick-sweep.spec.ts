@@ -18,6 +18,13 @@ import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
  * loose enough to absorb star-density variance across runs.
  */
 test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({ page }) => {
+  // 259 probes × (~30 ms move + ~30 ms tooltip read + evaluate roundtrip) is
+  // ~30 s on macOS but ~80 s under Xvfb on ubuntu-latest CI runners. Bump the
+  // per-test timeout above the 60 s default so CI doesn't timeout while still
+  // capturing the result honestly. Keeping tighter timeouts on the navigation
+  // and assertions is the right knob — only the loop is slow.
+  test.setTimeout(180_000);
+
   await seedDefaultStorage(page);
   // Anchorage at midnight — same fixture used by #302's diagnostic.
   await page.goto("/?lat=61.2&lon=-149.9&t=2026-04-25T08:00:00Z");
@@ -59,10 +66,10 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
       const x = Math.round(xMin + ((xMax - xMin) * c) / (cols - 1));
       probes += 1;
       await page.mouse.move(x, y);
-      // Give Cesium one frame to update the tooltip element. The tooltip
-      // toggles its display via inline style on hover; that's the same
-      // signal the production scene uses.
-      await page.waitForTimeout(40);
+      // One animation frame is enough for Cesium's MOUSE_MOVE handler to
+      // update the tooltip's inline display. 25 ms gives 1–2 frames of
+      // headroom under load — empirically stable on macOS and CI Xvfb.
+      await page.waitForTimeout(25);
       const visible = await page.evaluate(() => {
         // The hover tooltip lives on document.body with `data-tooltip-hover`
         // and toggles its inline display between "block" (popup visible) and
