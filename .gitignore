@@ -5,6 +5,11 @@ node_modules/
 dist/
 coverage/
 
+# Playwright (E2E tests, ADR 016)
+playwright-report/
+test-results/
+.playwright/
+
 # Worktrees (managed by git worktree; contents must never be tracked)
 .worktrees/
 

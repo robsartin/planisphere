@@ -20,6 +20,7 @@ const files = [
   ...findFiles("src", ".ts", true),
   ...findFiles("worker", ".ts", true),
   ...findFiles("scripts", ".mjs", true),
+  ...findFiles("e2e", ".ts", true),
   ...findFiles(".", ".ts", false),
 ];
 
