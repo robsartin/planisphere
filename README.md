@@ -76,6 +76,26 @@ See [`docs/architecture.md`](docs/architecture.md) for Mermaid diagrams covering
 
 A change is not "done" until `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:cov && pnpm build` all pass locally.
 
+### Running E2E tests
+
+The Playwright suite under `e2e/` (see [ADR 016](docs/adr/016-playwright-e2e.md))
+covers the surfaces jsdom can't reach — Cesium WebGL pick framebuffers, URL
+hydration in a real browser, and the drawer rail. It runs separately from the
+canonical pre-push gate above, on its own CI job.
+
+First-time setup (once per clone):
+
+    pnpm e2e:install   # downloads headed Chromium under ~/Library/Caches/ms-playwright
+
+Then:
+
+    pnpm e2e           # headed Chromium, starts vite dev server automatically
+
+CI runs the same suite under `xvfb-run -a pnpm e2e` on `ubuntu-latest`. Cesium's
+shaders fail to compile under Playwright's default headless backend, so the
+suite is headed Chromium only. Firefox, WebKit, screenshot baselines, and PR
+preview smoke are explicitly out of scope.
+
 ### Worker / D1 local setup
 
 Phase 2 introduces a Worker + D1 backend. See [`worker/README.md`](worker/README.md)

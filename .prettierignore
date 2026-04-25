@@ -3,6 +3,8 @@ coverage
 .worktrees
 pnpm-lock.yaml
 public
+playwright-report
+test-results
 
 # Seed plans (authored Markdown + strict JSON frontmatter; prettier's
 # trailing-comma insertion breaks JSON.parse).
