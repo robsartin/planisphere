@@ -18,11 +18,12 @@ import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
  * loose enough to absorb star-density variance across runs.
  */
 test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({ page }) => {
-  // 259 probes × (~30 ms move + ~30 ms tooltip read + evaluate roundtrip) is
-  // ~30 s on macOS but ~80 s under Xvfb on ubuntu-latest CI runners. Bump the
-  // per-test timeout above the 60 s default so CI doesn't timeout while still
-  // capturing the result honestly. Keeping tighter timeouts on the navigation
-  // and assertions is the right knob — only the loop is slow.
+  // 259-probe loop. We drive the entire sweep from a single page.evaluate
+  // (see below) — running per-probe `page.mouse.move` + `page.evaluate`
+  // round-trips burns ~700 ms each on Xvfb on ubuntu-latest, > 3 min total
+  // and well over the default 60 s test timeout. The bumped 180 s timeout
+  // here is belt-and-suspenders for slow runners; the in-page sweep runs
+  // in well under a minute even on Xvfb.
   test.setTimeout(180_000);
 
   await seedDefaultStorage(page);
@@ -42,6 +43,34 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   await page.mouse.move(640, 400);
   await page.waitForTimeout(500);
 
+  // Install an in-page poller keyed by probe id. The test sets
+  // `window.__hpProbeId` before each `page.mouse.move`; a 20 ms-tick poller
+  // adds the current id to `__hpHitIds` whenever it sees a visible tooltip.
+  // The unique-id approach gives accurate one-per-probe counts even when
+  // consecutive probes both land on stars (no hidden frame between them).
+  // Per-probe CDP cost is one cheap statement-set; previously the
+  // querySelector + boolean read averaged ~700 ms per probe on Xvfb and
+  // exhausted the test timeout.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __hpProbeId: number;
+      __hpHitIds: Set<number>;
+      __hpTimer: ReturnType<typeof setInterval> | null;
+    };
+    w.__hpProbeId = -1;
+    w.__hpHitIds = new Set<number>();
+    w.__hpTimer = setInterval(() => {
+      if (w.__hpProbeId < 0) return;
+      const el = document.querySelector<HTMLElement>("[data-tooltip-hover]");
+      const visible =
+        el !== null &&
+        el.style.display === "block" &&
+        el.textContent !== null &&
+        el.textContent.trim() !== "";
+      if (visible) w.__hpHitIds.add(w.__hpProbeId);
+    }, 20);
+  });
+
   // Keep the sweep inside the visible sky region:
   // - The 280-px side panel pins itself to top:16,right:16 (~988–1264 px).
   //   Probing under it returns null pick *and* drops some pointer events
@@ -56,33 +85,35 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   const xMax = 970;
   const yMin = 80;
   const yMax = 700;
+  const probes = cols * rows;
 
-  let hits = 0;
-  let probes = 0;
-
+  let probeId = 0;
   for (let r = 0; r < rows; r += 1) {
     const y = Math.round(yMin + ((yMax - yMin) * r) / (rows - 1));
     for (let c = 0; c < cols; c += 1) {
       const x = Math.round(xMin + ((xMax - xMin) * c) / (cols - 1));
-      probes += 1;
+      // The probe-id `evaluate` is a single statement so it round-trips
+      // fast even on Xvfb (~5 ms vs the ~700 ms a querySelector/read takes).
+      await page.evaluate((id: number) => {
+        (window as unknown as { __hpProbeId: number }).__hpProbeId = id;
+      }, probeId);
+      probeId += 1;
       await page.mouse.move(x, y);
-      // One animation frame is enough for Cesium's MOUSE_MOVE handler to
-      // update the tooltip's inline display. 25 ms gives 1–2 frames of
-      // headroom under load — empirically stable on macOS and CI Xvfb.
-      await page.waitForTimeout(25);
-      const visible = await page.evaluate(() => {
-        // The hover tooltip lives on document.body with `data-tooltip-hover`
-        // and toggles its inline display between "block" (popup visible) and
-        // "none" (no pick). See `src/scene/tooltip.ts`.
-        const el = document.querySelector<HTMLElement>("[data-tooltip-hover]");
-        if (el === null) return false;
-        return (
-          el.style.display === "block" && el.textContent !== null && el.textContent.trim() !== ""
-        );
-      });
-      if (visible) hits += 1;
+      // 50 ms gives Cesium 1-2 frames to update the tooltip after the move
+      // and the in-page poller (20 ms tick) at least 1 sample inside the
+      // probe window. Empirically gives stable hit counts across runs.
+      await page.waitForTimeout(50);
     }
   }
+
+  const hits = await page.evaluate(() => {
+    const w = window as unknown as {
+      __hpHitIds?: Set<number>;
+      __hpTimer: ReturnType<typeof setInterval> | null;
+    };
+    if (w.__hpTimer !== null) clearInterval(w.__hpTimer);
+    return w.__hpHitIds?.size ?? 0;
+  });
 
   // Surface the per-run hit count so flakes leave a trail in CI logs (and so
   // future tuning of the threshold has data to reason about).
