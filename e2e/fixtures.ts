@@ -30,45 +30,114 @@ export async function seedDefaultStorage(page: Page): Promise<void> {
 }
 
 /**
- * Wait until Cesium has actually painted at least one frame to the WebGL
- * canvas. Polls the canvas via a 2D scratch surface (drawImage + getImageData)
- * and counts non-black pixels. Used both by the dedicated Cesium-init test and
- * as a precondition for hover-pick / URL-roundtrip tests so they don't probe
- * a black canvas.
+ * Wait until Cesium has painted a non-black centre crop. Why screenshots
+ * rather than `canvas.toDataURL()` / `drawImage(canvas)` / `gl.readPixels`?
+ *
+ * Cesium initialises its WebGL context without `preserveDrawingBuffer:
+ * true` (see `src/scene/viewer.ts`) — that's a performance default we don't
+ * want to flip just for tests. After the scene swaps buffers the back buffer
+ * is undefined; reading the canvas via the 2D pipeline returns a black
+ * image. A `page.screenshot()` captures the *composited* viewport at the
+ * browser-process level, which reflects whatever was last presented,
+ * regardless of the GL context's preservation flag.
+ *
+ * `polling: 200` keeps the cost ≤ 5 screenshots per second; a fully
+ * painted scene typically returns within the first or second probe.
  */
 export async function waitForCesiumPainted(page: Page, timeoutMs = 15_000): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const canvas = document.querySelector<HTMLCanvasElement>("#cesium-container canvas");
-      if (canvas === null || canvas.width === 0 || canvas.height === 0) return false;
-      const scratch = document.createElement("canvas");
-      // Sample a small central crop — Cesium clears to black, so any star
-      // sprite or grid line in the centre region means painting started.
-      const sampleSize = 64;
-      scratch.width = sampleSize;
-      scratch.height = sampleSize;
-      const ctx = scratch.getContext("2d");
-      if (ctx === null) return false;
-      const sx = Math.max(0, Math.floor(canvas.width / 2 - sampleSize / 2));
-      const sy = Math.max(0, Math.floor(canvas.height / 2 - sampleSize / 2));
+  const start = Date.now();
+  // Probe loop: take a small viewport screenshot, decode, count non-black.
+  // `page.screenshot` here returns the composited frame, which reflects
+  // whatever Cesium presented even without `preserveDrawingBuffer`.
+  while (Date.now() - start < timeoutMs) {
+    const png = await page.screenshot({
+      clip: { x: 600, y: 360, width: 80, height: 80 },
+      type: "png",
+      animations: "disabled",
+    });
+    const nonBlack = await page.evaluate(async (bytes: number[]) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: "image/png" });
+      const url = URL.createObjectURL(blob);
       try {
-        ctx.drawImage(canvas, sx, sy, sampleSize, sampleSize, 0, 0, sampleSize, sampleSize);
-      } catch {
-        return false;
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            resolve();
+          };
+          img.onerror = () => {
+            reject(new Error("image decode failed"));
+          };
+          img.src = url;
+        });
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext("2d");
+        if (ctx === null) return 0;
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, c.width, c.height).data;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i] ?? 0;
+          const g = data[i + 1] ?? 0;
+          const b = data[i + 2] ?? 0;
+          if (r + g + b > 12) count += 1;
+        }
+        return count;
+      } finally {
+        URL.revokeObjectURL(url);
       }
-      const data = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
-      let nonBlack = 0;
+    }, Array.from(png));
+    if (nonBlack >= 4) return;
+    await page.waitForTimeout(200);
+  }
+  throw new Error(
+    `Cesium canvas did not paint within ${String(timeoutMs)}ms (no non-black pixels in 80×80 centre crop)`,
+  );
+}
+
+/**
+ * Count non-black pixels across a full-viewport screenshot. The Cesium-
+ * init test uses this for its "≥ 500 non-black pixels" assertion. Same
+ * decode-via-page trick as `waitForCesiumPainted`.
+ */
+export async function countNonBlackPixelsOnPage(page: Page): Promise<number> {
+  const png = await page.screenshot({
+    fullPage: false,
+    type: "png",
+    animations: "disabled",
+  });
+  return page.evaluate(async (bytes: number[]) => {
+    const blob = new Blob([new Uint8Array(bytes)], { type: "image/png" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          resolve();
+        };
+        img.onerror = () => {
+          reject(new Error("image decode failed"));
+        };
+        img.src = url;
+      });
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      if (ctx === null) return 0;
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      let count = 0;
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i] ?? 0;
         const g = data[i + 1] ?? 0;
         const b = data[i + 2] ?? 0;
-        if (r + g + b > 12) nonBlack += 1;
+        if (r + g + b > 12) count += 1;
       }
-      // ≥ 4 non-black pixels in the 4096-pixel central crop means Cesium
-      // has at least drawn the grid / a sprite. Conservative on purpose.
-      return nonBlack >= 4;
-    },
-    null,
-    { timeout: timeoutMs, polling: 200 },
-  );
+      return count;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }, Array.from(png));
 }

@@ -28,15 +28,27 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
 
   // Pre-warm: nudge the mouse to register a real DOM event before sweeping.
   // Without this Cesium occasionally drops the first 1-2 picks of a run.
+  // The 500 ms settle is also load-bearing — Cesium has occasional async
+  // texture uploads (constellation labels, Messier symbols) that finish
+  // after the first painted frame; their sprites become pickable only
+  // once their billboards are mounted.
   await page.mouse.move(640, 400);
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(500);
 
+  // Keep the sweep inside the visible sky region:
+  // - The 280-px side panel pins itself to top:16,right:16 (~988–1264 px).
+  //   Probing under it returns null pick *and* drops some pointer events
+  //   onto the panel rather than the canvas. xMax stops at 970.
+  // - The bottom-HUD chip sits at y > 760; the location chip occupies the
+  //   bottom-left ~150 px and the compass chip the bottom-right ~80 px.
+  //   yMax stops at 700.
+  // - The "Cesium ion" credit sits top-left at y < 50. yMin stops at 80.
   const cols = 37;
   const rows = 7;
-  const xMin = 60;
-  const xMax = 1220;
-  const yMin = 120;
-  const yMax = 720;
+  const xMin = 80;
+  const xMax = 970;
+  const yMin = 80;
+  const yMax = 700;
 
   let hits = 0;
   let probes = 0;

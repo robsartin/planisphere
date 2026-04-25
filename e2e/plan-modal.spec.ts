@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { seedDefaultStorage } from "./fixtures";
 
 /**
  * Deep-link plan modal test (issue #303 #3).
@@ -60,8 +60,12 @@ test("deep-link ?plan=<slug> opens the plan reader modal with the plan title", a
   });
 
   await page.goto("/?lat=61.2&lon=-149.9&t=2026-04-25T08:00:00Z&plan=2026-04");
+  // Don't wait for the canvas to paint here — the modal renders on top of
+  // a `rgba(0,0,0,0.55)` backdrop, which would dim any non-black sample
+  // taken from the centre crop. The test cares about the modal itself, and
+  // its `setPlan` is fired by `openPlanBySlug` immediately after bootstrap
+  // (URL hydration → set-active-plan intent → `getPlan` → `plansModal.setPlan`).
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
-  await waitForCesiumPainted(page, 10_000);
 
   // The modal renders into a fixed `data-plans-modal-card` container. Title
   // text is set by `setPlan(plan)` in `src/ui/plans-modal.ts`.
