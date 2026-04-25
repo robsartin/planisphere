@@ -24,27 +24,36 @@ function makeMockViewer() {
   };
 }
 
+function findTooltip(): HTMLElement {
+  const el = document.body.querySelector<HTMLElement>("[data-tooltip-hover]");
+  if (el === null) throw new Error("tooltip element not found in document.body");
+  return el;
+}
+
 describe("createTooltip", () => {
   beforeEach(() => {
     mockSetInputAction.mockClear();
     mockDestroy.mockClear();
     mockPick.mockClear();
+    document.body.querySelectorAll("[data-tooltip-hover]").forEach((node) => {
+      node.remove();
+    });
   });
 
-  it("creates a hover tooltip div inside the container", () => {
+  it("creates a hover tooltip div on document.body (escapes containing-block traps)", () => {
     const container = document.createElement("div");
     const viewer = makeMockViewer();
     createTooltip(viewer as never, container);
-    const tooltipDiv = container.querySelector("div");
-    expect(tooltipDiv).toBeTruthy();
-    expect(tooltipDiv!.style.display).toBe("none");
+    const tooltipDiv = findTooltip();
+    expect(tooltipDiv.style.display).toBe("none");
+    expect(container.querySelector("[data-tooltip-hover]")).toBeNull();
   });
 
-  it("creates exactly one DOM element (hover only — no pinned tooltip any more)", () => {
+  it("creates exactly one tooltip element (hover only — no pinned tooltip any more)", () => {
     const container = document.createElement("div");
     const viewer = makeMockViewer();
     createTooltip(viewer as never, container);
-    expect(container.querySelectorAll("div").length).toBe(1);
+    expect(document.body.querySelectorAll("[data-tooltip-hover]").length).toBe(1);
     expect(container.querySelector("[data-pinned]")).toBeNull();
   });
 
@@ -79,7 +88,7 @@ describe("createTooltip", () => {
     });
     moveCallback({ endPosition: { x: 100, y: 200 } });
 
-    const tooltipDiv = container.querySelector("div")!;
+    const tooltipDiv = findTooltip();
     expect(tooltipDiv.style.display).toBe("block");
     expect(tooltipDiv.innerHTML).toContain("Sirius");
     expect(tooltipDiv.innerHTML).toContain("-1.44");
@@ -98,7 +107,7 @@ describe("createTooltip", () => {
     mockPick.mockReturnValueOnce(undefined);
     moveCallback({ endPosition: { x: 100, y: 200 } });
 
-    const tooltipDiv = container.querySelector("div")!;
+    const tooltipDiv = findTooltip();
     expect(tooltipDiv.style.display).toBe("none");
   });
 
@@ -108,7 +117,7 @@ describe("createTooltip", () => {
     const tooltip = createTooltip(viewer as never, container);
     tooltip.destroy();
     expect(mockDestroy).toHaveBeenCalledOnce();
-    expect(container.querySelectorAll("div").length).toBe(0);
+    expect(document.body.querySelectorAll("[data-tooltip-hover]").length).toBe(0);
   });
 
   it("shows tooltip with body info when a CelestialBody billboard is picked", () => {
@@ -136,7 +145,7 @@ describe("createTooltip", () => {
     });
     moveCallback({ endPosition: { x: 150, y: 250 } });
 
-    const tooltipDiv = container.querySelector("div")!;
+    const tooltipDiv = findTooltip();
     expect(tooltipDiv.style.display).toBe("block");
     expect(tooltipDiv.innerHTML).toContain("Moon");
     expect(tooltipDiv.innerHTML).toContain("-12.7");
@@ -165,7 +174,7 @@ describe("createTooltip", () => {
     });
     moveCallback({ endPosition: { x: 200, y: 300 } });
 
-    const tooltipDiv = container.querySelector("div")!;
+    const tooltipDiv = findTooltip();
     expect(tooltipDiv.style.display).toBe("block");
     expect(tooltipDiv.innerHTML).toContain("ISS");
     expect(tooltipDiv.innerHTML).toContain("25544");
@@ -196,7 +205,7 @@ describe("createTooltip", () => {
     });
     moveCallback({ endPosition: { x: 100, y: 200 } });
 
-    const tooltipDiv = container.querySelector("div")!;
+    const tooltipDiv = findTooltip();
     expect(tooltipDiv.style.display).toBe("block");
     expect(tooltipDiv.innerHTML).toContain("M42");
     expect(tooltipDiv.innerHTML).toContain("Orion Nebula");
