@@ -88,7 +88,13 @@ function makeViewer(fovy = Math.PI / 3): Viewer {
   return {
     scene: {
       screenSpaceCameraController: controller,
-      canvas: { clientWidth: 800, clientHeight: 600 } as unknown as HTMLCanvasElement,
+      canvas: {
+        clientWidth: 800,
+        clientHeight: 600,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as HTMLCanvasElement,
       camera,
       pick: vi.fn().mockReturnValue(undefined),
     },
@@ -236,14 +242,17 @@ describe("setupGestures", () => {
     vi.useRealTimers();
   });
 
-  it("registers a WHEEL handler for scroll-wheel zoom", () => {
+  it("registers a wheel listener on the canvas (alt/az pan with Cmd-zoom)", () => {
     const viewer = makeViewer();
     setupGestures(viewer, {
       getObserver: () => ({ lat: 0, lon: 0 }),
       resolveObjectAt: () => null,
     });
-    const registeredEvents = mockSetInputAction.mock.calls.map((call: unknown[]) => call[1]);
-    expect(registeredEvents).toContain("WHEEL");
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelCalls = addEventListener.mock.calls.filter((c: unknown[]) => c[0] === "wheel");
+    expect(wheelCalls).toHaveLength(1);
   });
 
   it("registers a LEFT_DOUBLE_CLICK handler", () => {
@@ -256,27 +265,98 @@ describe("setupGestures", () => {
     expect(registeredEvents).toContain("LEFT_DOUBLE_CLICK");
   });
 
-  it("wheel zoom clamps FOV within [FOV_MIN_DEG, FOV_MAX_DEG]", () => {
+  it("Cmd/Ctrl+wheel zoom clamps FOV within [FOV_MIN_DEG, FOV_MAX_DEG]", () => {
     const viewer = makeViewer(Math.PI / 3); // 60 deg
     setupGestures(viewer, {
       getObserver: () => ({ lat: 0, lon: 0 }),
       resolveObjectAt: () => null,
     });
-    // Find the wheel handler
-    const wheelCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "WHEEL") as
-      | [(delta: number) => void, string]
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelCall = addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as
+      | [string, (e: WheelEvent) => void, AddEventListenerOptions]
       | undefined;
     expect(wheelCall).toBeDefined();
-    const wheelHandler = wheelCall![0];
-    // Huge negative delta (user scrolls up, zoom in) — clamp at min
-    for (let i = 0; i < 1000; i++) wheelHandler(-1000);
+    const wheelHandler = wheelCall![1];
+    const make = (deltaY: number) =>
+      ({
+        deltaX: 0,
+        deltaY,
+        ctrlKey: true,
+        metaKey: false,
+        preventDefault: () => undefined,
+      }) as unknown as WheelEvent;
+    // Huge negative delta — clamp at min
+    for (let i = 0; i < 1000; i++) wheelHandler(make(-1000));
     const frustum = viewer.camera.frustum as { fovy: number };
     const fovDeg = (frustum.fovy * 180) / Math.PI;
     expect(fovDeg).toBeGreaterThanOrEqual(1 - 1e-6);
-    // Huge positive delta (scroll down, zoom out) — clamp at max
-    for (let i = 0; i < 1000; i++) wheelHandler(1000);
+    // Huge positive delta — clamp at max
+    for (let i = 0; i < 1000; i++) wheelHandler(make(1000));
     const fovDeg2 = ((viewer.camera.frustum as { fovy: number }).fovy * 180) / Math.PI;
     expect(fovDeg2).toBeLessThanOrEqual(120 + 1e-6);
+  });
+
+  it("plain wheel pans alt/az (no FOV change)", () => {
+    const viewer = makeViewer(Math.PI / 3);
+    setupGestures(viewer, {
+      getObserver: () => ({ lat: 40, lon: -74 }),
+      resolveObjectAt: () => null,
+    });
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelCall = addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as
+      | [string, (e: WheelEvent) => void, AddEventListenerOptions]
+      | undefined;
+    const wheelHandler = wheelCall![1];
+    const setView = (viewer.camera as unknown as { setView: ReturnType<typeof vi.fn> }).setView;
+    setView.mockClear();
+    const fovBefore = (viewer.camera.frustum as { fovy: number }).fovy;
+    wheelHandler({
+      deltaX: 0,
+      deltaY: 100,
+      ctrlKey: false,
+      metaKey: false,
+      preventDefault: () => undefined,
+    } as unknown as WheelEvent);
+    expect(setView).toHaveBeenCalled();
+    expect((viewer.camera.frustum as { fovy: number }).fovy).toBe(fovBefore);
+  });
+
+  it("plain wheel altitude is clamped to [-89.9, 89.9]", () => {
+    const viewer = makeViewer();
+    // Camera "looks up" near zenith so big negative deltaY would push past 90.
+    (viewer.camera as unknown as { pitch: number; heading: number }).pitch = (89.5 * Math.PI) / 180;
+    (viewer.camera as unknown as { heading: number }).heading = 0;
+    setupGestures(viewer, {
+      getObserver: () => ({ lat: 0, lon: 0 }),
+      resolveObjectAt: () => null,
+    });
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelHandler = (
+      addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as [
+        string,
+        (e: WheelEvent) => void,
+      ]
+    )[1];
+    const setView = (viewer.camera as unknown as { setView: ReturnType<typeof vi.fn> }).setView;
+    setView.mockClear();
+    // Big negative deltaY (drag world up = look up) tries to push alt past 90
+    wheelHandler({
+      deltaX: 0,
+      deltaY: -10_000,
+      ctrlKey: false,
+      metaKey: false,
+      preventDefault: () => undefined,
+    } as unknown as WheelEvent);
+    const lastCall = setView.mock.calls[setView.mock.calls.length - 1] as [
+      { orientation: { pitch: number } },
+    ];
+    expect(lastCall[0].orientation.pitch).toBeLessThanOrEqual((89.9 * Math.PI) / 180 + 1e-6);
   });
 
   it("double-tap with no picked object resets view toward zenith", () => {
@@ -330,7 +410,7 @@ describe("setupGestures", () => {
     expect(mockHandlerDestroy).toHaveBeenCalled();
   });
 
-  it("invokes onZoom callback after a wheel event (so caller can re-render reticle)", () => {
+  it("invokes onZoom callback after a Cmd/Ctrl+wheel event (so caller can re-render reticle)", () => {
     const viewer = makeViewer();
     const onZoom = vi.fn();
     setupGestures(viewer, {
@@ -338,11 +418,50 @@ describe("setupGestures", () => {
       resolveObjectAt: () => null,
       onZoom,
     });
-    const wheelCall = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === "WHEEL") as
-      | [(delta: number) => void, string]
-      | undefined;
-    wheelCall![0](-100);
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelHandler = (
+      addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as [
+        string,
+        (e: WheelEvent) => void,
+      ]
+    )[1];
+    wheelHandler({
+      deltaX: 0,
+      deltaY: -100,
+      ctrlKey: true,
+      metaKey: false,
+      preventDefault: () => undefined,
+    } as unknown as WheelEvent);
     expect(onZoom).toHaveBeenCalled();
+  });
+
+  it("does NOT invoke onZoom on a plain (no-modifier) wheel event", () => {
+    const viewer = makeViewer();
+    const onZoom = vi.fn();
+    setupGestures(viewer, {
+      getObserver: () => ({ lat: 0, lon: 0 }),
+      resolveObjectAt: () => null,
+      onZoom,
+    });
+    const addEventListener = (
+      viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
+    ).addEventListener;
+    const wheelHandler = (
+      addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as [
+        string,
+        (e: WheelEvent) => void,
+      ]
+    )[1];
+    wheelHandler({
+      deltaX: 0,
+      deltaY: -100,
+      ctrlKey: false,
+      metaKey: false,
+      preventDefault: () => undefined,
+    } as unknown as WheelEvent);
+    expect(onZoom).not.toHaveBeenCalled();
   });
 
   it("PINCH_MOVE with fingers apart (bigger distance) zooms in (smaller FOV)", () => {
