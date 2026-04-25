@@ -199,32 +199,17 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
     setCameraView(camera, lat, lon, nextAz, nextAlt);
   }
 
-  // Track the last cursor position so we can re-fire a synthetic mousemove
-  // after a scroll-driven camera change. The hover-tooltip subsystem
-  // (scene/tooltip.ts) only re-picks on MOUSE_MOVE — without this the tooltip
-  // becomes stale (or appears broken) as the world slides under a stationary
-  // cursor during scroll.
-  let lastClientX = 0;
-  let lastClientY = 0;
-  function onMouseMoveTrack(e: MouseEvent): void {
-    lastClientX = e.clientX;
-    lastClientY = e.clientY;
-  }
-  scene.canvas.addEventListener("mousemove", onMouseMoveTrack);
-
-  function refireMouseMove(): void {
-    scene.canvas.dispatchEvent(
-      new MouseEvent("mousemove", {
-        clientX: lastClientX,
-        clientY: lastClientY,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-  }
-
   // Bypass Cesium's WHEEL action so we can read both deltaX (trackpad
   // horizontal scroll) and deltaY off the raw DOM event.
+  //
+  // NOTE: an earlier version of this handler also added a `mousemove` tracker
+  // and dispatched a synthetic mousemove after each scroll-driven camera
+  // change to keep the hover tooltip in sync with the moved sky. That
+  // synthetic event poisoned Cesium's MOUSE_MOVE pipeline (offsetX/offsetY
+  // aren't settable via MouseEvent init, so picks landed at (0,0) and
+  // subsequent hover tracking broke for planets/stars/satellites). Hover
+  // is now allowed to stay briefly stale during active scroll; it refreshes
+  // naturally on the next real cursor motion.
   function onWheel(e: WheelEvent): void {
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) {
@@ -233,7 +218,6 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
       return;
     }
     applyWheelPan(e.deltaX, e.deltaY);
-    refireMouseMove();
   }
   scene.canvas.addEventListener("wheel", onWheel, { passive: false });
 
@@ -283,7 +267,6 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
 
   function destroy(): void {
     scene.canvas.removeEventListener("wheel", onWheel);
-    scene.canvas.removeEventListener("mousemove", onMouseMoveTrack);
     handler.destroy();
   }
 
