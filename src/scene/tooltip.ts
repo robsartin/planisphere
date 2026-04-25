@@ -208,22 +208,6 @@ export function createTooltip(
   // blocks for `position: fixed` descendants. Capture clientX/clientY off
   // the DOM event — universally viewport-relative — and use those for
   // placement, while still using Cesium's endPosition for the pick.
-  // ===== TEMP DEBUG OVERLAY (remove before merge) ============================
-  // Pinned top-left div that prints live diagnostic info every mousemove.
-  // Goal: figure out which layer is failing for "hover broken on left side."
-  const debugEl = document.createElement("div");
-  debugEl.dataset.tooltipDebug = "";
-  debugEl.style.cssText =
-    "position:fixed;top:8px;left:8px;z-index:99999;pointer-events:none;" +
-    "background:rgba(0,0,0,0.85);color:#0f0;font:11px/1.3 monospace;" +
-    "padding:6px 10px;border:1px solid #0f0;white-space:pre;border-radius:4px;";
-  debugEl.textContent = "[hover-debug] waiting for mousemove…";
-  document.body.appendChild(debugEl);
-  function logDebug(line: string): void {
-    debugEl.textContent = line;
-  }
-  // ===== END TEMP DEBUG OVERLAY ==============================================
-
   let lastClientX = 0;
   let lastClientY = 0;
   function trackPointer(e: MouseEvent): void {
@@ -236,8 +220,6 @@ export function createTooltip(
 
   handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
     const picked = pickObject(viewer, movement.endPosition);
-    const rect = viewer.scene.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio;
     if (picked !== null) {
       hoverEl.innerHTML = pickHtml(picked);
       hoverEl.style.display = "block";
@@ -246,16 +228,6 @@ export function createTooltip(
     } else {
       hoverEl.style.display = "none";
     }
-    logDebug(
-      `cursor.client=(${String(lastClientX)}, ${String(lastClientY)})\n` +
-        `cesium.endPos=(${String(Math.round(movement.endPosition.x))}, ${String(Math.round(movement.endPosition.y))})\n` +
-        `canvas.rect=L${String(Math.round(rect.left))} T${String(Math.round(rect.top))} W${String(Math.round(rect.width))} H${String(Math.round(rect.height))}\n` +
-        `dpr=${String(dpr)}\n` +
-        `picked.kind=${picked?.kind ?? "null"}\n` +
-        `popup.display=${hoverEl.style.display}\n` +
-        `popup.left=${hoverEl.style.left || "(unset)"}\n` +
-        `popup.top=${hoverEl.style.top || "(unset)"}`,
-    );
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
   handler.setInputAction((movement: { position: Cartesian2 }) => {
