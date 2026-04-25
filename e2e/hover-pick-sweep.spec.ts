@@ -43,32 +43,47 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   await page.mouse.move(640, 400);
   await page.waitForTimeout(500);
 
-  // Install an in-page poller keyed by probe id. The test sets
-  // `window.__hpProbeId` before each `page.mouse.move`; a 20 ms-tick poller
-  // adds the current id to `__hpHitIds` whenever it sees a visible tooltip.
-  // The unique-id approach gives accurate one-per-probe counts even when
-  // consecutive probes both land on stars (no hidden frame between them).
-  // Per-probe CDP cost is one cheap statement-set; previously the
-  // querySelector + boolean read averaged ~700 ms per probe on Xvfb and
-  // exhausted the test timeout.
+  // Install an in-page sampler that hooks the canvas's native `mousemove`
+  // events. Cesium's hover handler runs synchronously on `mousemove`, then
+  // its render loop updates the tooltip's inline display next animation
+  // frame. We therefore key hits by `(probeKey)` — derived from the
+  // mouse coords — and check the tooltip state ~30 ms after each move via
+  // a microtask scheduled inside the listener. No per-probe CDP roundtrip
+  // is needed beyond the `page.mouse.move` itself.
+  //
+  // Why this design? The previous "per-probe `page.evaluate` to set a
+  // probeId" approach round-tripped ~700 ms per probe on Xvfb on
+  // ubuntu-latest CI (vs. ~5 ms on macOS), pushing the 259-probe loop
+  // past the 180 s test timeout. By piggybacking on the mousemove event
+  // that the `page.mouse.move` already triggers, we get the probe-id
+  // for free and only pay for the move + sleep — no second roundtrip.
   await page.evaluate(() => {
-    const w = window as unknown as {
-      __hpProbeId: number;
-      __hpHitIds: Set<number>;
-      __hpTimer: ReturnType<typeof setInterval> | null;
-    };
-    w.__hpProbeId = -1;
-    w.__hpHitIds = new Set<number>();
-    w.__hpTimer = setInterval(() => {
-      if (w.__hpProbeId < 0) return;
-      const el = document.querySelector<HTMLElement>("[data-tooltip-hover]");
-      const visible =
-        el !== null &&
-        el.style.display === "block" &&
-        el.textContent !== null &&
-        el.textContent.trim() !== "";
-      if (visible) w.__hpHitIds.add(w.__hpProbeId);
-    }, 20);
+    const canvas = document.querySelector<HTMLCanvasElement>("#cesium-container canvas");
+    if (canvas === null) return;
+    const w = window as unknown as { __hpHitKeys: Set<string> };
+    w.__hpHitKeys = new Set<string>();
+    canvas.addEventListener("mousemove", (e: MouseEvent) => {
+      // Snapshot coords now; check tooltip after Cesium's frame updates.
+      const key = `${String(Math.round(e.clientX))},${String(Math.round(e.clientY))}`;
+      // Three rAF gives Cesium 2 frames to react and 1 frame for the
+      // tooltip's inline-style write to land. Empirically stable on
+      // both macOS and Xvfb.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const t = document.querySelector<HTMLElement>("[data-tooltip-hover]");
+            if (
+              t !== null &&
+              t.style.display === "block" &&
+              t.textContent !== null &&
+              t.textContent.trim() !== ""
+            ) {
+              w.__hpHitKeys.add(key);
+            }
+          });
+        });
+      });
+    });
   });
 
   // Keep the sweep inside the visible sky region:
@@ -87,32 +102,23 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   const yMax = 700;
   const probes = cols * rows;
 
-  let probeId = 0;
   for (let r = 0; r < rows; r += 1) {
     const y = Math.round(yMin + ((yMax - yMin) * r) / (rows - 1));
     for (let c = 0; c < cols; c += 1) {
       const x = Math.round(xMin + ((xMax - xMin) * c) / (cols - 1));
-      // The probe-id `evaluate` is a single statement so it round-trips
-      // fast even on Xvfb (~5 ms vs the ~700 ms a querySelector/read takes).
-      await page.evaluate((id: number) => {
-        (window as unknown as { __hpProbeId: number }).__hpProbeId = id;
-      }, probeId);
-      probeId += 1;
       await page.mouse.move(x, y);
-      // 50 ms gives Cesium 1-2 frames to update the tooltip after the move
-      // and the in-page poller (20 ms tick) at least 1 sample inside the
-      // probe window. Empirically gives stable hit counts across runs.
+      // Frame budget for Cesium's pick + tooltip update + the listener's
+      // 3-rAF deferred sample. ~50 ms is 3 frames at 60 fps with headroom.
       await page.waitForTimeout(50);
     }
   }
 
+  // One final settle to make sure the listener for the last probe ran.
+  await page.waitForTimeout(100);
+
   const hits = await page.evaluate(() => {
-    const w = window as unknown as {
-      __hpHitIds?: Set<number>;
-      __hpTimer: ReturnType<typeof setInterval> | null;
-    };
-    if (w.__hpTimer !== null) clearInterval(w.__hpTimer);
-    return w.__hpHitIds?.size ?? 0;
+    const w = window as unknown as { __hpHitKeys?: Set<string> };
+    return w.__hpHitKeys?.size ?? 0;
   });
 
   // Surface the per-run hit count so flakes leave a trail in CI logs (and so
