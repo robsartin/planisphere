@@ -180,7 +180,7 @@ function pickHtml(picked: PickedObject): string {
 }
 
 const HOVER_STYLE =
-  "position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
+  "position:fixed;pointer-events:none;display:none;background:rgba(0,0,0,0.85);" +
   "color:#fff;font:12px/1.4 monospace;padding:6px 10px;border-radius:4px;" +
   "border:1px solid rgba(255,255,255,0.2);white-space:nowrap;z-index:10";
 
@@ -199,10 +199,16 @@ export function createTooltip(
   handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
     const picked = pickObject(viewer, movement.endPosition);
     if (picked !== null) {
+      // Cesium reports endPosition in canvas-local coords. Convert to
+      // viewport coords (matching `position: fixed`) by offsetting against
+      // the canvas's bounding rect — this keeps the popup glued to the
+      // cursor when the canvas is offset from the page origin (HUD bars,
+      // drawers) and at any object position, not just near screen center.
+      const rect = viewer.scene.canvas.getBoundingClientRect();
       hoverEl.innerHTML = pickHtml(picked);
       hoverEl.style.display = "block";
-      hoverEl.style.left = `${String(movement.endPosition.x + 14)}px`;
-      hoverEl.style.top = `${String(movement.endPosition.y + 14)}px`;
+      hoverEl.style.left = `${String(rect.left + movement.endPosition.x + 14)}px`;
+      hoverEl.style.top = `${String(rect.top + movement.endPosition.y + 14)}px`;
     } else {
       hoverEl.style.display = "none";
     }
