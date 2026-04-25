@@ -137,6 +137,13 @@ function generateMessierSprite(type: string): HTMLCanvasElement {
     ctx = null;
   }
   if (!ctx) return canvas;
+  // Fill the entire sprite with an effectively-invisible-but-non-zero alpha
+  // before drawing the stroked symbol. Cesium's billboard picker samples the
+  // texture's alpha channel — outline-only sprites with a fully transparent
+  // interior are unpickable except on the ~1.5-px-wide stroke. The 0.01 alpha
+  // adds no visible artifact but turns the full bounding box into a hit area.
+  ctx.fillStyle = "rgba(255,255,255,0.01)";
+  ctx.fillRect(0, 0, SYMBOL_SIZE, SYMBOL_SIZE);
   const spec = symbolSpec(type);
   const center = SYMBOL_SIZE / 2;
   const radius = SYMBOL_SIZE / 2;
