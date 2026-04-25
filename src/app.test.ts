@@ -674,7 +674,7 @@ describe("bootstrap", () => {
     document.body.removeChild(root);
   });
 
-  it("wheel gesture re-renders the reticle layer via onZoom", async () => {
+  it("wheel + double-click gestures bootstrap without throwing (exercises onZoom + resolveObjectAt)", async () => {
     capturedDispatch = null;
     const root = document.createElement("main");
     root.id = "app";
@@ -687,38 +687,49 @@ describe("bootstrap", () => {
     document.body.appendChild(root);
 
     const cesium = await import("cesium");
+    const viewerCtor = vi.mocked(cesium.Viewer);
     const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
+    viewerCtor.mockClear();
     handlerCtor.mockClear();
 
     await bootstrap(root, new URLSearchParams({ fov: "naked-eye" }));
 
-    // Collect WHEEL handler across all ScreenSpaceEventHandler instances
+    // Wheel listener now lives on the canvas DOM element (no longer routed
+    // through Cesium's ScreenSpaceEventHandler). Dispatch a real WheelEvent
+    // on the viewer's canvas to exercise the pan + zoom paths.
+    const viewer = viewerCtor.mock.results[0]!.value as { scene: { canvas: HTMLCanvasElement } };
+    const canvas = viewer.scene.canvas;
+    expect(() =>
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", { deltaX: 0, deltaY: -100, ctrlKey: true, cancelable: true }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", { deltaX: 5, deltaY: 5, ctrlKey: false, cancelable: true }),
+      ),
+    ).not.toThrow();
+
+    // LEFT_DOUBLE_CLICK is still wired through Cesium's ScreenSpaceEventHandler.
     const handlers = handlerCtor.mock.results.map(
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
     );
-    let wheelFn: ((delta: number) => void) | null = null;
     let doubleClickFn: ((ev: { position: { x: number; y: number } }) => void) | null = null;
     for (const h of handlers) {
       for (const call of h.setInputAction.mock.calls) {
         const [fn, type] = call as [unknown, unknown];
-        if (type === cesium.ScreenSpaceEventType.WHEEL) {
-          wheelFn = fn as (delta: number) => void;
-        }
         if (type === cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK) {
           doubleClickFn = fn as (ev: { position: { x: number; y: number } }) => void;
         }
       }
     }
-    expect(wheelFn).not.toBeNull();
     expect(doubleClickFn).not.toBeNull();
-    // Fire them — exercises resolveObjectAt, getObserver, onZoom callbacks in app.ts
-    expect(() => wheelFn!(-100)).not.toThrow();
     expect(() => doubleClickFn!({ position: { x: 100, y: 100 } })).not.toThrow();
 
     document.body.removeChild(root);
   });
 
-  it("registers gesture handlers (WHEEL, LEFT_DOUBLE_CLICK) on bootstrap", async () => {
+  it("registers gesture handlers (canvas wheel + LEFT_DOUBLE_CLICK) on bootstrap", async () => {
     capturedDispatch = null;
     const root = document.createElement("main");
     root.id = "app";
@@ -731,19 +742,29 @@ describe("bootstrap", () => {
     document.body.appendChild(root);
 
     const cesium = await import("cesium");
+    const viewerCtor = vi.mocked(cesium.Viewer);
     const handlerCtor = vi.mocked(cesium.ScreenSpaceEventHandler);
+    viewerCtor.mockClear();
     handlerCtor.mockClear();
 
     await bootstrap(root);
 
-    // Collect every event type registered across all ScreenSpaceEventHandler instances
+    // Wheel handler lives on the canvas now — spy on addEventListener via
+    // dispatching an event and asserting cancelable behavior implies a
+    // listener handled it. Cleaner: verify by dispatching a plain wheel event
+    // and confirming preventDefault was honored.
+    const viewer = viewerCtor.mock.results[0]!.value as { scene: { canvas: HTMLCanvasElement } };
+    const wheelEvent = new WheelEvent("wheel", { deltaY: 1, cancelable: true });
+    viewer.scene.canvas.dispatchEvent(wheelEvent);
+    expect(wheelEvent.defaultPrevented).toBe(true);
+
+    // LEFT_DOUBLE_CLICK still goes through ScreenSpaceEventHandler.
     const handlers = handlerCtor.mock.results.map(
       (r) => r.value as { setInputAction: ReturnType<typeof vi.fn> },
     );
     const allEvents: unknown[] = handlers.flatMap((h) =>
       h.setInputAction.mock.calls.map((c: unknown[]) => c[1]),
     );
-    expect(allEvents).toContain(cesium.ScreenSpaceEventType.WHEEL);
     expect(allEvents).toContain(cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     document.body.removeChild(root);
   });
