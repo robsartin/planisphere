@@ -17,7 +17,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: process.env.CI ? "github" : "list",
+  // CI gets GitHub annotations *and* an HTML report written to
+  // `playwright-report/` so the workflow's upload-artifact step has
+  // something to upload (it currently warns "No files were found"
+  // because neither "github" nor "list" writes a report directory).
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   timeout: 60_000,
 
   use: {

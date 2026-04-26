@@ -60,8 +60,16 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>("#cesium-container canvas");
     if (canvas === null) return;
-    const w = window as unknown as { __hpHitKeys: Set<string> };
+    const w = window as unknown as {
+      __hpHitKeys: Set<string>;
+      __hpKindCounts: Record<string, number>;
+    };
     w.__hpHitKeys = new Set<string>();
+    // Per-pick "kind" tally so we can assert that the sweep doesn't go all
+    // stars — constellation-line picks (regression case from #305) need to
+    // show up too. Star popups end with "RA …", constellation popups with
+    // "(constellation)"; we key on those textContent suffixes.
+    w.__hpKindCounts = { star: 0, constellation: 0, other: 0 };
     canvas.addEventListener("mousemove", (e: MouseEvent) => {
       // Snapshot coords now; check tooltip after Cesium's frame updates.
       const key = `${String(Math.round(e.clientX))},${String(Math.round(e.clientY))}`;
@@ -79,6 +87,16 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
               t.textContent.trim() !== ""
             ) {
               w.__hpHitKeys.add(key);
+              const txt = t.textContent;
+              if (txt.includes("(constellation)")) {
+                w.__hpKindCounts.constellation += 1;
+              } else if (/RA \d+h/.test(txt)) {
+                // Stars / planets / Messier all show RA — distinguishing
+                // them further isn't useful for this regression assertion.
+                w.__hpKindCounts.star += 1;
+              } else {
+                w.__hpKindCounts.other += 1;
+              }
             }
           });
         });
@@ -116,15 +134,34 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   // One final settle to make sure the listener for the last probe ran.
   await page.waitForTimeout(100);
 
-  const hits = await page.evaluate(() => {
-    const w = window as unknown as { __hpHitKeys?: Set<string> };
-    return w.__hpHitKeys?.size ?? 0;
+  const sample = await page.evaluate(() => {
+    const w = window as unknown as {
+      __hpHitKeys?: Set<string>;
+      __hpKindCounts?: Record<string, number>;
+    };
+    return {
+      hits: w.__hpHitKeys?.size ?? 0,
+      kinds: w.__hpKindCounts ?? { star: 0, constellation: 0, other: 0 },
+    };
   });
 
   // Surface the per-run hit count so flakes leave a trail in CI logs (and so
   // future tuning of the threshold has data to reason about).
-  console.warn(`[hover-pick-sweep] ${String(hits)} hits / ${String(probes)} probes`);
+  console.warn(
+    `[hover-pick-sweep] ${String(sample.hits)} hits / ${String(probes)} probes ` +
+      `(stars=${String(sample.kinds.star)}, ` +
+      `constellations=${String(sample.kinds.constellation)}, ` +
+      `other=${String(sample.kinds.other)})`,
+  );
 
   // Threshold from issue #303: ≥ 25 (current main is ~36, default 3×3 is ~12).
-  expect(hits).toBeGreaterThanOrEqual(25);
+  expect(sample.hits).toBeGreaterThanOrEqual(25);
+
+  // Regression test for #305: constellation polylines must carry an `id` so
+  // hovering a stick-figure line opens its constellation popup. With #305
+  // landed, the 7×37 grid over Anchorage at midnight reliably picks up at
+  // least 1 constellation line (Ursa Major's stick figure is dead centre).
+  // Without #305, this drops to 0 — labels alone are too small to land in
+  // the sweep.
+  expect(sample.kinds.constellation).toBeGreaterThanOrEqual(1);
 });
