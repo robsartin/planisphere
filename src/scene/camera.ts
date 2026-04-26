@@ -282,7 +282,18 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
   return { destroy };
 }
 
-export function setupTrackballControls(viewer: Viewer): void {
+export type TrackballOptions = {
+  /**
+   * Called after each drag-rotation (or inertia frame) with the camera's
+   * current heading/pitch in degrees. Lets the caller mirror the rotation
+   * into AppState so URL serialisation (`?vaz=…&valt=…`) stays in sync —
+   * without it, drag-panning leaves "Copy link" producing a default URL.
+   * Mirrors `GestureOptions.onPan` for the wheel-pan path.
+   */
+  onPan?: (azDeg: number, altDeg: number) => void;
+};
+
+export function setupTrackballControls(viewer: Viewer, options: TrackballOptions = {}): void {
   const scene = viewer.scene;
   const camera = viewer.camera;
   const controller = scene.screenSpaceCameraController;
@@ -323,6 +334,15 @@ export function setupTrackballControls(viewer: Viewer): void {
     Cartesian3.normalize(camera.right, camera.right);
     Cartesian3.cross(camera.right, camera.direction, camera.up);
     Cartesian3.normalize(camera.up, camera.up);
+
+    // After rotation, sync the new heading/pitch back into state.view via
+    // onPan (if provided). Cesium derives heading/pitch from the
+    // direction/up/right vectors we just mutated.
+    if (options.onPan !== undefined) {
+      const az = getCameraHeadingDeg(camera);
+      const alt = getCameraPitchDeg(camera);
+      options.onPan(az, alt);
+    }
   }
 
   handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {

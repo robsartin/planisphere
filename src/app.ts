@@ -791,7 +791,11 @@ export async function bootstrap(
     state.view.az,
     state.view.alt,
   );
-  setupTrackballControls(viewer);
+  setupTrackballControls(viewer, {
+    onPan: (az, alt) => {
+      handleIntent({ type: "set-view", az, alt });
+    },
+  });
 
   // Create all layers
   const cesiumContainerEl = document.getElementById("cesium-container");
