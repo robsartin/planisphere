@@ -125,6 +125,14 @@ export type GestureOptions = {
   resolveObjectAt: (x: number, y: number) => AzAltPosition | null;
   /** Called after a zoom changes the camera FOV (so callers can re-render reticle). */
   onZoom?: () => void;
+  /**
+   * Called after a wheel-pan changes the camera's az/alt. Lets the caller
+   * propagate the new view direction into AppState so URL serialisation
+   * (`?vaz=…&valt=…`) and other state-derived UI stay in sync. Without
+   * this, scroll-panning leaves the URL pointing at the default view —
+   * "Copy link" produces a bare URL.
+   */
+  onPan?: (azDeg: number, altDeg: number) => void;
 };
 
 export type GestureHandle = {
@@ -197,6 +205,7 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
     );
     const nextAz = wrapAz(currentAz + deltaXPx * WHEEL_PAN_DEG_PER_PX);
     setCameraView(camera, lat, lon, nextAz, nextAlt);
+    options.onPan?.(nextAz, nextAlt);
   }
 
   // Bypass Cesium's WHEEL action so we can read both deltaX (trackpad
@@ -273,7 +282,18 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
   return { destroy };
 }
 
-export function setupTrackballControls(viewer: Viewer): void {
+export type TrackballOptions = {
+  /**
+   * Called after each drag-rotation (or inertia frame) with the camera's
+   * current heading/pitch in degrees. Lets the caller mirror the rotation
+   * into AppState so URL serialisation (`?vaz=…&valt=…`) stays in sync —
+   * without it, drag-panning leaves "Copy link" producing a default URL.
+   * Mirrors `GestureOptions.onPan` for the wheel-pan path.
+   */
+  onPan?: (azDeg: number, altDeg: number) => void;
+};
+
+export function setupTrackballControls(viewer: Viewer, options: TrackballOptions = {}): void {
   const scene = viewer.scene;
   const camera = viewer.camera;
   const controller = scene.screenSpaceCameraController;
@@ -314,6 +334,15 @@ export function setupTrackballControls(viewer: Viewer): void {
     Cartesian3.normalize(camera.right, camera.right);
     Cartesian3.cross(camera.right, camera.direction, camera.up);
     Cartesian3.normalize(camera.up, camera.up);
+
+    // After rotation, sync the new heading/pitch back into state.view via
+    // onPan (if provided). Cesium derives heading/pitch from the
+    // direction/up/right vectors we just mutated.
+    if (options.onPan !== undefined) {
+      const az = getCameraHeadingDeg(camera);
+      const alt = getCameraPitchDeg(camera);
+      options.onPan(az, alt);
+    }
   }
 
   handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
