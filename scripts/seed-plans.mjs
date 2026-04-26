@@ -117,11 +117,35 @@ function inlineStatement({ sql, binds }) {
   return sql.replace(/\?/g, () => sqlLiteral(binds[i++])) + ";";
 }
 
+/**
+ * Pull the D1 binding's `database_name` out of wrangler.jsonc so the seed
+ * script doesn't drift from the deploy config. The file is JSONC (with
+ * comments + trailing commas), so a strict JSON.parse fails — we strip
+ * `// …` line comments, `/* … *\/` block comments, and trailing commas
+ * before parsing. Cheaper than pulling in jsonc-parser as a dep.
+ */
+function readDatabaseNameFromWrangler(root) {
+  const wranglerPath = join(root, "wrangler.jsonc");
+  const raw = readFileSync(wranglerPath, "utf8");
+  const stripped = raw
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/,(\s*[}\]])/g, "$1");
+  const cfg = JSON.parse(stripped);
+  const dbs = Array.isArray(cfg.d1_databases) ? cfg.d1_databases : [];
+  const binding = dbs.find((d) => d.binding === "DB") ?? dbs[0];
+  if (!binding || typeof binding.database_name !== "string") {
+    throw new Error("wrangler.jsonc missing d1_databases[].database_name");
+  }
+  return binding.database_name;
+}
+
 function main() {
   const root = resolve(new URL(".", import.meta.url).pathname, "..");
   const plansDir = join(root, "data", "plans");
   const sqlPath = join(root, "scripts", ".seed-plans.sql");
   const isRemote = process.argv.includes("--remote");
+  const dbName = readDatabaseNameFromWrangler(root);
 
   let files;
   try {
@@ -150,13 +174,7 @@ function main() {
 
   writeFileSync(sqlPath, statements.join("\n") + "\n", "utf8");
 
-  const args = [
-    "d1",
-    "execute",
-    "planisphere",
-    isRemote ? "--remote" : "--local",
-    `--file=${sqlPath}`,
-  ];
+  const args = ["d1", "execute", dbName, isRemote ? "--remote" : "--local", `--file=${sqlPath}`];
   const result = spawnSync("wrangler", args, { stdio: "inherit" });
   if (result.status !== 0) {
     console.error("wrangler d1 execute failed");
