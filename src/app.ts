@@ -1029,6 +1029,13 @@ export async function bootstrap(
     getObserver: () => ({ lat: state.observer.lat, lon: state.observer.lon }),
     resolveObjectAt,
     onZoom: () => layers.reticle?.render(),
+    onPan: (az, alt) => {
+      // Mirror the wheel-pan into AppState so the URL serialiser picks up
+      // the new view direction (`?vaz=…&valt=…`). Without this, panning
+      // visually moves the camera but the URL stays bare — "Copy link"
+      // produces a default-pointing URL instead of the user's current view.
+      handleIntent({ type: "set-view", az, alt });
+    },
   });
 
   // Events drawer — celestial event alerts (conjunctions / lunar eclipses / meteor showers / ISS).

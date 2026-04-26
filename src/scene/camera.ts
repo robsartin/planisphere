@@ -125,6 +125,14 @@ export type GestureOptions = {
   resolveObjectAt: (x: number, y: number) => AzAltPosition | null;
   /** Called after a zoom changes the camera FOV (so callers can re-render reticle). */
   onZoom?: () => void;
+  /**
+   * Called after a wheel-pan changes the camera's az/alt. Lets the caller
+   * propagate the new view direction into AppState so URL serialisation
+   * (`?vaz=…&valt=…`) and other state-derived UI stay in sync. Without
+   * this, scroll-panning leaves the URL pointing at the default view —
+   * "Copy link" produces a bare URL.
+   */
+  onPan?: (azDeg: number, altDeg: number) => void;
 };
 
 export type GestureHandle = {
@@ -197,6 +205,7 @@ export function setupGestures(viewer: Viewer, options: GestureOptions): GestureH
     );
     const nextAz = wrapAz(currentAz + deltaXPx * WHEEL_PAN_DEG_PER_PX);
     setCameraView(camera, lat, lon, nextAz, nextAlt);
+    options.onPan?.(nextAz, nextAlt);
   }
 
   // Bypass Cesium's WHEEL action so we can read both deltaX (trackpad
