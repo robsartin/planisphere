@@ -57,7 +57,7 @@ See [`docs/architecture.md`](docs/architecture.md) for Mermaid diagrams covering
 
 ## Prerequisites
 
-- Node 20.11.1 (see `.nvmrc`)
+- Node 20.19.4 (see `.nvmrc`)
 - pnpm ≥ 9.12.0
 
 ## Commands
