@@ -6,9 +6,15 @@ Planisphere is a live, interactive star chart that runs in your web browser. Poi
 
 ## Overview
 
-When you open Planisphere you are looking up at the sky as if lying flat on your back. The view is a full-hemisphere projection: the center of the screen is directly overhead (the zenith), and the edges of the view are the horizon in every direction. Compass labels (N, S, E, W) mark the cardinal directions along the horizon.
+When you open Planisphere you are looking up at the sky as if lying flat on your back. The view is a full-hemisphere projection: the center of the screen is directly overhead (the zenith), and the edges of the view are the horizon in every direction.
 
-What you can see:
+The screen is deliberately uncluttered — the sky fills the whole viewport. Chrome lives in three places:
+
+- A slim **bottom HUD** carries the current time, your observer location, and a compass heading.
+- A small **drawer rail** in the top-right opens one panel at a time: events, tonight's sky, help, or settings.
+- A **command palette** (⌘K / Ctrl+K) searches everything from anywhere.
+
+What you can see in the sky:
 
 - **Stars** — colored dots whose color matches the star's real temperature (blue-white for hot stars, orange-red for cool ones). Brighter stars have larger dots.
 - **Planets and Sun/Moon** — each rendered in a distinctive color (see [Reading the Sky](#reading-the-sky)).
@@ -29,276 +35,108 @@ Open the Planisphere URL in any modern web browser. By default you are standing 
 
 The star chart renders immediately. After a moment, satellites appear — they are loaded from a live orbital data source, so they need a brief download.
 
-The interface is deliberately sky-first. Apart from a thin **bottom HUD** (time, location, compass) and a small **top-right panel** of icon buttons, everything else lives behind drawers that open only when you need them. The quickest way to make the chart useful is either:
+To make the chart useful for your own location, click the **📍 location chip** in the bottom-left of the HUD and pick a city or type coordinates — or use "Use my location" to have your browser fill both in.
 
-- Click the **📍 location chip** in the bottom-left corner to open a fullscreen location picker, or
-- Press **⌘K** (macOS) or **Ctrl+K** (Windows/Linux) to open the [Command Palette](#command-palette) and type what you're looking for.
-
-First-time visitors see a short [onboarding tour](#onboarding-tour) highlighting the core surfaces.
-
----
-
-## The Interface
-
-Planisphere arranges controls around the sky, not on top of it:
-
-- **Bottom HUD** — the ambient bar across the bottom of the screen. Shows the current time (UTC + local), observer coordinates, and compass readout. Drag the center to scrub time; click the location chip to change observer; use keyboard shortcuts for everything else.
-- **Top-right panel** — a small header with icon buttons that open drawers and toggles, plus a body with search, location, view-direction, and telescope FOV controls. The `−` button collapses the body if you want only the icon rail visible.
-- **Drawers** — slide-in surfaces for settings, upcoming events, tonight's sky, help, and (Pro) the Notebook. Only one drawer is open at a time — opening another closes the current one.
-- **Command palette (⌘K)** — the fastest way to jump to an object, event, city, or setting without touching the panel.
-
-![Interface overview](./screenshots/interface-overview.png)
-
-_(Screenshot pending — the legacy screenshots were captured before the sky-first redesign and are being re-taken.)_
+On first visit, a short **guided tour** highlights the HUD, drawer rail, and command palette. You can Skip it with Esc; it doesn't come back automatically, but the Help modal has a "Replay tour" button if you want it again later.
 
 ---
 
 ## Bottom HUD
 
-The HUD is a single row at the bottom of the viewport:
+The HUD is a slim bar pinned to the bottom of the screen. It has three regions.
 
-- **📍 Location chip** (bottom-left) — shows the current observer latitude/longitude. Click to open the fullscreen **location picker** with "Use my location", lat/lon inputs, and a 24-city quick-pick grid.
-- **Time readout** (center) — two lines showing UTC time and the browser-local time.
-- **Compass readout** (bottom-right) — the cardinal direction and bearing your view is pointing toward, e.g. _N 12°_ or _SW 210°_.
+**Left — location chip** — shows `📍 lat, lon` for your current observer position. Click it to open the fullscreen **Location picker** (see [Location](#location)).
 
-### Drag-to-scrub time
+**Center — time readout and scrubber.** Two lines side-by-side: the current chart time in **UTC** and in your computer's **local timezone**, both live-updating as the chart advances. This whole region is also the time scrubber.
 
-Click and drag horizontally across the center area to move the chart through time. The scrub rate is approximately **1 minute per pixel**, so a typical full-width drag on a laptop display sweeps through about half an hour. Release to stop.
+**Right — compass chip** — shows the current view azimuth as `<cardinal> <degrees>` (e.g. `SW 220°`). It's a live readout, not a control.
 
-### Keyboard shortcuts
+### Scrub time by dragging
 
-When no input field is focused, these keys control the chart globally:
+Click and drag horizontally anywhere in the center region to scrub time. The ratio is **≈ 1 minute per pixel** — a full-width drag on a typical viewport covers roughly a 30-minute window. Left = earlier, right = later. Release to stop.
 
-| Key                            | Action                                       |
-| ------------------------------ | -------------------------------------------- |
-| `←` / `→`                      | Step time back / forward by **1 minute**     |
-| `Shift + ←` / `Shift + →`      | Step time by **1 hour**                      |
-| `Alt + ←` / `Alt + →`          | Step time by **1 day**                       |
-| `Space`                        | Toggle real-time animation on/off            |
-| `⌘K` (macOS) / `Ctrl+K` (else) | Open the [Command Palette](#command-palette) |
+### Scrub time with the keyboard
 
-Keyboard shortcuts are suppressed while you're typing in a text box, select, textarea, or any contenteditable area, so the command palette's search input keeps its native arrow-key behaviour.
+The whole document listens for arrow keys and the space bar. As long as focus isn't in a text input, textarea, `<select>`, or contenteditable field, these shortcuts work anywhere on the page:
+
+| Key               | Steps time by          |
+| ----------------- | ---------------------- |
+| **←** / **→**     | 1 minute               |
+| **Shift + ← / →** | 1 hour                 |
+| **Alt + ← / →**   | 1 day                  |
+| **Space**         | Play / pause animation |
+
+Holding a key auto-repeats via your OS's key-repeat.
 
 ### Auto-dim
 
-After **2 seconds of inactivity** the HUD fades to ~20% opacity so it never fights the sky. It restores to full opacity the moment you move the mouse, touch the screen, or press a key.
+If you don't interact for **~2 seconds**, the HUD fades to a low opacity so it doesn't distract from the sky. Any pointer movement or keypress wakes it back up. The auto-dim is purely cosmetic — the HUD stays active and responsive even when dim.
 
 ---
 
-## Command Palette
+## Drawer rail
 
-Press **⌘K** (macOS) or **Ctrl+K** (Windows/Linux) anywhere in the app to open a single search box that spans the whole product. Press **Esc** to dismiss.
+The top-right of the screen holds a small compact panel with a title ("Planisphere") and a row of icon buttons. The row is the "drawer rail": each icon toggles a surface.
 
-The palette searches, all together:
+Reading the row left-to-right:
 
-- **Objects** — stars (named or Hipparcos number), the 88 IAU constellations, the seven Solar System bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn), satellites, and Messier deep-sky objects.
-- **Upcoming events** — conjunctions, lunar eclipses, meteor-shower peaks, ISS passes. Selecting one jumps the time cursor and aims the camera, just like the **Go to** buttons in the events drawer.
-- **Cities** — the 24 presets from the location picker. Selecting one snaps your observer coordinates to that city.
-- **Settings and actions** — layer toggles, opacity levels, view-direction presets, language and skyculture choices, night-vision, copy-link, and similar.
+- **🔴 Night vision** — deep-red filter for dark-adapted viewing (see [Night Vision](#night-vision)).
+- **🔗 Copy link** — copies the current URL to your clipboard, preserving every setting.
+- **📅 Upcoming events** — opens the **Events drawer** (conjunctions, eclipses, meteor showers, ISS passes).
+- **♀ Tonight's sky** — opens the **Tonight drawer** (Sun/Moon/planets with alt/az, rise/set, and trail toggles).
+- **? Help** — opens this manual in a scrollable modal, plus a "Replay tour" button.
+- **⚙ Settings** — opens the **Settings drawer** (layers, opacities, star magnitude filter, language, skyculture).
+- **🌃 / 📓 Mode toggle** — switches between the Planetarium (default) and Notebook (Pro) modes.
+- **− / +** — collapses the panel body to just this button row.
 
-Results are fuzzy-matched, ranked, and color-coded by category. Use the arrow keys (`↑` / `↓`) to move the selection and `Enter` to execute it.
-
-The palette remembers your **last 10 selections** and surfaces them as "Recents" when you open it with an empty query — helpful for repeatedly hopping between the same few objects while you observe.
-
-![Command palette](./screenshots/command-palette.png)
-
-_(Screenshot pending.)_
+Only one drawer is open at a time. Clicking a second icon closes the first.
 
 ---
 
-## Onboarding Tour
+## Search — the Command Palette
 
-On first visit Planisphere runs a short welcome tour that highlights:
+Press **⌘K** (macOS) or **Ctrl+K** (Windows/Linux) from anywhere in the app to open the palette. Press it again — or **Esc** — to close.
 
-1. Clicking an object to pin a card.
-2. Dragging the bottom HUD to scrub time.
-3. The top-right icon rail (events, settings, tonight, help).
-4. Using the location chip to change observer.
-5. Opening the command palette.
+The palette is a single search box that fuzzy-matches across four kinds of source:
 
-Use **Back** / **Next** to step through, or **Skip** / **Esc** to dismiss at any point. The dismissal is remembered in `localStorage` under the key `planisphere.onboarding.v1`, so subsequent visits start immediately without the tour.
+- **Objects** — stars, planets, satellites, Messier deep-sky objects, and constellations.
+- **Upcoming events** — the same list surfaced by the Events drawer, so you can jump to a conjunction or eclipse without opening the drawer first.
+- **Places** — the built-in city presets (New York, London, Tokyo, and so on). Selecting one sets your observer location.
+- **Actions & settings** — commands like toggling layers, opening the location picker, or turning night vision on.
 
-You can re-run the tour from the Help modal (the `?` icon) using the **Replay tour** button.
+Keyboard navigation:
 
----
+- **↑ / ↓** — move the highlighted row.
+- **Enter** — run the highlighted result.
+- **Esc** — close the palette without picking anything.
 
-## Top-right Panel
-
-The top-right panel is the compact command center. The header is a rail of icon buttons; the body below it holds the controls you reach for most often.
-
-### Icon rail
-
-Left-to-right:
-
-| Icon      | Button         | What it does                                                               |
-| --------- | -------------- | -------------------------------------------------------------------------- |
-| **🔴**    | Night vision   | Toggle deep-red filter (see [Night Vision](#night-vision)).                |
-| **🔗**    | Copy link      | Copy the URL (every setting is reflected in it).                           |
-| **📅**    | Events         | Open the **Upcoming events** drawer.                                       |
-| **♀**    | Tonight        | Open the **Tonight's sky** drawer.                                         |
-| **?**     | Help           | Open this help guide inside a modal, with a **Replay tour** button.        |
-| **⚙**    | Settings       | Open the **Settings** drawer (layers, opacity, filters, display).          |
-| **🌃/📓** | Mode toggle    | Switch between **Planetarium** and **Notebook** modes (Notebook is Pro).   |
-| **−**     | Collapse panel | Hide the panel body (search / location / view / FOV); the icon rail stays. |
-
-### Panel body
-
-Below the icon rail you'll find, in order:
-
-1. [Search](#search) — free-text jump-to-object.
-2. [Location](#location) — lat/lon inputs and city presets.
-3. [View Direction](#view-direction) — cardinal presets and explicit Az/Alt.
-4. [Telescope FOV Reticle](#telescope-fov-reticle) — size a circle to your instrument's field of view.
-
-Everything else has moved to drawers or the HUD.
-
-![Top-right panel](./screenshots/top-right-panel.png)
-
-_(Screenshot pending.)_
+Your **last 10 selections** are remembered as a "Recents" section (stored locally per browser under the key `planisphere.palette.recents.v1`), so common places and objects are one keypress away next time.
 
 ---
 
-## Search
+## Time
 
-At the top of the panel body is a search box with the placeholder "Search stars, planets, satellites...".
+Time controls are split across two places:
 
-Type at least two characters and a dropdown appears with matching objects. Each result shows:
+- Everyday **stepping and scrubbing** live on the [Bottom HUD](#bottom-hud): drag to scrub, arrow keys to step, Space to play/pause.
+- Jumping to a **specific date and event** is done from the [Events drawer](#events--) (each event has a "Go to" button).
 
-- The object's **name**
-- A small **type label** on the right (star / constellation / planet / satellite)
-- **(below horizon)** in grey if the object is not currently above the horizon
+For a precise datetime (e.g. an eclipse prediction from another source), paste a URL with a `t=` parameter (see [URL Parameters](#url-parameters)).
 
-Click any result to swing the view toward that object. If the object is above the horizon, the view rotates to face it. If the object is below the horizon the view still rotates toward its compass direction — useful for "where will Jupiter rise?"
-
-The search covers the Hipparcos star catalog (named stars plus HIP numbers), all 88 IAU constellations, the seven Solar System bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn), and every loaded satellite.
-
-> **Tip:** The [Command Palette](#command-palette) is a superset of this search — plus events, cities, and settings — and is reachable from anywhere with **⌘K / Ctrl+K**.
+To snap back to the current moment and your GPS in one shot, use the **📍 Now** action from the command palette (⌘K → "now").
 
 ---
 
-## Location
+## Events (📅)
 
-Enter your **latitude** (−90 to +90, positive = north) and **longitude** (−180 to +180, positive = east) in the number fields in the panel body. Press Tab or Enter after each field to apply.
-
-Below the number fields is a **City preset** dropdown with a list of built-in cities (New York, London, Tokyo, Sydney, São Paulo, Cape Town, Los Angeles, Mumbai, Austin, and many others). Selecting a city fills in the coordinates automatically.
-
-### Location picker overlay
-
-For the full experience — including "Use my location" GPS and the 24-city grid — click the **📍 location chip** in the bottom HUD. A fullscreen overlay opens with:
-
-- **Use my location** — asks your browser for GPS and fills in the result. The first time you click this, the browser prompts for permission. If you deny or no GPS is available, nothing happens.
-- **Lat / Lon inputs** — the same number fields as the panel, but bigger.
-- **City quick-pick grid** — 24 commonly-used cities, tap one to snap.
-
-Press **Esc** or click outside the overlay to dismiss it.
-
----
-
-## View Direction
-
-By default the chart looks straight up (zenith). This section lets you turn toward any part of the sky.
-
-**Preset buttons** snap to common directions:
-
-- **Zenith** — straight up
-- **N** — looking north at about 30° altitude
-- **E** — looking east at about 30° altitude
-- **S** — looking south at about 30° altitude
-- **W** — looking west at about 30° altitude
-
-Below the buttons are two number inputs for precise aiming:
-
-- **Az** (azimuth, 0–360°): 0° = north, 90° = east, 180° = south, 270° = west.
-- **Alt** (altitude, 0–90°): 0° = horizon, 90° = straight up.
-
-You can also drag on the sky view itself with the mouse to swing the view around. The compass readout in the bottom HUD updates to match.
-
----
-
-## Telescope FOV Reticle
-
-The **Telescope FOV** dropdown overlays a circular reticle in the center of the screen at a real-world field-of-view size. Use it to see how much sky you would actually catch through common optics.
-
-Options:
-
-- **Off** — no reticle (default).
-- **Naked eye (5°)**
-- **Binoculars (7°)**
-- **Small scope (1°)**
-- **Large scope (0.5°)**
-
-Combined with the View Direction controls, this is a quick way to plan what a given instrument will show when pointed at a specific target.
-
----
-
-## Settings Drawer
-
-Click the **⚙ Settings** icon in the panel header to open the settings drawer. It organises display controls into **four collapsible sections**, each with a `▸` / `▾` chevron. Only one section is expanded at a time; click another header to swap. The drawer remembers the **last section you had open** across reloads (stored in `localStorage` under `planisphere.settings.lastSection.v1`).
-
-### 1. Visibility
-
-Each checkbox shows or hides a whole layer:
-
-- **Stars ☆** — the star field
-- **Planets ☾** — Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn
-- **Satellites 🛰** — orbiting satellites with motion trails
-- **Compass ◎** — cardinal direction labels at the horizon
-- **Deep Sky ✦** — Messier catalog galaxies, nebulae, and clusters
-
-### 2. Opacity
-
-Six sliders control the visibility of line-like overlays. Each slider runs 0–100; drag to 0 to hide, or anywhere in between to ease it back.
-
-- **Constellation Lines** — stick-figure outlines
-- **Constellation Boundaries** — IAU region borders
-- **Satellite Trails** — motion trails drawn behind each satellite
-- **RA/Dec Grid** — right-ascension / declination celestial grid
-- **Ecliptic** — the Sun's annual path (a good reference for finding planets)
-- **Milky Way** — the bright galactic band
-
-### 3. Filters
-
-- **Mag ≤ slider** — controls how dim a star has to be before it drops out of the chart. Drag left toward `Mag ≤ 1.0` to keep only the brightest stars (good for learning constellations); drag right toward `Mag ≤ 6.0` to show everything down to the naked-eye limit.
-
-### 4. Display
-
-- **Constellation Names language** — sets the language used for Western (IAU) asterism labels:
-
-  - **Latin** (default — e.g. _Ursa Major_)
-  - **English** (_Great Bear_)
-  - **中文** (Chinese)
-  - **العربية** (Arabic)
-  - **Ελληνικά** (Greek)
-
-  Star and planet names stay in their conventional English/Latin form regardless of this setting. Language overrides are only defined for the Western asterism set; switching language while viewing a non-Western skyculture snaps the **Skyculture** dropdown back to _Western (IAU)_ automatically.
-
-- **Skyculture** — choose which set of stick-figure asterisms is drawn on top of the star field:
-
-  - **Western (IAU)** — the familiar 88 IAU constellations (default).
-  - **Chinese (Xingguan) 星官** — Chinese star mansions / officials.
-  - **Indian (Vedic) वैदिक** — Vedic asterisms.
-  - **Norse (Edda)** — figures from the Poetic and Prose Edda.
-  - **Hawaiian Starlines** — the four Polynesian voyaging starlines.
-  - **Māori** — Māori constellations.
-
-  Non-Western skycultures display names in the culture's own language and don't use the Constellation Names language dropdown.
-
-![Settings drawer](./screenshots/settings-drawer.png)
-
-_(Screenshot pending.)_
-
----
-
-## Upcoming Events Drawer
-
-Click the **📅 Events** icon in the panel header to open the **Upcoming events** drawer — a list of noteworthy things happening in the sky from your current chart location, sorted by date.
+Click the **📅** icon to open the Events drawer. It lists noteworthy things happening in the sky from your current observer location, sorted by date.
 
 Four kinds of events show up here:
 
 - **Planetary conjunctions** — pairs of Solar System bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn) that come within about 5° of each other. Looks ahead 30 days.
 - **Lunar eclipses** — penumbral, partial, or total. Looks ahead one year.
 - **Meteor-shower peaks** — annual showers (Perseids, Geminids, etc.) at their yearly peak. Looks ahead one year.
-- **ISS passes** — upcoming International Space Station passes over your location. Looks ahead 48 hours. Requires your location to be set.
+- **ISS passes** — upcoming International Space Station passes over your location. Looks ahead 48 hours.
 
 Each row shows a colored title, the event's local date and time, and a short description. The title color hints at the kind — blue for conjunctions, orange for lunar eclipses, green for meteor showers, yellow for ISS passes.
 
@@ -322,26 +160,174 @@ ISS rows carry extra information:
 - The title includes an **estimated visual magnitude at peak**, e.g. _"ISS pass — mag -3.1, peaks at 68°"_. Lower (more negative) numbers are brighter; anything brighter than about mag 0 is a very easy naked-eye pass.
 - Passes where the station is **in Earth's shadow** at peak are kept in the list but rendered at **50% opacity** so you can tell at a glance they're not visible. Their title reads _"ISS pass — in Earth's shadow (42° peak)"_ and the description calls out that the satellite won't be lit.
 
-If no events match the lookahead windows for your location, the drawer shows "No upcoming events."
-
-Events are also searchable from the [Command Palette](#command-palette) — selecting one there does the same thing as clicking **Go to**.
+If no events match the lookahead windows for your location, the section shows "No upcoming events."
 
 ---
 
-## Tonight's Sky Drawer
+## Tonight's sky (♀)
 
-Click the **♀ Tonight** icon in the panel header to open the **Tonight's sky** drawer. It lists all seven Solar System bodies with:
+Click the **♀** icon to open the Tonight drawer. It replaces the old always-on "Planet Info" side panel — same data, but out of the way until you want it.
+
+Each row covers one Solar-System body (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn) and shows:
 
 - **Name** — colored to match its dot on the chart. Names of bodies currently **above the horizon are clickable** — click to swing the view onto that body. Bodies below the horizon show "↓ below" in grey and are not clickable.
 - **Alt / Az** — where it is in your sky right now.
 - **Rise / Set times** — local times for the current day. `↑ HH:MM` is the rise time, `↓ HH:MM` is the set time. If a body does not rise or set on the chosen date (e.g. circumpolar, or the Sun at high latitudes in summer) the field shows `--`.
 - **Show path / Hide path** — for above-horizon bodies only. Click **Show path** to draw a future trail across the sky showing where that body will be over the next four hours (sampled every five minutes). The button changes to **Hide path** while the trail is displayed; only one trail can be shown at a time. The trail is not saved in the URL.
 
+The drawer re-reads the sky whenever you move time or observer, so its numbers stay current as you scrub.
+
+---
+
+## Settings (⚙)
+
+Click the **⚙** icon to open the Settings drawer. It's organised into four collapsible sections; the drawer remembers which one was last open across reloads (stored under `planisphere.settings.lastSection.v1`).
+
+### Visibility
+
+Toggles for each whole layer:
+
+- **Stars ☆**
+- **Planets ☾** — Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn.
+- **Satellites 🛰**
+- **Compass ◎** — cardinal direction labels at the horizon.
+- **Deep Sky ✦** — Messier catalog galaxies, nebulae, and clusters.
+
+### Opacity
+
+Six 0–100 sliders for line-like overlays. Drag to 0 to hide, or anywhere in between to ease it back.
+
+- **Constellation Lines** — stick-figure outlines.
+- **Constellation Boundaries** — IAU region borders.
+- **Satellite Trails** — motion trails drawn behind each satellite.
+- **RA/Dec Grid** — right-ascension / declination celestial grid.
+- **Ecliptic** — the Sun's annual path (a good reference for finding planets).
+- **Milky Way** — the bright galactic band.
+
+### Filters
+
+Contains the **Mag ≤** slider — how dim a star has to be before it drops out of the chart. Drag left toward `Mag ≤ 1.0` to keep only the brightest stars (a minimal view, good for learning constellations); drag right toward `Mag ≤ 6.0` to show everything down to the naked-eye limit.
+
+### Display
+
+Two dropdowns that change how names and asterisms are shown.
+
+**Constellation Names (language)** — sets the language used for constellation labels on the Western (IAU) asterism set:
+
+- **Latin** (default — e.g. _Ursa Major_)
+- **English** (_Great Bear_)
+- **中文** (Chinese)
+- **العربية** (Arabic)
+- **Ελληνικά** (Greek)
+
+Star names and planet names stay in their conventional English/Latin form regardless of this setting. Language overrides are only defined for the Western asterism set — if you change the language while viewing a non-Western skyculture, the **Skyculture** dropdown snaps back to _Western (IAU)_ automatically.
+
+**Skyculture** — chooses which set of stick-figure asterisms is drawn on top of the star field:
+
+- **Western (IAU)** — the familiar 88 IAU constellations (default). Respects the Constellation Names language dropdown.
+- **Chinese (Xingguan) 星官** — Chinese star mansions / officials. Labels in Chinese.
+- **Indian (Vedic) वैदिक** — Vedic asterisms. Labels in Devanagari.
+- **Norse (Edda)** — figures from the Poetic and Prose Edda.
+- **Hawaiian Starlines** — the four Polynesian voyaging starlines.
+- **Māori** — Māori constellations. Labels in te reo Māori.
+
+Non-Western skycultures display names in the culture's own language — they don't use the Constellation Names language dropdown.
+
+---
+
+## Help (?) and the guided tour
+
+Click the **?** icon to open the Help modal — the full user guide (this document) rendered inline, with a "Replay tour" button in the header.
+
+### Guided tour
+
+On first visit, an **onboarding overlay** highlights the HUD, drawer rail, and command palette in a few short steps. It's a one-time affair: dismissing it (Skip button, Esc, or Next on the final step) records the dismissal in `localStorage` under `planisphere.onboarding.v1` so it won't come back on future visits.
+
+If you want it again, open the Help modal and click **Replay tour**.
+
+---
+
+## Notebook mode (Pro) — 🌃 / 📓
+
+Planisphere ships a **Notebook mode** for keeping personal observing notes tied to specific objects and moments in the sky. It's a Pro feature — free accounts can browse the mode's UI and see the editor, but saving and loading notebooks requires a Pro sign-in.
+
+### Entering Notebook mode
+
+Click the **🌃 / 📓 mode toggle** at the right end of the drawer rail (the icon shows 🌃 in Planetarium mode and 📓 in Notebook mode). If you don't have Pro, a small "Pro" pill appears next to the icon and clicking it opens the sign-in modal instead of switching.
+
+### Magic-link sign-in
+
+Sign-in is passwordless. From the sign-in modal:
+
+1. Enter your email address and press **Send link**.
+2. Check your inbox for a short-lived magic link (delivered via Resend).
+3. Click the link. You're returned to Planisphere signed in.
+
+Sessions are stored in an HMAC-signed cookie set by the Cloudflare Worker that backs the mode; notebooks themselves live in Cloudflare D1. Sign out any time from the Notebook workspace.
+
+### Writing a note
+
+The editor is a rich-text surface (built on tiptap / ProseMirror). Type an **`@`** anywhere in a note to bring up the **mention popover** and drop a live reference to something on the chart. Three kinds of entity can be mentioned:
+
+- **`@body`** — Sun, Moon, or one of the seven planets.
+- **`@constellation`** — any of the 88 IAU constellations.
+- **`@event`** — an entry from the Upcoming Events list.
+
+Mentions render inline with the entity's name and stay linked, so re-opening the notebook later still resolves each `@…` to the right thing.
+
+A note can also carry a **link to the current view** — a shareable URL that recreates the exact time, location, layers, and camera direction you were looking at when you wrote the note. That link button is Pro-gated on the free tier.
+
+### Where notes live
+
+Notes are stored server-side in the Planisphere Cloudflare Worker's D1 database, tied to your account. See the design decisions in [ADR 009 (backend selection)](https://github.com/robsartin/planisphere/blob/main/docs/adr/009-backend-selection.md), [ADR 013 (notebook editor)](https://github.com/robsartin/planisphere/blob/main/docs/adr/013-notebook-editor.md), and [ADR 014 (email delivery)](https://github.com/robsartin/planisphere/blob/main/docs/adr/014-email-delivery.md).
+
+### Leaving the mode
+
+Click the mode toggle again to switch back to Planetarium mode. Leaving the mode does not sign you out — your session persists until it expires or you click **Sign out** in the Notebook workspace.
+
+---
+
+## Location
+
+Click the **📍 location chip** at the bottom-left of the HUD to open the fullscreen **Location picker**. It offers three ways to set your observer position:
+
+- **Use my location** — asks your browser for GPS. The first time, you'll get a permission prompt; if you deny or your browser has no GPS, the picker leaves the coordinates untouched.
+- **Latitude / Longitude number fields** — enter directly (−90 to +90 for lat, positive = north; −180 to +180 for lon, positive = east).
+- **Quick-pick cities** — a 24-city grid (New York, London, Tokyo, Sydney, São Paulo, Cape Town, Los Angeles, Mumbai, Austin, and others). Click any to fill the coordinates.
+
+The picker closes when you confirm; the chart re-computes stars, sun, moon, planets, satellites, and events for the new location on the fly.
+
+You can also snap to the current real-world moment and your GPS at once via the command palette's **📍 Now** action (⌘K → "now").
+
+---
+
+## View direction
+
+By default the chart looks straight up (zenith). Drag anywhere on the sky view with the mouse to swing the view around. Scroll (or pinch on touch devices) to zoom; double-tap to reset. The current view azimuth is always visible on the right-hand compass chip in the HUD.
+
+For precise aiming — for example, "point north at 30° altitude" — use the command palette (⌘K) and search for the direction (N, S, E, W, Zenith) or type explicit values into the `vaz` / `valt` URL parameters (see [URL Parameters](#url-parameters)).
+
+---
+
+## Telescope FOV Reticle
+
+The command palette also holds a **Telescope FOV** selector that overlays a circular reticle in the center of the screen at a real-world field-of-view size. Use it to see how much sky you would actually catch through common optics.
+
+Options:
+
+- **Off** — no reticle (default).
+- **Naked eye (5°)**
+- **Binoculars (7°)**
+- **Small scope (1°)**
+- **Large scope (0.5°)**
+
+Combined with pointing the view, this is a quick way to plan what a given instrument will show when pointed at a specific target.
+
 ---
 
 ## Night Vision
 
-Click the **🔴** button in the panel header to toggle night vision mode. The whole page (including the star chart) is filtered to deep red, which preserves dark adaptation when you're using Planisphere out under the sky on a phone or laptop.
+Click the **🔴** button on the top-right panel to toggle night vision mode. The whole page (including the star chart) is filtered to deep red, which preserves dark adaptation when you're using Planisphere out under the sky on a phone or laptop.
 
 Click the button again to return to full color. The setting is preserved in the URL (`?nv=1`), so shared links can open already in night-vision mode.
 
@@ -349,57 +335,9 @@ Click the button again to return to full color. The setting is preserved in the 
 
 ## Copy Link
 
-Click the **🔗** button in the panel header to copy the current URL to your clipboard. The button briefly changes to "Copied!" to confirm.
+Click the **🔗** button on the top-right panel to copy the current URL to your clipboard. The button briefly changes to "Copied!" to confirm.
 
 Because Planisphere keeps every setting in the URL (time, location, view direction, layers, opacities, magnitude limit, night vision, language, skyculture, telescope FOV), the copied link reproduces the exact view you see when opened in any browser.
-
-The palette action **Copy link** does the same thing.
-
----
-
-## Notebook Mode (Pro)
-
-Click the **🌃 / 📓** icon in the panel header to switch between **Planetarium** (the default sky view) and **Notebook** — a rich-text notepad that anchors personal notes to specific objects and moments in time. Notebook mode is a **Pro** feature.
-
-### Signing in
-
-The first time a non-Pro user clicks the Notebook toggle, a **login modal** opens asking for an email address. Enter your email and submit — the site sends a **magic link** to that address. Click the link in the email to complete sign-in; you'll be redirected back into Notebook mode with Pro unlocked on this browser.
-
-- Session cookies are HMAC-signed and expire after a set period. The Worker refreshes them as you use the app.
-- Sign-in state is per-browser. Signing in on your phone is independent of signing in on your laptop.
-- Free users can **preview** the Notebook editor (the UI loads and you can type) but **save / load / mentions** are gated — they prompt for login.
-
-### Writing notes
-
-The Notebook editor is a [tiptap](https://tiptap.dev/) rich-text surface with the usual keyboard-native editing: bold, italic, headings, lists, blockquotes. Each note is anchored to the current observer and time, so "10 pm from my backyard" stays meaningful even as the chart moves on.
-
-### @mentions
-
-Type `@` anywhere in a note to open the **mention popover**. Start typing an object or event name and the popover narrows the list. Three kinds of mentions are supported:
-
-- **@body** — a Solar System body (e.g. `@Jupiter`, `@Moon`).
-- **@constellation** — any of the 88 IAU constellations.
-- **@event** — an upcoming event from the events drawer (e.g. an ISS pass or lunar eclipse).
-
-Inserted mentions become clickable chips inside the note — clicking one in a saved note restores the corresponding observer time and camera direction.
-
-### Where notes are stored
-
-Notebook data lives on the server in **Cloudflare D1** (SQLite at the edge), accessed through a Cloudflare Worker behind the same magic-link auth. Notes are private to your account. See [ADR 009](../docs/adr/009-backend-selection.md) for the architecture and [ADR 013](../docs/adr/013-notebook-editor.md) for the editor choice.
-
-Switching back to 🌃 Planetarium at any time returns you to the sky view; your notes stay where they are.
-
----
-
-## Viewing Plans (Pro)
-
-Viewing Plans are short monthly reads that highlight what's worth looking at this month, with one-click jumps into the sky from your location. Click the **📜 Plans** button in the HUD to open the drawer. Each plan card shows the month and a preview; click to open the full read.
-
-Plans are filtered by your hemisphere — a Northern-hemisphere observer won't see plans tagged for the South, and vice versa. Plans tagged `both` show everywhere.
-
-Every plan has a shareable deep link. `https://planisphere.app/?plan=2026-04` opens the app directly to the April 2026 plan. If someone without Pro access opens the link they'll see the Pro-upgrade prompt instead.
-
-Target chips at the bottom of each plan (Andromeda Galaxy, Jupiter, etc.) open the object card for that target in the sky and close the reader so you can see it from where you're standing.
 
 ---
 
@@ -416,7 +354,7 @@ Target chips at the bottom of each plan (Andromeda Galaxy, Jupiter, etc.) open t
 | Yellow-orange | K             | Arcturus, Aldebaran   |
 | Orange-red    | M             | Betelgeuse, Antares   |
 
-Size corresponds to brightness: magnitude −1 stars like Sirius show as large dots, while magnitude 6 stars (the faintest naked-eye limit) show as tiny specks. The chart renders only stars above the horizon. Use the **Mag ≤** slider in the Settings drawer (Filters tab) to filter out dim stars you don't want to see.
+Size corresponds to brightness: magnitude −1 stars like Sirius show as large dots, while magnitude 6 stars (the faintest naked-eye limit) show as tiny specks. The chart renders only stars above the horizon. Use the **Mag ≤** slider in the Settings drawer's Filters section to filter out dim stars you don't want to see.
 
 **Planets** each have a distinctive color so you can tell them apart at a glance:
 
@@ -434,7 +372,7 @@ Size corresponds to brightness: magnitude −1 stars like Sirius show as large d
 
 **Constellation boundaries** are even fainter lines that mark the official IAU rectangular borders between constellation regions.
 
-**Milky Way** appears as a soft glowing band arching across the sky. Drag its opacity slider (Settings → Opacity) to taste.
+**Milky Way** appears as a soft glowing band arching across the sky. Drag the Milky Way opacity slider in the Settings drawer to taste.
 
 **Messier deep-sky objects** appear as small violet markers. Hover one for its name and catalog number (e.g. "M31 — Andromeda Galaxy").
 
@@ -442,19 +380,17 @@ Size corresponds to brightness: magnitude −1 stars like Sirius show as large d
 
 **Ecliptic** is the single highlighted curve where the Sun, Moon, and planets travel. Good shortcut for scanning a planet-friendly strip of sky.
 
-**Compass** labels appear at the horizon edge of the view: N, S, E, W. The bottom HUD also shows your current heading numerically.
+**Compass** labels appear at the horizon edge of the view: N, S, E, W. They help you orient the chart to the real sky. The HUD's right-hand chip always shows your current view azimuth as a live readout.
 
 ---
 
-## Object Cards
+## Hover Tooltips and Object Cards
 
-Move your mouse over any object to see a small **hover card**. Move the mouse away and it disappears.
+Move your mouse over any object to see a small info card. Move the mouse away and the card disappears.
 
-**Click** any object to **pin** an object card — a slightly larger card with a close button (×) that stays on screen while you pan around. Multiple pinned cards can stay open at once, and each card follows its object as time advances. Hover cards are suppressed while pinned cards exist near the pointer.
+**Click** any object to **pin** an object card — a slightly larger card with a close button (×) that stays on screen while you pan around. Multiple cards can stay open at once, and each card follows its object as time advances. Click the × or press **Esc** to dismiss.
 
-Click empty sky to drop a small reticle popover showing the direction readout and a **Look here** action — useful for bookmarking arbitrary points in the sky rather than specific objects.
-
-Object-card content by kind:
+**Clicking empty sky** drops a small reticle popover with the direction readout (Alt/Az) and a "Look here" action, so you can bookmark or aim at a specific patch of sky that isn't on a catalog.
 
 **Star card:**
 
@@ -486,11 +422,6 @@ Object-card content by kind:
 - Magnitude
 - Alt / Az
 - RA / Dec
-
-**Constellation card:**
-
-- Name (in the currently selected language / skyculture)
-- A short description when available
 
 ---
 
@@ -558,37 +489,22 @@ Tokyo, looking east at 30° altitude, faint stars filtered out:
 
 **Best time to see satellites** — Satellites are only visible when sunlight catches them. This happens in the hour or so after sunset or before sunrise, when the sky is dark but the satellite is still in sunlight high above you. During the middle of the night or the middle of the day, satellites are either in Earth's shadow or lost in the daytime glare.
 
-**Finding ISS passes** — Set your location (the 📍 chip is the fastest route) and open the **📅 Events** drawer. Any ISS passes in the next 48 hours show up there with an estimated brightness and peak altitude. Click **Go to** on a pass to jump the chart to peak and aim the camera at the right spot. Passes rendered at 50% opacity are in Earth's shadow — real but invisible — so skip those and pick a brighter one. You can also type "ISS" into the command palette (⌘K) to jump straight to the satellite.
+**Finding ISS passes** — Set your location (📍 chip → "Use my location" is the fastest way) and open the 📅 Events drawer. Any ISS passes in the next 48 hours show up there with an estimated brightness and peak altitude. Click **Go to** on a pass to jump the chart to peak and aim the camera at the right spot. Passes rendered at 50% opacity are in Earth's shadow — real but invisible — so skip those and pick a brighter one. You can also type "ISS" into the command palette (⌘K) to jump straight to the satellite itself.
 
-**Planning through an eyepiece** — Pick your telescope's FOV from the panel body, search for your target (command palette or search box), click the result, and you'll see exactly what the eyepiece will frame.
+**Planning through an eyepiece** — Pick your telescope's FOV from the palette (⌘K → "binoculars" / "small scope" / …), search for your target, and you'll see exactly what the eyepiece will frame.
 
-**Reducing clutter** — Open Settings → Opacity and drag the Constellation Lines and Boundaries sliders to 0 if you just want stars. Or use Settings → Filters → Mag ≤ to drop faint stars so only the bright ones remain, which makes constellations easier to learn.
+**Reducing clutter** — Open the ⚙ Settings drawer, expand the Opacity section, and drag the Constellation Lines and Boundaries sliders to 0 if you just want stars. Or use the **Mag ≤** slider in the Filters section to filter out faint stars so only the bright ones remain, which makes constellations easier to learn.
 
-**Finding planets** — Turn the Ecliptic opacity up in Settings → Opacity. Every planet sits near that line. Combined with Tonight's Sky rise/set times, that's enough to plan when and where to look.
+**Finding planets** — Turn the Ecliptic opacity slider up in the Settings drawer. Every planet sits near that line. Combined with the Tonight drawer's rise/set times, that's enough to plan when and where to look.
 
-**Keyboard scrubbing** — The `←` / `→` arrows step time by one minute; add `Shift` for hours, `Alt` for days. Hold one down to race through — the sky animates as it goes. `Space` toggles real-time animation on/off.
+**Sharing a sky event** — After you set things the way you want, click **🔗** on the top-right panel to copy the URL. Anyone you share that link with will see the exact same sky.
 
-**Sharing a sky event** — After you set things the way you want, click **🔗** in the panel header to copy the URL. Anyone you share that link with will see the exact same sky.
+**Using outdoors** — Toggle 🔴 night vision mode once you're dark-adapted. All of the UI and the sky chart go deep red so the screen doesn't wreck your night vision. The HUD also auto-dims after ~2 s of inactivity, so it fades further into the background while you're looking up.
 
-**Using outdoors** — Toggle **🔴 night vision** once you're dark-adapted. All of the UI and the sky chart go deep red so the screen doesn't wreck your night vision.
+**Notebook mode as an observing log** — Pro users can drop a note tied to `@Jupiter` and the current view URL every time they observe. Six months later, the note still resolves to the right object, and clicking the view link recreates the exact sky you were looking at.
 
 ---
 
 ## Screenshots
 
-_Screenshots are being re-captured to match the current sky-first layout. The placeholders above refer to the next round of captures; until they land, use the app itself (or the [architecture diagrams](./architecture.md)) as a visual reference._
-
-### Pending captures
-
-- **Interface overview** — the default zenith view with bottom HUD, top-right panel, and a drawer open.
-- **Bottom HUD** — close-up of the location chip, time readout, and compass.
-- **Command palette** — open with a few recents visible.
-- **Onboarding tour** — a representative step (e.g. step 2: "Drag the time bar").
-- **Settings drawer** — with the Opacity section expanded.
-- **Events drawer** — with one of each event kind, including a shadowed ISS pass at 50% opacity.
-- **Tonight's sky drawer** — with a trail drawn for one planet.
-- **Notebook mode** — the editor with a couple of `@mentions` inserted.
-- **Night vision** — the whole page filtered to red.
-- **Skyculture comparison** — Western vs one non-Western skyculture side-by-side.
-- **Daytime vs dark sky** — same location, noon vs midnight.
-- **Different locations** — Austin, TX and Sydney, Australia at the same instant.
+_Screenshots pending — the images referenced in earlier revisions of this guide have been removed pending a fresh capture pass against the current bottom HUD + drawer rail layout. If you follow a `./screenshots/…` link and land on a 404, that's why._
