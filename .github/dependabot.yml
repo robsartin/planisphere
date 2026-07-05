@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Dependabot config. Prior to this file the repository ran on Dependabot's
-# default behaviour (weekly npm bumps into a single `npm_and_yarn` group).
-# This file preserves that behaviour and adds a targeted ignore rule for
-# `wrangler` — see the note below.
+# default behaviour. This file makes the schedule explicit and keeps the
+# grouping we've been using.
 
 version: 2
 
 updates:
+  # npm dependencies (both prod and dev) — grouped into one PR per week so
+  # security and version bumps land together and only need one CI cycle.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -17,12 +18,12 @@ updates:
       npm_and_yarn:
         patterns:
           - "*"
-    ignore:
-      # Cloudflare's Workers-Build Git integration rejects the build (0 s
-      # dispatch → failure, no Actions-side logs) when `wrangler` is
-      # bumped past 4.83.x on a PR branch. Reproduced on #313 both after
-      # a rebase onto current main (Node 20.19.4 via #316) and after a
-      # subsequent empty-commit retrigger. Same bump group succeeds when
-      # only touching Node / Vite (#316 was green with wrangler still at
-      # 4.83). Pin until the integration catches up.
-      - dependency-name: "wrangler"
+
+  # GitHub Actions used by the workflows in .github/workflows/. Pinning them
+  # to tagged versions and letting Dependabot open PRs for each new release
+  # keeps supply-chain risk down without turning into manual work.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
