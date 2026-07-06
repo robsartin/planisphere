@@ -217,7 +217,6 @@ describe("routing", () => {
 
 describe("email stub", () => {
   it("logs the magic link URL on request", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await fetchWorker(
       new Request(`${BASE}/api/auth/request-link`, {

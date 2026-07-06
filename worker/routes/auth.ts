@@ -47,9 +47,7 @@ export async function handleRequestLink(
     return errorJson("invalid_email", 400);
   }
   const emailInput =
-    typeof body === "object" && body !== null && "email" in body
-      ? (body as { email: unknown }).email
-      : undefined;
+    typeof body === "object" && body !== null && "email" in body ? body.email : undefined;
   const normalized = normalizeEmail(emailInput);
   if (normalized === null) return errorJson("invalid_email", 400);
 
