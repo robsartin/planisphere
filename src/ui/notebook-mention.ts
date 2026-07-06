@@ -53,12 +53,17 @@ export function createNotebookMentionExtension() {
     },
   }).configure({
     HTMLAttributes: { class: "notebook-mention" },
-    renderHTML({ node }): string {
+    renderHTML({ options, node }) {
       const kind = node.attrs.kind as EntityKind | null;
       const id = node.attrs.id as string | null;
-      if (kind === null || id === null) return "@?";
-      const label = resolveEntityLabel({ kind, id });
-      return label === null ? `@[unknown ${kind}]` : `@${label}`;
+      let text: string;
+      if (kind === null || id === null) {
+        text = "@?";
+      } else {
+        const label = resolveEntityLabel({ kind, id });
+        text = label === null ? `@[unknown ${kind}]` : `@${label}`;
+      }
+      return ["span", options.HTMLAttributes, text];
     },
     suggestion: {
       char: "@",
