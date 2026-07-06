@@ -28,6 +28,32 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
   scene.primitives.add(polylines);
   scene.primitives.add(labels);
 
+  // Hidden DOM mirror of the label text (#306). Cesium renders labels into
+  // the WebGL canvas via its font atlas, so end-to-end tests can't scrape
+  // them from the DOM. Every call to update() also rebuilds a matching set
+  // of `<span data-label-for="constellation-<id>">…</span>` nodes inside a
+  // sentinel container off-screen so Playwright can assert language / sky-
+  // culture translations without OCR or screenshot diffing. The container
+  // is created lazily to keep unit-test environments without a DOM working.
+  let labelMirrorRoot: HTMLDivElement | null = null;
+  function ensureLabelMirrorRoot(): HTMLDivElement | null {
+    if (labelMirrorRoot !== null) return labelMirrorRoot;
+    if (typeof document === "undefined") return null;
+    const root = document.createElement("div");
+    root.dataset["labelMirror"] = "constellations";
+    root.style.position = "absolute";
+    root.style.left = "-9999px";
+    root.style.top = "-9999px";
+    root.style.width = "1px";
+    root.style.height = "1px";
+    root.style.overflow = "hidden";
+    root.style.pointerEvents = "none";
+    root.setAttribute("aria-hidden", "true");
+    document.body.appendChild(root);
+    labelMirrorRoot = root;
+    return root;
+  }
+
   const addedPolylines: Array<{ material: { uniforms: { color: { alpha: number } } } }> = [];
   let nameOverrides: ConstellationNameOverrides = null;
 
@@ -43,6 +69,9 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
     polylines.removeAll();
     labels.removeAll();
     addedPolylines.length = 0;
+
+    const mirror = ensureLabelMirrorRoot();
+    if (mirror !== null) mirror.replaceChildren();
 
     for (const constellation of constellations) {
       for (const line of constellation.lines) {
@@ -71,9 +100,10 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
         lat,
         lon,
       );
+      const labelText = labelFor(constellation);
       labels.add({
         position: centroidPos,
-        text: labelFor(constellation),
+        text: labelText,
         font: "12px sans-serif",
         fillColor: Color.WHITE.withAlpha(0.6),
         style: LabelStyle.FILL,
@@ -84,6 +114,15 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
         // resolve clicks on the label back to a typed structured payload.
         id: constellation,
       });
+
+      // Mirror the rendered label text into a hidden DOM span so e2e tests
+      // (#306) can assert language / skyculture translations without OCR.
+      if (mirror !== null) {
+        const span = document.createElement("span");
+        span.dataset["labelFor"] = `constellation-${constellation.id}`;
+        span.textContent = labelText;
+        mirror.appendChild(span);
+      }
     }
   }
 
