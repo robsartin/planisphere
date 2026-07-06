@@ -250,6 +250,9 @@ vi.mock("../data/boundaries.json", () => ({
 
 // Captured dispatch function from UI mock — used in intent tests
 let capturedDispatch: ((intent: unknown) => void) | null = null;
+// Captured bottomHud.setAnimation spy — lets tests assert bootstrap hydration
+// of ?anim / ?speed reaches the HUD (#348).
+let capturedBottomHudSetAnimation: ReturnType<typeof vi.fn> | null = null;
 let capturedPanelOptions: {
   onOpenEvents?: () => void;
   onOpenSettings?: () => void;
@@ -409,12 +412,14 @@ vi.mock("./ui", () => ({
     capturedDispatch = dispatch as (intent: unknown) => void;
     const element = document.createElement("div");
     element.dataset.testid = "bottom-hud";
+    const setAnimation = vi.fn();
+    capturedBottomHudSetAnimation = setAnimation;
     return {
       element,
       setTime: vi.fn(),
       setObserver: vi.fn(),
       setCompass: vi.fn(),
-      setAnimation: vi.fn(),
+      setAnimation,
       destroy: vi.fn(),
     };
   }),
@@ -1188,6 +1193,43 @@ describe("handleIntent routing", () => {
     expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 10 })).not.toThrow();
     expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 100 })).not.toThrow();
     expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 1 })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("hydrates animation state from ?anim=play&speed=10 and syncs the HUD (#348)", async () => {
+    capturedDispatch = null;
+    capturedBottomHudSetAnimation = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ anim: "play", speed: "10" }));
+    expect(capturedBottomHudSetAnimation).not.toBeNull();
+    // Bootstrap should reflect the hydrated URL params in the HUD.
+    expect(capturedBottomHudSetAnimation).toHaveBeenCalledWith(true, 10);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("does not sync animation-playing to HUD when ?anim is absent (default paused)", async () => {
+    capturedDispatch = null;
+    capturedBottomHudSetAnimation = null;
+    const { root, panelRoot } = makeRoot();
+    // Explicit empty params — the default (globalThis.location.search) may
+    // still carry ?anim=play&speed=10 from a prior test's history.replaceState.
+    await bootstrap(root, new URLSearchParams());
+    // Paused default → no setAnimation with playing=true from bootstrap.
+    expect(capturedBottomHudSetAnimation).not.toHaveBeenCalledWith(true, 1);
+    expect(capturedBottomHudSetAnimation).not.toHaveBeenCalledWith(true, 10);
+    expect(capturedBottomHudSetAnimation).not.toHaveBeenCalledWith(true, 100);
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("hydrates speed only when ?speed=100 and ?anim absent (#348)", async () => {
+    capturedDispatch = null;
+    capturedBottomHudSetAnimation = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ speed: "100" }));
+    expect(capturedBottomHudSetAnimation).toHaveBeenCalledWith(false, 100);
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });

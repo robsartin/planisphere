@@ -30,6 +30,13 @@ export type ViewDirection = {
 
 export type AppMode = "planetarium" | "notebook";
 
+export type AnimationSpeed = 1 | 10 | 100;
+
+export type Animation = {
+  readonly playing: boolean;
+  readonly speed: AnimationSpeed;
+};
+
 export type AppState = {
   readonly observer: Observer;
   readonly timeUtc: Date;
@@ -43,6 +50,7 @@ export type AppState = {
   readonly skyculture: SkycultureId; // asterism set, default "western"
   readonly mode: AppMode; // app-surface mode, default "planetarium"
   readonly activePlanSlug: string | null; // URL-synced via ?plan=<slug>
+  readonly animation: Animation; // #348 — URL-synced via ?anim=play&speed=<1|10|100>
   // #350 — constellation art overlay. Off by default; toggled by ?art=on and
   // the Settings-drawer switch. Opacity slider defaults to 0.35.
   readonly constellationArt: boolean;
@@ -90,6 +98,7 @@ export const DEFAULT_FOV: FovPresetId = "off";
 export const DEFAULT_SKYCULTURE: SkycultureId = "western";
 export const DEFAULT_MODE: AppMode = "planetarium";
 export const DEFAULT_ACTIVE_PLAN_SLUG: string | null = null;
+export const DEFAULT_ANIMATION: Animation = { playing: false, speed: 1 };
 export const DEFAULT_CONSTELLATION_ART = false;
 export const DEFAULT_CONSTELLATION_ART_OPACITY = 0.35;
 
@@ -106,6 +115,7 @@ export const DEFAULT_STATE: AppState = {
   skyculture: DEFAULT_SKYCULTURE,
   mode: DEFAULT_MODE,
   activePlanSlug: DEFAULT_ACTIVE_PLAN_SLUG,
+  animation: DEFAULT_ANIMATION,
   constellationArt: DEFAULT_CONSTELLATION_ART,
   constellationArtOpacity: DEFAULT_CONSTELLATION_ART_OPACITY,
 };
@@ -174,6 +184,13 @@ function parseMode(raw: string | null): AppMode {
   return DEFAULT_MODE;
 }
 
+function parseAnimation(rawAnim: string | null, rawSpeed: string | null): Animation {
+  const playing = rawAnim === "play";
+  const speed: AnimationSpeed =
+    rawSpeed === "10" ? 10 : rawSpeed === "100" ? 100 : DEFAULT_ANIMATION.speed;
+  return { playing, speed };
+}
+
 export function parseStateFromSearchParams(
   params: URLSearchParams,
 ): Result<AppState, StateParseError> {
@@ -233,6 +250,7 @@ export function parseStateFromSearchParams(
   const skyculture = parseSkyculture(params.get("sky"));
   const mode = parseMode(params.get("mode"));
   const activePlanSlug = parseActivePlanSlug(params.get("plan"));
+  const animation = parseAnimation(params.get("anim"), params.get("speed"));
   const constellationArt = params.get("art") === "on";
   const constellationArtOpacity = parseOpacity(
     params.get("art_op"),
@@ -252,6 +270,7 @@ export function parseStateFromSearchParams(
     skyculture,
     mode,
     activePlanSlug,
+    animation,
     constellationArt,
     constellationArtOpacity,
   });
@@ -323,6 +342,14 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.activePlanSlug !== null) {
     params.set("plan", state.activePlanSlug);
+  }
+
+  if (state.animation.playing) {
+    params.set("anim", "play");
+  }
+
+  if (state.animation.speed !== DEFAULT_ANIMATION.speed) {
+    params.set("speed", String(state.animation.speed));
   }
 
   if (state.constellationArt) {
