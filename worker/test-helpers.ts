@@ -11,10 +11,12 @@
  */
 import { env } from "cloudflare:test";
 import worker from "./index";
-import type { Env } from "./types";
+import type { Env as _Env } from "./types";
 
 // Re-export the bound env so test files get narrow types.
-export const testEnv = env as unknown as Env;
+// _Env is imported purely to teach the `cloudflare:test` module-augmentation
+// in env.d.ts about the Env shape; not referenced directly.
+export const testEnv = env;
 
 /** Origin used by every worker-test request. Arbitrary, but shared so the
  *  redirect Location + CORS assertions all line up. */

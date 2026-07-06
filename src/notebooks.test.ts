@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* eslint-disable @typescript-eslint/require-await */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createNotebook,

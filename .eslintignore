@@ -1,7 +1,0 @@
-dist
-coverage
-.worktrees
-pnpm-lock.yaml
-public/sw.js
-playwright-report
-test-results
