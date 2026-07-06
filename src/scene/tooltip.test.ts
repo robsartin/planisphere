@@ -320,4 +320,54 @@ describe("createTooltip", () => {
     });
     expect(() => clickCallback({ position: { x: 10, y: 20 } })).not.toThrow();
   });
+
+  it("clicking an IAU boundary polyline invokes onObjectClicked with kind='boundary' (regression for #307)", () => {
+    const container = document.createElement("div");
+    const viewer = makeMockViewer();
+    const onObjectClicked = vi.fn();
+    createTooltip(viewer as never, container, { onObjectClicked });
+
+    const clickCallback = mockSetInputAction.mock.calls[1]![0] as (movement: {
+      position: { x: number; y: number };
+    }) => void;
+    // Shape mirrors VisibleBoundary from src/astro/boundaries.ts — id + name
+    // + segments, notably NO `centroid` / `lines` (which would type-guard
+    // it as a constellation instead).
+    mockPick.mockReturnValueOnce({
+      id: {
+        id: "Ori",
+        name: "Orion",
+        segments: [{ start: { ra: 75, dec: 10 }, end: { ra: 90, dec: 10 } }],
+      },
+    });
+    clickCallback({ position: { x: 200, y: 200 } });
+    expect(onObjectClicked).toHaveBeenCalledOnce();
+    const callArg = onObjectClicked.mock.calls[0]![0] as {
+      kind: string;
+      boundary?: { name: string };
+    };
+    expect(callArg.kind).toBe("boundary");
+    expect(callArg.boundary?.name).toBe("Orion");
+  });
+
+  it("hovering an IAU boundary polyline renders a name + '(IAU boundary)' hover tooltip", () => {
+    const container = document.createElement("div");
+    const viewer = makeMockViewer();
+    createTooltip(viewer as never, container);
+    const hoverCallback = mockSetInputAction.mock.calls[0]![0] as (movement: {
+      endPosition: { x: number; y: number };
+    }) => void;
+    mockPick.mockReturnValueOnce({
+      id: {
+        id: "UMa",
+        name: "Ursa Major",
+        segments: [{ start: { ra: 150, dec: 55 }, end: { ra: 180, dec: 55 } }],
+      },
+    });
+    hoverCallback({ endPosition: { x: 400, y: 100 } });
+    const el = document.querySelector<HTMLElement>("[data-tooltip-hover]");
+    expect(el).not.toBeNull();
+    expect(el!.innerHTML).toContain("Ursa Major");
+    expect(el!.innerHTML).toContain("IAU boundary");
+  });
 });

@@ -146,4 +146,33 @@ describe("filterVisibleBoundaries", () => {
     const result = filterVisibleBoundaries(mixed, LAT, LON, TIME, stub);
     expect(result).toHaveLength(1);
   });
+
+  it("populates `name` from the provided namesByCode map (regression for #307)", () => {
+    const namesByCode = new Map<string, string>([
+      ["Ori", "Orion"],
+      ["UMa", "Ursa Major"],
+    ]);
+    const result = filterVisibleBoundaries(records, LAT, LON, TIME, {
+      namesByCode,
+      // Force all boundaries visible so the assertion is deterministic across time.
+      altFn: () => 30,
+    });
+    expect(result.map((b) => `${b.id}=${b.name}`).sort()).toEqual(["Ori=Orion", "UMa=Ursa Major"]);
+  });
+
+  it("falls back to the IAU code when the name map lacks an entry", () => {
+    const result = filterVisibleBoundaries(records, LAT, LON, TIME, {
+      namesByCode: new Map<string, string>([["Ori", "Orion"]]),
+      altFn: () => 30,
+    });
+    const uma = result.find((b) => b.id === "UMa");
+    expect(uma?.name).toBe("UMa");
+  });
+
+  it("falls back to the IAU code when no options are given at all", () => {
+    const result = filterVisibleBoundaries(records, LAT, LON, TIME, () => 30);
+    for (const b of result) {
+      expect(b.name).toBe(b.id);
+    }
+  });
 });

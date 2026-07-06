@@ -6,6 +6,7 @@ import type { CelestialBody } from "../astro";
 import type { VisibleSatellite } from "../sat";
 import type { VisibleMessier } from "../astro/messier";
 import type { VisibleConstellation } from "../astro/constellations";
+import type { VisibleBoundary } from "../astro/boundaries";
 
 export type Tooltip = {
   destroy: () => void;
@@ -18,7 +19,8 @@ export type PickedObject =
   | { readonly kind: "body"; readonly body: CelestialBody }
   | { readonly kind: "satellite"; readonly satellite: VisibleSatellite }
   | { readonly kind: "messier"; readonly messier: VisibleMessier }
-  | { readonly kind: "constellation"; readonly constellation: VisibleConstellation };
+  | { readonly kind: "constellation"; readonly constellation: VisibleConstellation }
+  | { readonly kind: "boundary"; readonly boundary: VisibleBoundary };
 
 export type TooltipOptions = {
   /** Invoked on left-click. `picked` is the object under the cursor, or `null`
@@ -127,6 +129,20 @@ function isVisibleConstellation(obj: unknown): obj is VisibleConstellation {
   );
 }
 
+function isVisibleBoundary(obj: unknown): obj is VisibleBoundary {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "id" in obj &&
+    "name" in obj &&
+    "segments" in obj &&
+    !("centroid" in obj) &&
+    !("lines" in obj) &&
+    typeof (obj as Record<string, unknown>).id === "string" &&
+    Array.isArray((obj as Record<string, unknown>).segments)
+  );
+}
+
 function formatMessier(obj: VisibleMessier): string {
   const label = obj.name.length > 0 ? `M${String(obj.m)} \u2014 ${obj.name}` : `M${String(obj.m)}`;
   return (
@@ -175,6 +191,7 @@ function pickObject(
   if (isVisibleSatellite(picked.id)) return { kind: "satellite", satellite: picked.id };
   if (isVisibleMessier(picked.id)) return { kind: "messier", messier: picked.id };
   if (isVisibleConstellation(picked.id)) return { kind: "constellation", constellation: picked.id };
+  if (isVisibleBoundary(picked.id)) return { kind: "boundary", boundary: picked.id };
   return null;
 }
 
@@ -190,6 +207,8 @@ function pickHtml(picked: PickedObject): string {
       return formatMessier(picked.messier);
     case "constellation":
       return `<strong>${picked.constellation.name}</strong><br>(constellation)`;
+    case "boundary":
+      return `<strong>${picked.boundary.name}</strong><br>(IAU boundary)`;
   }
 }
 
