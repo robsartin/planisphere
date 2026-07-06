@@ -35,6 +35,7 @@ function computeLookAngles(
   lonRad: number,
 ): { alt: number; az: number; height: number; velocity: number } | null {
   const posVel = propagate(satrec, time);
+  if (!posVel) return null;
   const pos = posVel.position;
   const vel = posVel.velocity;
 
