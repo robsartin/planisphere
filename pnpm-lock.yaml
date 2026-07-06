@@ -41,10 +41,10 @@ importers:
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.12.0
-        version: 0.12.21(@cloudflare/workers-types@4.20260418.1)(@vitest/runner@3.2.6)(@vitest/snapshot@3.2.6)(vitest@3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0))
+        version: 0.12.21(@cloudflare/workers-types@5.20260706.1)(@vitest/runner@3.2.6)(@vitest/snapshot@3.2.6)(vitest@3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0))
       '@cloudflare/workers-types':
-        specifier: ^4.20260418.1
-        version: 4.20260418.1
+        specifier: ^5.20260705.1
+        version: 5.20260706.1
       '@eslint/js':
         specifier: ~10.0.1
         version: 10.0.1(eslint@10.6.0)
@@ -104,7 +104,7 @@ importers:
         version: 3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0)
       wrangler:
         specifier: ^4.84.0
-        version: 4.107.0(@cloudflare/workers-types@4.20260418.1)
+        version: 4.107.0(@cloudflare/workers-types@5.20260706.1)
 
 packages:
 
@@ -256,8 +256,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workers-types@4.20260418.1':
-    resolution: {integrity: sha512-bywXb2XmeSqrLCQYipcupLneqx015YhhNWz2v9b9iatpe8Cg551vP7ZuD5S2a6GfBka0dDnO70kIBiBvFglcrg==}
+  '@cloudflare/workers-types@5.20260706.1':
+    resolution: {integrity: sha512-PdGrKyJMmKjrZs6xPN/LYN2zpKo9bgn8Iq3JLYho1/76t0HEfUYnssgUljqFxQYPzH4SZ8wsIThaGHmW5GZkLg==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2789,7 +2789,7 @@ snapshots:
     optionalDependencies:
       workerd: 1.20260701.1
 
-  '@cloudflare/vitest-pool-workers@0.12.21(@cloudflare/workers-types@4.20260418.1)(@vitest/runner@3.2.6)(@vitest/snapshot@3.2.6)(vitest@3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0))':
+  '@cloudflare/vitest-pool-workers@0.12.21(@cloudflare/workers-types@5.20260706.1)(@vitest/runner@3.2.6)(@vitest/snapshot@3.2.6)(vitest@3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0))':
     dependencies:
       '@vitest/runner': 3.2.6
       '@vitest/snapshot': 3.2.6
@@ -2797,7 +2797,7 @@ snapshots:
       esbuild: 0.27.3
       miniflare: 4.20260310.0
       vitest: 3.2.6(@types/node@20.14.15)(jsdom@29.1.1)(lightningcss@1.32.0)
-      wrangler: 4.72.0(@cloudflare/workers-types@4.20260418.1)
+      wrangler: 4.72.0(@cloudflare/workers-types@5.20260706.1)
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - bufferutil
@@ -2833,7 +2833,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260701.1':
     optional: true
 
-  '@cloudflare/workers-types@4.20260418.1': {}
+  '@cloudflare/workers-types@5.20260706.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -4999,7 +4999,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20260701.1
       '@cloudflare/workerd-windows-64': 1.20260701.1
 
-  wrangler@4.107.0(@cloudflare/workers-types@4.20260418.1):
+  wrangler@4.107.0(@cloudflare/workers-types@5.20260706.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260701.1)
@@ -5010,13 +5010,13 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20260701.1
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20260418.1
+      '@cloudflare/workers-types': 5.20260706.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  wrangler@4.72.0(@cloudflare/workers-types@4.20260418.1):
+  wrangler@4.72.0(@cloudflare/workers-types@5.20260706.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.4.2
       '@cloudflare/unenv-preset': 2.15.0(unenv@2.0.0-rc.24)(workerd@1.20260310.1)
@@ -5027,7 +5027,7 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20260310.1
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20260418.1
+      '@cloudflare/workers-types': 5.20260706.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - bufferutil
