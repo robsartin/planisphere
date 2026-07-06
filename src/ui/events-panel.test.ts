@@ -88,8 +88,7 @@ describe("createEventsPanel — Go-to dispatches view aim for any event with vie
     const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
     expect(calls.some((c) => c.type === "set-time")).toBe(true);
     const view = calls.find((c) => c.type === "set-view") as
-      | { type: "set-view"; az: number; alt: number }
-      | undefined;
+      { type: "set-view"; az: number; alt: number } | undefined;
     expect(view).toBeDefined();
     expect(view?.az).toBe(123);
     expect(view?.alt).toBe(45);
@@ -113,8 +112,7 @@ describe("createEventsPanel — Go-to dispatches view aim for any event with vie
     btn.click();
     const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
     const view = calls.find((c) => c.type === "set-view") as
-      | { type: "set-view"; az: number; alt: number }
-      | undefined;
+      { type: "set-view"; az: number; alt: number } | undefined;
     expect(view).toBeDefined();
     expect(view?.az).toBe(210);
     expect(view?.alt).toBe(30);
@@ -139,8 +137,7 @@ describe("createEventsPanel — Go-to dispatches view aim for any event with vie
     btn.click();
     const calls = dispatch.mock.calls.map((c) => c[0] as { type: string });
     const view = calls.find((c) => c.type === "set-view") as
-      | { type: "set-view"; az: number; alt: number }
-      | undefined;
+      { type: "set-view"; az: number; alt: number } | undefined;
     expect(view).toBeDefined();
     expect(view?.az).toBe(50);
     expect(view?.alt).toBe(60);
@@ -161,8 +158,7 @@ describe("createEventsPanel — ISS Go-to dispatches view aim", () => {
     expect(hasSetTime).toBe(true);
     expect(hasSetView).toBe(true);
     const viewIntent = calls.find((c) => c.type === "set-view") as
-      | { type: "set-view"; az: number; alt: number }
-      | undefined;
+      { type: "set-view"; az: number; alt: number } | undefined;
     expect(viewIntent?.az).toBe(157);
     expect(viewIntent?.alt).toBe(43);
   });

@@ -756,8 +756,7 @@ export function createTooltip(viewer: Viewer, container: HTMLElement): Tooltip {
 
   handler.setInputAction((movement: { endPosition: Cartesian2 }) => {
     const picked: { id?: unknown } | undefined = viewer.scene.pick(movement.endPosition) as
-      | { id?: unknown }
-      | undefined;
+      { id?: unknown } | undefined;
 
     let html: string | null = null;
     if (defined(picked) && picked !== undefined) {

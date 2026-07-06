@@ -129,12 +129,12 @@ First-load experience:
 | Location lat/lon                 | Location chip → map picker (1B)                 |
 | View Direction az/alt + presets  | Empty-sky reticle popover (1D)                  |
 | FOV reticle preset               | Empty-sky reticle popover + drawer shortcut     |
-| Layer toggles                    | ⚙ drawer (1E)                                  |
-| Opacity sliders (6)              | ⚙ drawer (1E)                                  |
-| Magnitude filter                 | ⚙ drawer (1E)                                  |
-| Language dropdown                | ⚙ drawer (1E)                                  |
-| Skyculture dropdown              | ⚙ drawer (1E)                                  |
-| Planet Info (all 7 bodies)       | ♀ "Tonight's sky" card (1G)                    |
+| Layer toggles                    | ⚙ drawer (1E)                                   |
+| Opacity sliders (6)              | ⚙ drawer (1E)                                   |
+| Magnitude filter                 | ⚙ drawer (1E)                                   |
+| Language dropdown                | ⚙ drawer (1E)                                   |
+| Skyculture dropdown              | ⚙ drawer (1E)                                   |
+| Planet Info (all 7 bodies)       | ♀ "Tonight's sky" card (1G)                     |
 | Help (?)                         | stays as ? icon top-right, opens existing modal |
 | Night vision (☼)                 | stays top-right                                 |
 | Copy link (🔗)                   | stays top-right                                 |
