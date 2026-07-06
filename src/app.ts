@@ -916,9 +916,15 @@ export async function bootstrap(
 
   // Satellite layer (async)
   let satelliteRecords: SatelliteRecord[] = [];
+  // Captured across the fetchTle boundary so we can decide whether to surface
+  // the offline-TLE staleness pill in the bottom HUD (#354).
+  let tleUsedFallback = false;
+  let tleSourceAgeSeconds = 0;
   const tleResult = await fetchTle();
   if (tleResult.ok) {
-    const satResult = parseTle(tleResult.value);
+    tleUsedFallback = tleResult.value.usedFallback;
+    tleSourceAgeSeconds = tleResult.value.sourceAgeSeconds;
+    const satResult = parseTle(tleResult.value.text);
     if (satResult.ok) {
       satelliteRecords = satResult.value;
       data.satelliteRecords = satResult;
@@ -1447,6 +1453,10 @@ export async function bootstrap(
         void refreshPlansView();
         return;
       }
+      case "open-help": {
+        helpModal?.open();
+        return;
+      }
     }
   }
 
@@ -1538,6 +1548,8 @@ export async function bootstrap(
       timeUtc: state.timeUtc,
       lat: state.observer.lat,
       lon: state.observer.lon,
+      tleUsedFallback,
+      tleSourceAgeSeconds,
     },
     handleIntent,
   );

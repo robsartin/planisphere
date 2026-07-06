@@ -590,7 +590,10 @@ vi.mock("../data/tle/visual.txt?raw", () => ({
 
 // Mock the sat module so tests don't do real network/propagation
 vi.mock("./sat", () => ({
-  fetchTle: vi.fn().mockResolvedValue({ ok: true, value: "" }),
+  fetchTle: vi.fn().mockResolvedValue({
+    ok: true,
+    value: { text: "", sourceAgeSeconds: 0, usedFallback: false },
+  }),
   parseTle: vi.fn().mockReturnValue({ ok: true, value: [] }),
   propagateSatellites: vi.fn().mockReturnValue([]),
 }));
