@@ -17,6 +17,7 @@ const CONSTELLATIONS: ConstellationRecord[] = [
   { id: "Ori", name: "Orion", lines: [[27989, 24436]] },
   { id: "Leo", name: "Leo", lines: [[49669, 54872]] },
   { id: "UMa", name: "Ursa Major", lines: [[54061, 53910]] },
+  { id: "Cas", name: "Cassiopeia", lines: [[3179, 4427]] },
 ];
 
 const BODY_NAMES = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
@@ -184,5 +185,65 @@ describe("searchObjects", () => {
   it("no results for a query that matches nothing", () => {
     const results = searchObjects(index, "zzzzzzzzz");
     expect(results).toHaveLength(0);
+  });
+});
+
+describe("searchObjects — fuzzy fallback", () => {
+  const index = buildSearchIndex(
+    STARS,
+    CONSTELLATIONS,
+    BODY_NAMES,
+    SATELLITES as SatelliteRecord[],
+    LAT,
+    LON,
+    TIME,
+  );
+
+  it("finds Betelgeuse in top-3 for typo 'beetleguse'", () => {
+    const results = searchObjects(index, "beetleguse");
+    const names = results.slice(0, 3).map((r) => r.name);
+    expect(names).toContain("Betelgeuse");
+  });
+
+  it("returns Sirius as top-1 for typo 'sirus'", () => {
+    const results = searchObjects(index, "sirus");
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]!.name).toBe("Sirius");
+  });
+
+  it("finds Cassiopeia in top-3 for typo 'casiopia'", () => {
+    const results = searchObjects(index, "casiopia");
+    const names = results.slice(0, 3).map((r) => r.name);
+    expect(names).toContain("Cassiopeia");
+  });
+
+  it("returns 0 results for gibberish 'randomxyz' (below similarity threshold)", () => {
+    const results = searchObjects(index, "randomxyz");
+    expect(results).toHaveLength(0);
+  });
+
+  it("returns at most 5 fuzzy results", () => {
+    // Query with no substring hit but many weak fuzzy matches shouldn't exceed cap
+    const results = searchObjects(index, "zzeetl"); // arbitrary near-miss
+    expect(results.length).toBeLessThanOrEqual(5);
+  });
+
+  it("does NOT invoke fuzzy fallback when substring already matches", () => {
+    // 'sir' is a substring of 'Sirius' — must not surface Cassiopeia/etc. as fuzzy filler
+    const results = searchObjects(index, "sir");
+    for (const r of results) {
+      expect(r.name.toLowerCase()).toContain("sir");
+    }
+  });
+
+  it("preserves SearchResult shape for fuzzy results", () => {
+    const results = searchObjects(index, "beetleguse");
+    expect(results.length).toBeGreaterThan(0);
+    const r = results[0]!;
+    expect(typeof r.name).toBe("string");
+    expect(["star", "constellation", "body", "satellite"]).toContain(r.type);
+    expect(typeof r.alt).toBe("number");
+    expect(typeof r.az).toBe("number");
+    expect(typeof r.belowHorizon).toBe("boolean");
   });
 });
