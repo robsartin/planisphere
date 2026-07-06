@@ -114,6 +114,21 @@ describe("createSearch", () => {
     expect(dropdown.style.display).toBe("none");
   });
 
+  it("pressing Escape clears the input and hides the dropdown", () => {
+    const input = el.querySelector<HTMLInputElement>("input[type='text']")!;
+    // Open the dropdown first
+    input.value = "sir";
+    input.dispatchEvent(new Event("input"));
+    const dropdown = el.querySelector<HTMLElement>("[data-testid='search-dropdown']")!;
+    expect(dropdown.style.display).not.toBe("none");
+
+    // Dispatch Escape keydown on the input
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(dropdown.style.display).toBe("none");
+    expect(input.value).toBe("");
+  });
+
   it("empty query hides dropdown", () => {
     const input = el.querySelector<HTMLInputElement>("input[type='text']")!;
     // First show some results
