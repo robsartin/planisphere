@@ -79,7 +79,7 @@ export function createSatelliteLayer(scene: Scene): SatelliteLayer {
             color: Color.fromCssColorString(SAT_COLOR).withAlpha(0.3),
           }),
         });
-        trailPolylines.push(pl as never);
+        trailPolylines.push(pl);
       }
     }
   }
