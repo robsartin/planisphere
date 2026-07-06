@@ -62,6 +62,7 @@ function makeMockScene() {
 const BOUNDARIES: VisibleBoundary[] = [
   {
     id: "Ori",
+    name: "Orion",
     segments: [
       { start: { ra: 75, dec: 10 }, end: { ra: 90, dec: 10 } },
       { start: { ra: 90, dec: 10 }, end: { ra: 90, dec: -10 } },
@@ -69,6 +70,7 @@ const BOUNDARIES: VisibleBoundary[] = [
   },
   {
     id: "UMa",
+    name: "Ursa Major",
     segments: [{ start: { ra: 150, dec: 55 }, end: { ra: 180, dec: 55 } }],
   },
 ];
@@ -118,6 +120,17 @@ describe("BoundaryLayer.update", () => {
     layer.update(BOUNDARIES.slice(0, 1), 40, 0);
     expect(mockPolylineRemoveAll).toHaveBeenCalledOnce();
     expect(mockPolylineAdd).toHaveBeenCalledTimes(2);
+  });
+
+  it("attaches the VisibleBoundary as each polyline's pick id (regression for #307)", () => {
+    const layer = createBoundaryLayer(makeMockScene() as never);
+    layer.update(BOUNDARIES, 40, 0);
+    // 2 segments for Ori + 1 for UMa = 3 add() calls; each should have
+    // received an `id` matching its parent boundary.
+    const idsPassed = mockPolylineAdd.mock.calls.map(
+      (call) => (call[0] as { id?: { name?: string } }).id?.name,
+    );
+    expect(idsPassed).toEqual(["Orion", "Orion", "Ursa Major"]);
   });
 });
 

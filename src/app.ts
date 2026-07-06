@@ -516,11 +516,15 @@ function doRerender(
   );
 
   if (data.boundaries.ok) {
+    const namesByCode = data.constellations.ok
+      ? new Map<string, string>(data.constellations.value.map((c) => [c.id, c.name] as const))
+      : undefined;
     const visibleBoundaries = filterVisibleBoundaries(
       data.boundaries.value,
       observer.lat,
       observer.lon,
       timeUtc,
+      namesByCode !== undefined ? { namesByCode } : undefined,
     );
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
   }
@@ -608,11 +612,15 @@ async function doRerenderWithWorker(
   layers.milkyWay.update(milkyWayPoints, observer.lat, observer.lon);
 
   if (data.boundaries.ok) {
+    const namesByCode = data.constellations.ok
+      ? new Map<string, string>(data.constellations.value.map((c) => [c.id, c.name] as const))
+      : undefined;
     const visibleBoundaries = filterVisibleBoundaries(
       data.boundaries.value,
       observer.lat,
       observer.lon,
       timeUtc,
+      namesByCode !== undefined ? { namesByCode } : undefined,
     );
     layers.boundary.update(visibleBoundaries, observer.lat, observer.lon);
   }
@@ -720,7 +728,7 @@ function pickedToCardData(
   picked: PickedObject,
   observer: { lat: number; lon: number },
   time: Date,
-): ObjectCardData {
+): ObjectCardData | null {
   switch (picked.kind) {
     case "star":
       return { kind: "star", star: picked.star };
@@ -732,6 +740,11 @@ function pickedToCardData(
       return { kind: "messier", messier: picked.messier };
     case "constellation":
       return { kind: "constellation", constellation: picked.constellation };
+    case "boundary":
+      // Boundaries currently render only a hover-name popup (#307). No
+      // pinned-card variant yet — return null so the click handler
+      // treats the boundary click as "no card".
+      return null;
   }
 }
 
@@ -1005,6 +1018,10 @@ export async function bootstrap(
         // Clicking an object replaces the empty-sky popover with the object card.
         emptySkyPopover?.close();
         const cardData = pickedToCardData(picked, state.observer, state.timeUtc);
+        if (cardData === null) {
+          // Boundary picks (#307) hover-only; no pinned card yet.
+          return;
+        }
         const objectKind = cardData.kind;
         const id = idForCardData(cardData);
         pendingCardData.set(positionKey(objectKind, id), cardData);

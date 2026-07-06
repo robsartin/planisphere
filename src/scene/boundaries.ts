@@ -44,6 +44,10 @@ export function createBoundaryLayer(scene: Scene): BoundaryLayer {
           material: Material.fromType("Color", {
             color: Color.WHITE.withAlpha(currentOpacity),
           }),
+          // Attach the VisibleBoundary so tooltip.pickObject can identify a
+          // boundary-line hit and open the "<name> — IAU boundary" popup
+          // (issue #307; mirrors the constellation figure-line fix in #305).
+          id: boundary,
         });
         addedPolylines.push(pl as never);
       }
