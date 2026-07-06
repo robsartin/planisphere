@@ -128,6 +128,60 @@ describe("ConstellationLayer.update", () => {
     expect(mockPolylineAdd).toHaveBeenCalledTimes(2);
     expect(mockLabelAdd).toHaveBeenCalledTimes(1);
   });
+
+  // #306 — DOM label mirror. Cesium renders label text into the WebGL font
+  // atlas, so end-to-end tests need an alternative surface for asserting
+  // translation. The mirror is a hidden `<span>` per label under a sentinel
+  // container on document.body.
+  describe("label DOM mirror (#306)", () => {
+    beforeEach(() => {
+      document.querySelectorAll("[data-label-mirror]").forEach((el) => el.remove());
+    });
+
+    it("appends a hidden `<span data-label-for>` per constellation on update", () => {
+      const layer = createConstellationLayer(makeMockScene() as never);
+      layer.update(CONSTELLATIONS, 33, -117);
+      const spans = document.querySelectorAll<HTMLElement>(
+        "[data-label-mirror='constellations'] [data-label-for]",
+      );
+      expect(spans.length).toBe(CONSTELLATIONS.length);
+      const byId = new Map([...spans].map((s) => [s.dataset["labelFor"], s.textContent] as const));
+      for (const c of CONSTELLATIONS) {
+        expect(byId.get(`constellation-${c.id}`)).toBe(c.name);
+      }
+    });
+
+    it("mirror text tracks the language override", () => {
+      const layer = createConstellationLayer(makeMockScene() as never);
+      const overrides: Record<string, string> = {};
+      for (const c of CONSTELLATIONS) overrides[c.id] = `TRANSLATED-${c.id}`;
+      layer.setNameOverrides(overrides);
+      layer.update(CONSTELLATIONS, 33, -117);
+      const span = document.querySelector<HTMLElement>(
+        `[data-label-for='constellation-${CONSTELLATIONS[0]!.id}']`,
+      );
+      expect(span?.textContent).toBe(`TRANSLATED-${CONSTELLATIONS[0]!.id}`);
+    });
+
+    it("clears the mirror between updates so stale spans don't accumulate", () => {
+      const layer = createConstellationLayer(makeMockScene() as never);
+      layer.update(CONSTELLATIONS, 33, -117);
+      layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
+      const spans = document.querySelectorAll(
+        "[data-label-mirror='constellations'] [data-label-for]",
+      );
+      expect(spans.length).toBe(1);
+    });
+
+    it("clearing to empty leaves the mirror container empty rather than removed", () => {
+      const layer = createConstellationLayer(makeMockScene() as never);
+      layer.update(CONSTELLATIONS, 33, -117);
+      layer.update([], 33, -117);
+      const container = document.querySelector<HTMLElement>("[data-label-mirror='constellations']");
+      expect(container).not.toBeNull();
+      expect(container!.children.length).toBe(0);
+    });
+  });
 });
 
 describe("ConstellationLayer.setVisible", () => {
