@@ -10,6 +10,7 @@ export {
   createMagnitudeFilterSection,
   createLanguageSection,
   createSkycultureSection,
+  createConstellationArtSection,
 } from "./layer-controls";
 export type { Drawer, DrawerOptions, DrawerSide } from "./drawer";
 export { createDrawer } from "./drawer";
@@ -116,7 +117,10 @@ export type UIIntent =
     }
   | { readonly type: "set-active-plan"; readonly slug: string | null }
   | { readonly type: "open-sign-in" }
-  | { readonly type: "retry-plans" };
+  | { readonly type: "retry-plans" }
+  // #350 — constellation art overlay
+  | { readonly type: "toggle-constellation-art" }
+  | { readonly type: "set-constellation-art-opacity"; readonly value: number };
 
 export { createPlanCard } from "./plans-card";
 export { createPlansDrawer } from "./plans-drawer";

@@ -7,6 +7,7 @@ import {
   createMagnitudeFilterSection,
   createLanguageSection,
   createSkycultureSection,
+  createConstellationArtSection,
 } from "./layer-controls";
 import { applyBaseText, GAP, TEXT_COLOR } from "./styles";
 import type { UIIntent } from "./index";
@@ -47,6 +48,9 @@ export type SettingsDrawerOptions = {
   magLimit: number;
   language: Language;
   skyculture: SkycultureId;
+  // #350 — constellation art overlay. Off by default; opacity slider default 0.35.
+  constellationArt: boolean;
+  constellationArtOpacity: number;
   dispatch: (intent: UIIntent) => void;
 };
 
@@ -122,13 +126,32 @@ function buildSection(id: SectionId, title: string, content: HTMLElement): Secti
  * wired across open/close cycles. `open()` just flips the shared drawer.
  */
 export function createSettingsDrawer(options: SettingsDrawerOptions): SettingsDrawer {
-  const { visibility, opacity, magLimit, language, skyculture, dispatch } = options;
+  const {
+    visibility,
+    opacity,
+    magLimit,
+    language,
+    skyculture,
+    constellationArt,
+    constellationArtOpacity,
+    dispatch,
+  } = options;
 
   const sections: Record<SectionId, SectionHandle> = {
     visibility: buildSection(
       "visibility",
       "Visibility",
-      createVisibilitySection(visibility, dispatch),
+      el("div", {
+        children: [
+          createVisibilitySection(visibility, dispatch),
+          // #350 — constellation art overlay lives inside Visibility so its
+          // toggle and opacity slider both surface behind the same header the
+          // user already reaches for. It's a distinct opt-in surface (?art=on)
+          // rather than a member of LayerVisibility, so a dedicated mini-
+          // section keeps the URL scheme separate from `layers=`.
+          createConstellationArtSection(constellationArt, constellationArtOpacity, dispatch),
+        ],
+      }),
     ),
     opacity: buildSection("opacity", "Opacity", createOpacitySection(opacity, dispatch)),
     filters: buildSection("filters", "Filters", createMagnitudeFilterSection(magLimit, dispatch)),
