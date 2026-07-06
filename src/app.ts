@@ -1345,8 +1345,7 @@ export async function bootstrap(
         // Fire-and-forget: clipboard is optional; failure is silent.
         const href = globalThis.location?.href ?? "";
         const clipboard = navigator.clipboard as
-          | { writeText?: (s: string) => Promise<void> }
-          | undefined;
+          { writeText?: (s: string) => Promise<void> } | undefined;
         if (clipboard !== undefined && typeof clipboard.writeText === "function") {
           void clipboard.writeText(href).catch(() => {
             // Clipboard access denied — nothing we can do.

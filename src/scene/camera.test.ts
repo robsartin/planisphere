@@ -275,8 +275,7 @@ describe("setupGestures", () => {
       viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
     ).addEventListener;
     const wheelCall = addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as
-      | [string, (e: WheelEvent) => void, AddEventListenerOptions]
-      | undefined;
+      [string, (e: WheelEvent) => void, AddEventListenerOptions] | undefined;
     expect(wheelCall).toBeDefined();
     const wheelHandler = wheelCall![1];
     const make = (deltaY: number) =>
@@ -308,8 +307,7 @@ describe("setupGestures", () => {
       viewer.scene.canvas as unknown as { addEventListener: { mock: { calls: unknown[][] } } }
     ).addEventListener;
     const wheelCall = addEventListener.mock.calls.find((c: unknown[]) => c[0] === "wheel") as
-      | [string, (e: WheelEvent) => void, AddEventListenerOptions]
-      | undefined;
+      [string, (e: WheelEvent) => void, AddEventListenerOptions] | undefined;
     const wheelHandler = wheelCall![1];
     const setView = (viewer.camera as unknown as { setView: ReturnType<typeof vi.fn> }).setView;
     setView.mockClear();
@@ -578,8 +576,7 @@ describe("setupTrackballControls drag + inertia", () => {
 
   function getHandler(eventType: string): (ev: unknown) => void {
     const call = mockSetInputAction.mock.calls.find((c: unknown[]) => c[1] === eventType) as
-      | [(ev: unknown) => void, string]
-      | undefined;
+      [(ev: unknown) => void, string] | undefined;
     if (!call) throw new Error(`no handler registered for ${eventType}`);
     return call[0];
   }

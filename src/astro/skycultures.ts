@@ -4,12 +4,7 @@ import type { VisibleConstellation, VisibleLine } from "./constellations";
 import type { AltAzStar } from "./visibility";
 
 export type SkycultureId =
-  | "western"
-  | "chinese"
-  | "indian"
-  | "norse_edda"
-  | "hawaiian_starlines"
-  | "maori";
+  "western" | "chinese" | "indian" | "norse_edda" | "hawaiian_starlines" | "maori";
 
 export const SKYCULTURES: readonly SkycultureId[] = [
   "western",
@@ -34,8 +29,7 @@ export type AsterismSet = {
 };
 
 export type AsterismParseError =
-  | { kind: "asterism-invalid"; message: string }
-  | { kind: "asterism-empty"; message: string };
+  { kind: "asterism-invalid"; message: string } | { kind: "asterism-empty"; message: string };
 
 const ID_SET = new Set<string>(SKYCULTURES);
 

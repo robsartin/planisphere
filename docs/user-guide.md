@@ -92,10 +92,10 @@ The panel header at the top-right holds a row of icon buttons. Each one either f
 | **🔴**    | Toggles [Night vision](#night-vision) mode.                           |
 | **🔗**    | Copies the current URL to your clipboard.                             |
 | **📅**    | [Upcoming Events](#upcoming-events) drawer.                           |
-| **♀**    | [Tonight's Sky](#tonights-sky) drawer.                                |
+| **♀**     | [Tonight's Sky](#tonights-sky) drawer.                                |
 | **?**     | [Help modal](#help-modal) (this guide).                               |
-| **⚙**    | [Settings drawer](#settings) — visibility, opacity, filters, display. |
-| **🌃/📓** | [Planetarium ↔ Notebook](#notebook-mode-pro) mode toggle.            |
+| **⚙**     | [Settings drawer](#settings) — visibility, opacity, filters, display. |
+| **🌃/📓** | [Planetarium ↔ Notebook](#notebook-mode-pro) mode toggle.             |
 | **−/+**   | Collapse or expand the panel body.                                    |
 
 Only one drawer is open at a time; opening a new one closes any drawer that's already open. Press **Esc** to close the current drawer.

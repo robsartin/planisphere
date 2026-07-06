@@ -101,10 +101,7 @@ export type IssPassEvent = {
 };
 
 export type CelestialEvent =
-  | ConjunctionEvent
-  | LunarEclipseEvent
-  | MeteorShowerEvent
-  | IssPassEvent;
+  ConjunctionEvent | LunarEclipseEvent | MeteorShowerEvent | IssPassEvent;
 
 /** Typed domain errors returned from computeUpcomingEvents. Currently none are produced,
  *  but the Result wrapper keeps the boundary consistent if future variants (e.g. parse
