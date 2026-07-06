@@ -1,11 +1,20 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { el } from "./dom";
 import { FOV_PRESETS, type FovPresetId, isFovPresetId } from "../astro/fov-presets";
+import type { CelestialEvent } from "../astro/events";
 import type { UIIntent } from "./index";
 
 export type EmptySkyPopoverOptions = {
   readonly dispatch: (intent: UIIntent) => void;
   readonly initialFov: FovPresetId;
+  /** Supplier for the current upcoming-events list. Called on each `open()` so the
+   *  popover always renders the freshest events. Omit (or return []) to hide the
+   *  upcoming-events section entirely and fall back to the standalone empty-sky UI. */
+  readonly getEvents?: () => readonly CelestialEvent[];
+  /** Supplier for the "now" reference used to format relative-time chips ("in 42 min",
+   *  "in 3d 14h"). Should be the app's viewing time (`state.timeUtc`) — the same value
+   *  the events were computed against. Defaults to real wall-clock time when omitted. */
+  readonly getNow?: () => Date;
 };
 
 export type EmptySkyPopover = {
@@ -99,6 +108,88 @@ const FOV_SELECT_STYLE: Partial<CSSStyleDeclaration> = {
   padding: "3px",
   font: "11px sans-serif",
 };
+
+const EVENTS_SECTION_STYLE: Partial<CSSStyleDeclaration> = {
+  marginTop: "8px",
+  paddingTop: "8px",
+  borderTop: "1px solid rgba(255,255,255,0.12)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+};
+
+const EVENTS_HEADING_STYLE: Partial<CSSStyleDeclaration> = {
+  color: "rgba(255,255,255,0.6)",
+  font: "11px sans-serif",
+  textTransform: "uppercase",
+  letterSpacing: "0.4px",
+};
+
+const EVENT_ROW_STYLE: Partial<CSSStyleDeclaration> = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "6px",
+  padding: "4px 6px",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "4px",
+  cursor: "pointer",
+  textAlign: "left",
+  color: "#fff",
+  font: "11px sans-serif",
+};
+
+const EVENT_TITLE_STYLE: Partial<CSSStyleDeclaration> = {
+  flex: "1",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const EVENT_CHIP_STYLE: Partial<CSSStyleDeclaration> = {
+  flexShrink: "0",
+  padding: "1px 6px",
+  background: "rgba(100,160,255,0.25)",
+  border: "1px solid rgba(100,160,255,0.5)",
+  borderRadius: "8px",
+  color: "rgba(255,255,255,0.9)",
+  font: "10px sans-serif",
+};
+
+const MAX_EVENT_ROWS = 3;
+
+/** Format a millisecond delta as a short relative-time chip. Examples:
+ *  - "in 42 min" (< 1 hour)
+ *  - "in 5h 12m" (< 1 day)
+ *  - "in 3d 14h" (>= 1 day)
+ *  Negative deltas (past events) collapse to "now". */
+export function formatRelative(fromMs: number, toMs: number): string {
+  const deltaMs = toMs - fromMs;
+  if (deltaMs <= 0) return "now";
+  const totalMinutes = Math.round(deltaMs / 60000);
+  if (totalMinutes < 60) return `in ${String(totalMinutes)} min`;
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours < 24) {
+    const mins = totalMinutes - totalHours * 60;
+    return `in ${String(totalHours)}h ${String(mins)}m`;
+  }
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours - days * 24;
+  return `in ${String(days)}d ${String(hours)}h`;
+}
+
+/** Extract the aim direction from an event when one is available. ISS pass events
+ *  carry peakAz/peakAlt; the other kinds carry optional viewAz/viewAlt. */
+function viewFromEvent(event: CelestialEvent): { az: number; alt: number } | null {
+  if (event.kind === "iss-pass") {
+    return { az: event.peakAzDeg, alt: event.peakAltDeg };
+  }
+  if (event.viewAz !== undefined && event.viewAlt !== undefined) {
+    return { az: event.viewAz, alt: event.viewAlt };
+  }
+  return null;
+}
 
 /** Smart edge-flip placement matching the object-card idiom. */
 function smartPosition(
@@ -194,11 +285,17 @@ export function createEmptySkyPopover(opts: EmptySkyPopoverOptions): EmptySkyPop
     children: [el("label", { text: "FOV", style: FOV_LABEL_STYLE }), fovSelect],
   });
 
-  // Card — floating panel with readout, "Look here", FOV select, and close button.
+  // Upcoming-events section — rebuilt on every open() from opts.getEvents().
+  // Hidden entirely when no events are supplied or the list is empty, so the
+  // fallback "Empty sky" copy stays the whole story.
+  const eventsHost = el("div", { testid: "empty-sky-popover-events-host" });
+  eventsHost.style.display = "none";
+
+  // Card — floating panel with readout, "Look here", upcoming events, FOV select, close.
   const card = el("div", {
     testid: "empty-sky-popover-card",
     style: CARD_STYLE,
-    children: [header, readout, actionRow, fovRow],
+    children: [header, readout, actionRow, eventsHost, fovRow],
   });
 
   const root = el("div", {
@@ -238,10 +335,66 @@ export function createEmptySkyPopover(opts: EmptySkyPopoverOptions): EmptySkyPop
     root.style.display = "none";
   }
 
+  function buildEventRow(event: CelestialEvent, nowMs: number): HTMLElement {
+    const chip = el("span", {
+      testid: "empty-sky-popover-event-chip",
+      text: formatRelative(nowMs, event.when.getTime()),
+      style: EVENT_CHIP_STYLE,
+    });
+    const title = el("span", {
+      testid: "empty-sky-popover-event-title",
+      text: event.title,
+      style: EVENT_TITLE_STYLE,
+    });
+    const row = el("button", {
+      testid: "empty-sky-popover-event-row",
+      type: "button",
+      style: EVENT_ROW_STYLE,
+      children: [title, chip],
+    });
+    row.addEventListener("click", () => {
+      opts.dispatch({ type: "set-time", time: event.when });
+      const view = viewFromEvent(event);
+      if (view !== null) {
+        opts.dispatch({ type: "set-view", az: view.az, alt: view.alt });
+      }
+      closePopover();
+    });
+    return row;
+  }
+
+  function renderEvents(): void {
+    const supplier = opts.getEvents;
+    if (!supplier) {
+      eventsHost.replaceChildren();
+      eventsHost.style.display = "none";
+      return;
+    }
+    const upcoming = [...supplier()].sort((a, b) => a.when.getTime() - b.when.getTime());
+    const shown = upcoming.slice(0, MAX_EVENT_ROWS);
+    if (shown.length === 0) {
+      eventsHost.replaceChildren();
+      eventsHost.style.display = "none";
+      return;
+    }
+    const nowMs = (opts.getNow ? opts.getNow() : new Date()).getTime();
+    const section = el("div", {
+      testid: "empty-sky-popover-events",
+      style: EVENTS_SECTION_STYLE,
+      children: [
+        el("div", { text: "Upcoming", style: EVENTS_HEADING_STYLE }),
+        ...shown.map((event) => buildEventRow(event, nowMs)),
+      ],
+    });
+    eventsHost.replaceChildren(section);
+    eventsHost.style.display = "";
+  }
+
   function openPopover(alt: number, az: number, screenX: number, screenY: number): void {
     currentAlt = alt;
     currentAz = az;
     setReadout(alt, az);
+    renderEvents();
     placeReticle(screenX, screenY);
     placeCard(screenX, screenY);
     show();
