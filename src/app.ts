@@ -37,6 +37,7 @@ import {
   createBodyLayer,
   createTooltip,
   createConstellationLayer,
+  createConstellationArtLayer,
   createCompassLayer,
   createSatelliteLayer,
   createBoundaryLayer,
@@ -56,6 +57,7 @@ import type {
   StarLayer,
   BodyLayer,
   ConstellationLayer,
+  ConstellationArtLayer,
   BoundaryLayer,
   SatelliteLayer,
   CompassLayer,
@@ -358,6 +360,7 @@ type Layers = {
   star: StarLayer;
   body: BodyLayer;
   constellation: ConstellationLayer;
+  constellationArt: ConstellationArtLayer;
   boundary: BoundaryLayer;
   satellite: SatelliteLayer | null;
   compass: CompassLayer;
@@ -378,6 +381,16 @@ function applyLayerVisibility(layers: Layers, visibility: LayerVisibility): void
   layers.compass.setVisible(visibility.compass);
   layers.messier.setVisible(visibility.deepSky);
   if (layers.satellite) layers.satellite.setVisible(visibility.satellites);
+}
+
+/**
+ * #350 — apply the constellation-art overlay's URL-synced show flag and
+ * opacity together. Kept as a helper so both rerender paths (sync + worker-
+ * accelerated) and the toggle-intent handlers stay in sync.
+ */
+function applyConstellationArtState(layers: Layers, state: AppState): void {
+  layers.constellationArt.setVisible(state.constellationArt);
+  layers.constellationArt.setOpacity(state.constellationArtOpacity);
 }
 
 type ParsedData = {
@@ -476,11 +489,16 @@ function updateConstellationLayer(
   if (data.activeAsterisms !== null) {
     const visible = filterVisibleAsterisms(data.activeAsterisms, visibleStars);
     layers.constellation.update(visible, lat, lon);
+    // #350 — mirror the same visible list into the constellation-art overlay
+    // so its billboards sit on the current-frame centroids. Visibility /
+    // opacity are applied downstream from the URL-synced state.
+    layers.constellationArt.update(visible, lat, lon);
     return visible;
   }
   if (data.constellations.ok) {
     const visible = filterVisibleConstellations(data.constellations.value, visibleStars);
     layers.constellation.update(visible, lat, lon);
+    layers.constellationArt.update(visible, lat, lon);
     return visible;
   }
   return [];
@@ -560,6 +578,7 @@ function doRerender(
   layers.ecliptic.setOpacity(state.opacity.ecliptic);
   layers.milkyWay.setOpacity(state.opacity.milkyWay);
   if (layers.satellite) layers.satellite.setOpacity(state.opacity.satelliteTrails * 0.3);
+  applyConstellationArtState(layers, state);
 
   if (latest !== undefined) {
     fillLatestFromVisible(
@@ -646,6 +665,7 @@ async function doRerenderWithWorker(
   layers.ecliptic.setOpacity(capturedState.opacity.ecliptic);
   layers.milkyWay.setOpacity(capturedState.opacity.milkyWay);
   if (layers.satellite) layers.satellite.setOpacity(capturedState.opacity.satelliteTrails * 0.3);
+  applyConstellationArtState(layers, capturedState);
 
   // Wait for worker result, then update stars + constellations
   let visibleStars: ReturnType<typeof filterVisibleStars>;
@@ -816,6 +836,7 @@ export async function bootstrap(
     star: createStarLayer(viewer.scene),
     body: createBodyLayer(viewer.scene),
     constellation: createConstellationLayer(viewer.scene),
+    constellationArt: createConstellationArtLayer(viewer.scene),
     boundary: createBoundaryLayer(viewer.scene),
     satellite: null,
     compass: createCompassLayer(viewer.scene),
@@ -1458,6 +1479,18 @@ export async function bootstrap(
         void refreshPlansView();
         return;
       }
+      case "toggle-constellation-art": {
+        state = { ...state, constellationArt: !state.constellationArt };
+        applyConstellationArtState(layers, state);
+        updateUrl(state);
+        return;
+      }
+      case "set-constellation-art-opacity": {
+        state = { ...state, constellationArtOpacity: intent.value };
+        applyConstellationArtState(layers, state);
+        updateUrl(state);
+        return;
+      }
       case "open-help": {
         helpModal?.open();
         return;
@@ -1532,6 +1565,8 @@ export async function bootstrap(
     magLimit: state.magLimit,
     language: state.language,
     skyculture: state.skyculture,
+    constellationArt: state.constellationArt,
+    constellationArtOpacity: state.constellationArtOpacity,
     dispatch: (intent) => {
       handleIntent(intent);
     },

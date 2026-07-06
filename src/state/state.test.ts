@@ -482,6 +482,94 @@ describe("mode — serialize round-trip", () => {
   });
 });
 
+describe("constellationArt — defaults", () => {
+  it("defaults to false when art param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.constellationArt).toBe(false);
+  });
+
+  it("DEFAULT_STATE.constellationArt is false", () => {
+    expect(DEFAULT_STATE.constellationArt).toBe(false);
+  });
+
+  it("defaults constellationArtOpacity to 0.35 when art_op param is absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.constellationArtOpacity).toBeCloseTo(0.35);
+  });
+
+  it("DEFAULT_STATE.constellationArtOpacity is 0.35", () => {
+    expect(DEFAULT_STATE.constellationArtOpacity).toBeCloseTo(0.35);
+  });
+});
+
+describe("constellationArt — parse from URL", () => {
+  it("parses art=on as constellationArt true", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art: "on" })));
+    expect(s.constellationArt).toBe(true);
+  });
+
+  it("treats art=anything-else as false", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art: "off" })));
+    expect(s.constellationArt).toBe(false);
+  });
+
+  it("parses art_op as a 0–1 fraction", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "50" })));
+    expect(s.constellationArtOpacity).toBeCloseTo(0.5);
+  });
+
+  it("clamps art_op above maximum to 1.0", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "150" })));
+    expect(s.constellationArtOpacity).toBe(1.0);
+  });
+
+  it("clamps art_op below minimum to 0.0", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "-10" })));
+    expect(s.constellationArtOpacity).toBe(0.0);
+  });
+
+  it("falls back to default (0.35) for non-numeric art_op", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "bright" })));
+    expect(s.constellationArtOpacity).toBeCloseTo(0.35);
+  });
+});
+
+describe("constellationArt — serialize round-trip", () => {
+  it("omits art param when false (default)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("art")).toBe(false);
+  });
+
+  it("writes art=on when constellationArt is true", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art: "on" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("art")).toBe("on");
+  });
+
+  it("omits art_op when at default (0.35)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("art_op")).toBe(false);
+  });
+
+  it("writes art_op when opacity is non-default", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "60" })));
+    const out = serializeStateToSearchParams(s);
+    expect(out.get("art_op")).toBe("60");
+  });
+
+  it("round-trips constellationArt=true through serialize/parse", () => {
+    const s = expectOk(
+      parseStateFromSearchParams(new URLSearchParams({ art: "on", art_op: "70" })),
+    );
+    const out = serializeStateToSearchParams(s);
+    const s2 = expectOk(parseStateFromSearchParams(out));
+    expect(s2.constellationArt).toBe(true);
+    expect(s2.constellationArtOpacity).toBeCloseTo(0.7);
+  });
+});
+
 describe("activePlanSlug", () => {
   it("defaults to null", () => {
     expect(DEFAULT_STATE.activePlanSlug).toBeNull();

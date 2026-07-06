@@ -29,6 +29,7 @@ export {
   type ConstellationNameOverrides,
   createConstellationLayer,
 } from "./constellations";
+export { type ConstellationArtLayer, createConstellationArtLayer } from "./constellation-art";
 export { type CompassLayer, createCompassLayer } from "./compass";
 export { type SatelliteLayer, createSatelliteLayer } from "./satellites";
 export { type BoundaryLayer, createBoundaryLayer } from "./boundaries";

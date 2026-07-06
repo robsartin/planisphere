@@ -28,6 +28,8 @@ function makeDrawer(dispatch: (i: UIIntent) => void = () => {}) {
     magLimit: 6.0,
     language: "la",
     skyculture: "western",
+    constellationArt: false,
+    constellationArtOpacity: 0.35,
     dispatch,
   });
 }
@@ -263,6 +265,8 @@ describe("createSettingsDrawer", () => {
       magLimit: 4.5,
       language: "zh",
       skyculture: "chinese",
+      constellationArt: false,
+      constellationArtOpacity: 0.35,
       dispatch: () => {},
     });
     document.body.appendChild(sd.element);
@@ -273,5 +277,67 @@ describe("createSettingsDrawer", () => {
     expect(lang.value).toBe("zh");
     const sky = sd.element.querySelector<HTMLSelectElement>("select[data-skyculture]")!;
     expect(sky.value).toBe("chinese");
+  });
+
+  describe("constellation art overlay (#350)", () => {
+    it("renders a constellation-art visibility toggle", () => {
+      const sd = makeDrawer();
+      document.body.appendChild(sd.element);
+      sd.open();
+      const toggle = sd.element.querySelector("input[type='checkbox'][data-art-toggle]");
+      expect(toggle).not.toBeNull();
+    });
+
+    it("renders a constellation-art opacity slider", () => {
+      const sd = makeDrawer();
+      document.body.appendChild(sd.element);
+      sd.open();
+      const slider = sd.element.querySelector("input[type='range'][data-art-opacity]");
+      expect(slider).not.toBeNull();
+    });
+
+    it("toggle-constellation-art intent dispatches when the checkbox flips", () => {
+      const dispatch = vi.fn();
+      const sd = makeDrawer(dispatch);
+      document.body.appendChild(sd.element);
+      sd.open();
+      const cb = sd.element.querySelector<HTMLInputElement>("input[data-art-toggle]")!;
+      cb.checked = true;
+      cb.dispatchEvent(new Event("change"));
+      expect(dispatch).toHaveBeenCalledWith({ type: "toggle-constellation-art" });
+    });
+
+    it("set-constellation-art-opacity intent dispatches when the slider moves", () => {
+      const dispatch = vi.fn();
+      const sd = makeDrawer(dispatch);
+      document.body.appendChild(sd.element);
+      sd.open();
+      const slider = sd.element.querySelector<HTMLInputElement>("input[data-art-opacity]")!;
+      slider.value = "50";
+      slider.dispatchEvent(new Event("input"));
+      expect(dispatch).toHaveBeenCalledWith({
+        type: "set-constellation-art-opacity",
+        value: 0.5,
+      });
+    });
+
+    it("respects initial constellationArt visibility value", () => {
+      const sd = createSettingsDrawer({
+        visibility: DEFAULT_VISIBILITY,
+        opacity: DEFAULT_OPACITY,
+        magLimit: 6.0,
+        language: "la",
+        skyculture: "western",
+        constellationArt: true,
+        constellationArtOpacity: 0.6,
+        dispatch: () => {},
+      });
+      document.body.appendChild(sd.element);
+      sd.open();
+      const cb = sd.element.querySelector<HTMLInputElement>("input[data-art-toggle]")!;
+      expect(cb.checked).toBe(true);
+      const slider = sd.element.querySelector<HTMLInputElement>("input[data-art-opacity]")!;
+      expect(Number(slider.value)).toBe(60);
+    });
   });
 });

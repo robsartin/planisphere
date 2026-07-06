@@ -43,6 +43,10 @@ export type AppState = {
   readonly skyculture: SkycultureId; // asterism set, default "western"
   readonly mode: AppMode; // app-surface mode, default "planetarium"
   readonly activePlanSlug: string | null; // URL-synced via ?plan=<slug>
+  // #350 — constellation art overlay. Off by default; toggled by ?art=on and
+  // the Settings-drawer switch. Opacity slider defaults to 0.35.
+  readonly constellationArt: boolean;
+  readonly constellationArtOpacity: number; // 0–1
 };
 
 export type StateParseError =
@@ -86,6 +90,8 @@ export const DEFAULT_FOV: FovPresetId = "off";
 export const DEFAULT_SKYCULTURE: SkycultureId = "western";
 export const DEFAULT_MODE: AppMode = "planetarium";
 export const DEFAULT_ACTIVE_PLAN_SLUG: string | null = null;
+export const DEFAULT_CONSTELLATION_ART = false;
+export const DEFAULT_CONSTELLATION_ART_OPACITY = 0.35;
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
@@ -100,6 +106,8 @@ export const DEFAULT_STATE: AppState = {
   skyculture: DEFAULT_SKYCULTURE,
   mode: DEFAULT_MODE,
   activePlanSlug: DEFAULT_ACTIVE_PLAN_SLUG,
+  constellationArt: DEFAULT_CONSTELLATION_ART,
+  constellationArtOpacity: DEFAULT_CONSTELLATION_ART_OPACITY,
 };
 
 const PLAN_SLUG_PATTERN = /^[a-z0-9-]{1,64}$/;
@@ -225,6 +233,11 @@ export function parseStateFromSearchParams(
   const skyculture = parseSkyculture(params.get("sky"));
   const mode = parseMode(params.get("mode"));
   const activePlanSlug = parseActivePlanSlug(params.get("plan"));
+  const constellationArt = params.get("art") === "on";
+  const constellationArtOpacity = parseOpacity(
+    params.get("art_op"),
+    DEFAULT_CONSTELLATION_ART_OPACITY,
+  );
 
   return ok({
     observer: { lat, lon },
@@ -239,6 +252,8 @@ export function parseStateFromSearchParams(
     skyculture,
     mode,
     activePlanSlug,
+    constellationArt,
+    constellationArtOpacity,
   });
 }
 
@@ -308,6 +323,14 @@ export function serializeStateToSearchParams(state: AppState): URLSearchParams {
 
   if (state.activePlanSlug !== null) {
     params.set("plan", state.activePlanSlug);
+  }
+
+  if (state.constellationArt) {
+    params.set("art", "on");
+  }
+
+  if (state.constellationArtOpacity !== DEFAULT_CONSTELLATION_ART_OPACITY) {
+    params.set("art_op", String(Math.round(state.constellationArtOpacity * 100)));
   }
 
   return params;
