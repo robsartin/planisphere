@@ -231,3 +231,71 @@ export function createSkycultureSection(
     dispatch({ type: "set-skyculture", id });
   });
 }
+
+/**
+ * Build the #350 constellation-art mini-section — a labelled checkbox that
+ * flips the overlay on/off plus an opacity slider that tracks live. The
+ * checkbox uses `data-art-toggle` and the slider uses `data-art-opacity` so
+ * they don't collide with the generic `data-layer` / `data-opacity` selectors
+ * the existing layer-visibility / opacity sections use.
+ */
+export function createConstellationArtSection(
+  initialVisible: boolean,
+  initialOpacity: number,
+  dispatch: (intent: UIIntent) => void,
+): HTMLElement {
+  const heading = el("div", {
+    text: "Constellation Art",
+    style: {
+      fontSize: "12px",
+      marginTop: "8px",
+      marginBottom: "4px",
+      fontWeight: "bold",
+    },
+  });
+  applyBaseText(heading);
+
+  const checkbox = el("input", {
+    type: "checkbox",
+    dataset: { artToggle: "" },
+    style: { accentColor: ACCENT_COLOR, width: "16px", height: "16px" },
+  });
+  checkbox.checked = initialVisible;
+  checkbox.addEventListener("change", () => {
+    dispatch({ type: "toggle-constellation-art" });
+  });
+
+  const toggleLabel = el("label", {
+    style: { display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" },
+    children: [checkbox, document.createTextNode("Show art overlay")],
+  });
+  applyBaseText(toggleLabel);
+
+  const opacityLabel = el("div", {
+    text: "Art Opacity",
+    style: { ...SLIDER_LABEL_STYLE, marginTop: "6px" },
+  });
+  applyBaseText(opacityLabel);
+
+  const slider = el("input", {
+    type: "range",
+    dataset: { artOpacity: "" },
+    style: SLIDER_STYLE,
+  });
+  slider.min = "0";
+  slider.max = "100";
+  slider.step = "1";
+  slider.value = String(Math.round(initialOpacity * 100));
+  slider.addEventListener("input", () => {
+    dispatch({
+      type: "set-constellation-art-opacity",
+      value: Number(slider.value) / 100,
+    });
+  });
+
+  return el("div", {
+    dataset: { section: "constellation-art" },
+    style: { marginTop: "8px" },
+    children: [heading, toggleLabel, opacityLabel, slider],
+  });
+}
