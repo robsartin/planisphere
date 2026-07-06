@@ -49,7 +49,6 @@ describe("renderMarkdownToSafeHtml", () => {
   });
 
   it("strips javascript: URIs from links", () => {
-    // eslint-disable-next-line no-script-url
     const html = renderMarkdownToSafeHtml("[click](javascript:alert(1))");
     expect(html).not.toMatch(/javascript:/i);
   });

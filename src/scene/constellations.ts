@@ -91,7 +91,7 @@ export function createConstellationLayer(scene: Scene): ConstellationLayer {
           // pick targets; lines are most of the visible footprint.
           id: constellation,
         });
-        addedPolylines.push(pl as never);
+        addedPolylines.push(pl);
       }
 
       const centroidPos = altAzToCartesian(

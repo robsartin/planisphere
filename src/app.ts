@@ -648,8 +648,8 @@ async function doRerenderWithWorker(
   if (layers.satellite) layers.satellite.setOpacity(capturedState.opacity.satelliteTrails * 0.3);
 
   // Wait for worker result, then update stars + constellations
-  let visibleStars: ReturnType<typeof filterVisibleStars> = [];
-  let visibleConstellations: readonly { id: string; centroid: { alt: number; az: number } }[] = [];
+  let visibleStars: ReturnType<typeof filterVisibleStars>;
+  let visibleConstellations: readonly { id: string; centroid: { alt: number; az: number } }[];
   try {
     const { altAzs, visibleIndices } = await workerPromise;
     // Check that state hasn't changed since we started (avoid stale updates)

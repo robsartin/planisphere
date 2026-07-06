@@ -34,7 +34,7 @@ export function createGridLayer(scene: Scene): GridLayer {
           color: Color.WHITE.withAlpha(currentOpacity),
         }),
       });
-      addedPolylines.push(pl as never);
+      addedPolylines.push(pl);
     }
   }
 

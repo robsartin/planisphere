@@ -31,7 +31,7 @@ export function logError(event: string, err: unknown, fields?: Record<string, un
     error: message,
   };
   if (stack !== undefined) line["stack"] = stack;
-  // eslint-disable-next-line no-console
+
   console.error(JSON.stringify(line));
 }
 

@@ -49,7 +49,7 @@ export function createBoundaryLayer(scene: Scene): BoundaryLayer {
           // (issue #307; mirrors the constellation figure-line fix in #305).
           id: boundary,
         });
-        addedPolylines.push(pl as never);
+        addedPolylines.push(pl);
       }
     }
   }

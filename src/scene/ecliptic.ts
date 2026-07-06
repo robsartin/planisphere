@@ -34,7 +34,7 @@ export function createEclipticLayer(scene: Scene): EclipticLayer {
         color: ECLIPTIC_COLOR.withAlpha(currentOpacity),
       }),
     });
-    addedPolylines.push(pl as never);
+    addedPolylines.push(pl);
   }
 
   function setOpacity(opacity: number): void {
