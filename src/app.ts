@@ -988,6 +988,11 @@ export async function bootstrap(
         handleIntent(intent);
       },
       initialFov: state.fov,
+      // Read straight from the mutable caches — `cachedEvents` is refreshed on every
+      // observer/time change (see refreshEvents), so on-open() the popover always
+      // renders the freshest upcoming-events list against the current viewing time.
+      getEvents: () => cachedEvents,
+      getNow: () => state.timeUtc,
     });
     cesiumContainer.appendChild(emptySkyPopover.element);
 

@@ -2,6 +2,34 @@
 import { describe, expect, it, vi } from "vitest";
 import { createEmptySkyPopover } from "./empty-sky-popover";
 import type { UIIntent } from "./index";
+import type { CelestialEvent, IssPassEvent, MeteorShowerEvent } from "../astro/events";
+
+function issPass(when: Date, peakAlt = 45, peakAz = 120): IssPassEvent {
+  return {
+    kind: "iss-pass",
+    when,
+    title: `ISS pass at ${peakAlt}°`,
+    description: "ISS pass description",
+    peakAltDeg: peakAlt,
+    peakAzDeg: peakAz,
+    durationSec: 360,
+    eclipsed: false,
+    magnitudeAtPeak: -2,
+  };
+}
+
+function shower(when: Date, name: string, view?: { az: number; alt: number }): MeteorShowerEvent {
+  return {
+    kind: "meteor-shower-peak",
+    when,
+    title: `${name} meteor shower peak`,
+    description: `Expect meteors from ${name}.`,
+    showerId: name.toLowerCase(),
+    showerName: name,
+    zhr: 100,
+    ...(view ? { viewAz: view.az, viewAlt: view.alt } : {}),
+  };
+}
 
 describe("createEmptySkyPopover", () => {
   it("returns a detached element and starts closed", () => {
@@ -144,6 +172,202 @@ describe("createEmptySkyPopover", () => {
     // The card should be anchored via `left` and `top` near (but not at) the click point.
     expect(card!.style.left).not.toBe("");
     expect(card!.style.top).not.toBe("");
+  });
+
+  it("renders no upcoming-events section when getEvents is not supplied", () => {
+    const popover = createEmptySkyPopover({ dispatch: vi.fn(), initialFov: "off" });
+    popover.open(30, 180, 100, 200);
+    expect(
+      popover.element.querySelector<HTMLElement>("[data-testid='empty-sky-popover-events']"),
+    ).toBeNull();
+    expect(
+      popover.element.querySelectorAll<HTMLElement>("[data-testid='empty-sky-popover-event-row']")
+        .length,
+    ).toBe(0);
+  });
+
+  it("renders no events section when getEvents returns an empty list", () => {
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => [],
+      getNow: () => new Date("2026-07-06T00:00:00Z"),
+    });
+    popover.open(30, 180, 100, 200);
+    expect(
+      popover.element.querySelector<HTMLElement>("[data-testid='empty-sky-popover-events']"),
+    ).toBeNull();
+  });
+
+  it("renders exactly 3 upcoming-events rows sorted by time when 4+ events are supplied", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    const events: CelestialEvent[] = [
+      shower(new Date("2026-07-08T03:00:00Z"), "Perseids"), // +2d 3h
+      issPass(new Date("2026-07-06T00:42:00Z")), // +42 min
+      shower(new Date("2026-07-06T05:00:00Z"), "Delta Aquariids"), // +5h
+      shower(new Date("2026-07-10T00:00:00Z"), "Alpha Capricornids"), // +4d
+    ];
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+
+    const rows = popover.element.querySelectorAll<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-row']",
+    );
+    expect(rows.length).toBe(3);
+
+    // Sorted by time — the ISS (42min) first, then Delta Aquariids (5h), then Perseids (2d).
+    expect(rows[0]!.textContent).toContain("ISS");
+    expect(rows[1]!.textContent).toContain("Delta Aquariids");
+    expect(rows[2]!.textContent).toContain("Perseids");
+    // Alpha Capricornids (further out) is dropped by the 3-cap.
+    const allText = popover.element.textContent ?? "";
+    expect(allText).not.toContain("Alpha Capricornids");
+  });
+
+  it("relative-time chip shows minutes for events under an hour out", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    const events: CelestialEvent[] = [issPass(new Date("2026-07-06T00:42:00Z"))];
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+    const chip = popover.element.querySelector<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-chip']",
+    );
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toContain("42 min");
+    expect(chip!.textContent).toContain("in");
+  });
+
+  it("relative-time chip shows Xd Yh for multi-day events", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    const events: CelestialEvent[] = [
+      shower(new Date("2026-07-09T14:00:00Z"), "Perseids"), // 3d 14h
+    ];
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+    const chip = popover.element.querySelector<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-chip']",
+    );
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toContain("3d");
+    expect(chip!.textContent).toContain("14h");
+  });
+
+  it("clicking an events row with a view direction dispatches set-time AND set-view", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    const events: CelestialEvent[] = [issPass(new Date("2026-07-06T00:42:00Z"), 45, 120)];
+    const dispatch = vi.fn();
+    const popover = createEmptySkyPopover({
+      dispatch,
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+
+    const row = popover.element.querySelector<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-row']",
+    );
+    expect(row).not.toBeNull();
+    row!.click();
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "set-time",
+      time: events[0]!.when,
+    } satisfies UIIntent);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "set-view",
+      az: 120,
+      alt: 45,
+    } satisfies UIIntent);
+  });
+
+  it("clicking an events row without a view direction only dispatches set-time", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    // Meteor shower without viewAz/viewAlt supplied.
+    const events: CelestialEvent[] = [shower(new Date("2026-07-06T05:00:00Z"), "Perseids")];
+    const dispatch = vi.fn();
+    const popover = createEmptySkyPopover({
+      dispatch,
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+    const row = popover.element.querySelector<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-row']",
+    );
+    row!.click();
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "set-time",
+      time: events[0]!.when,
+    } satisfies UIIntent);
+    // No set-view intent should have been dispatched.
+    expect(
+      dispatch.mock.calls.some(
+        (call: unknown[]) =>
+          typeof call[0] === "object" &&
+          call[0] !== null &&
+          (call[0] as { type: string }).type === "set-view",
+      ),
+    ).toBe(false);
+  });
+
+  it("clicking an events row closes the popover", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    const events: CelestialEvent[] = [issPass(new Date("2026-07-06T00:42:00Z"))];
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+    const row = popover.element.querySelector<HTMLElement>(
+      "[data-testid='empty-sky-popover-event-row']",
+    );
+    row!.click();
+    expect(popover.isOpen()).toBe(false);
+  });
+
+  it("re-opening after events change picks up the fresh list", () => {
+    const now = new Date("2026-07-06T00:00:00Z");
+    let events: CelestialEvent[] = [];
+    const popover = createEmptySkyPopover({
+      dispatch: vi.fn(),
+      initialFov: "off",
+      getEvents: () => events,
+      getNow: () => now,
+    });
+    popover.open(30, 180, 100, 200);
+    expect(
+      popover.element.querySelectorAll<HTMLElement>("[data-testid='empty-sky-popover-event-row']")
+        .length,
+    ).toBe(0);
+
+    // Fresh events arrive; next open must reflect them.
+    events = [issPass(new Date("2026-07-06T00:42:00Z"))];
+    popover.close();
+    popover.open(30, 180, 100, 200);
+    expect(
+      popover.element.querySelectorAll<HTMLElement>("[data-testid='empty-sky-popover-event-row']")
+        .length,
+    ).toBe(1);
   });
 
   it("flips the card to the left when the click is near the right viewport edge", () => {
