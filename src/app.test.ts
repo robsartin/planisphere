@@ -398,6 +398,7 @@ vi.mock("./ui", () => ({
       setTime: vi.fn(),
       setObserver: vi.fn(),
       setCompass: vi.fn(),
+      setAnimation: vi.fn(),
       destroy: vi.fn(),
     };
   }),
@@ -1153,6 +1154,19 @@ describe("handleIntent routing", () => {
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(() => capturedDispatch!({ type: "toggle-animation" })).not.toThrow();
+    // Second toggle stops the animation loop — also must not throw.
+    expect(() => capturedDispatch!({ type: "toggle-animation" })).not.toThrow();
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+  });
+
+  it("set-animation-speed intent is handled without throwing (#136)", async () => {
+    capturedDispatch = null;
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root);
+    expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 10 })).not.toThrow();
+    expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 100 })).not.toThrow();
+    expect(() => capturedDispatch!({ type: "set-animation-speed", speed: 1 })).not.toThrow();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
   });

@@ -309,4 +309,59 @@ describe("createBottomHud", () => {
       expect(localDispatch).not.toHaveBeenCalled();
     });
   });
+
+  // Play / pause / speed cycler for time animation (#136).
+  describe("animation controls (#136)", () => {
+    it("renders a play button that dispatches toggle-animation on click", () => {
+      const playBtn = el.querySelector<HTMLButtonElement>("[data-testid='hud-play']");
+      expect(playBtn).not.toBeNull();
+      playBtn!.click();
+      expect(dispatch).toHaveBeenCalledWith({ type: "toggle-animation" } satisfies UIIntent);
+    });
+
+    it("renders a speed button that cycles 1× → 10× → 100× → 1× and dispatches set-animation-speed", () => {
+      const speedBtn = el.querySelector<HTMLButtonElement>("[data-testid='hud-speed']");
+      expect(speedBtn).not.toBeNull();
+      // Starts at 1× (default) — first click should ask for 10×.
+      speedBtn!.click();
+      expect(dispatch).toHaveBeenLastCalledWith({
+        type: "set-animation-speed",
+        speed: 10,
+      } satisfies UIIntent);
+      // After caller reflects the new state with setAnimation(false, 10), the
+      // next click should ask for 100×.
+      hud.setAnimation(false, 10);
+      speedBtn!.click();
+      expect(dispatch).toHaveBeenLastCalledWith({
+        type: "set-animation-speed",
+        speed: 100,
+      } satisfies UIIntent);
+      // 100 wraps back to 1.
+      hud.setAnimation(false, 100);
+      speedBtn!.click();
+      expect(dispatch).toHaveBeenLastCalledWith({
+        type: "set-animation-speed",
+        speed: 1,
+      } satisfies UIIntent);
+    });
+
+    it("setAnimation updates the play icon between ▶ and ⏸", () => {
+      const playBtn = el.querySelector<HTMLButtonElement>("[data-testid='hud-play']");
+      expect(playBtn!.textContent).toBe("▶");
+      hud.setAnimation(true, 1);
+      expect(playBtn!.textContent).toBe("⏸");
+      hud.setAnimation(false, 1);
+      expect(playBtn!.textContent).toBe("▶");
+    });
+
+    it("setAnimation updates the speed button label", () => {
+      const speedBtn = el.querySelector<HTMLButtonElement>("[data-testid='hud-speed']");
+      hud.setAnimation(false, 10);
+      expect(speedBtn!.textContent).toBe("10×");
+      hud.setAnimation(true, 100);
+      expect(speedBtn!.textContent).toBe("100×");
+      hud.setAnimation(false, 1);
+      expect(speedBtn!.textContent).toBe("1×");
+    });
+  });
 });

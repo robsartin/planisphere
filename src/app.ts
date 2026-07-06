@@ -1098,6 +1098,51 @@ export async function bootstrap(
   }
 
   let bottomHud: BottomHud | null = null;
+
+  // #136 — time animation state. Not URL-synced; animation is a transient
+  // client-side thing that shouldn't survive reload.
+  const animation: { playing: boolean; speed: 1 | 10 | 100 } = {
+    playing: false,
+    speed: 1,
+  };
+  let animationRafId: number | null = null;
+  let animationLastFrameMs = 0;
+  const ANIMATION_BASE_MS_PER_MS = 60_000; // 1× wall-second = 1 minute of sky time
+
+  function startAnimationLoop(): void {
+    if (animationRafId !== null) return;
+    animationLastFrameMs = 0;
+    const raf =
+      typeof globalThis.requestAnimationFrame === "function"
+        ? globalThis.requestAnimationFrame.bind(globalThis)
+        : null;
+    if (raf === null) return;
+    const tick = (): void => {
+      if (!animation.playing) {
+        animationRafId = null;
+        return;
+      }
+      const now =
+        typeof globalThis.performance?.now === "function" ? globalThis.performance.now() : 0;
+      const dt = animationLastFrameMs === 0 ? 16 : now - animationLastFrameMs;
+      animationLastFrameMs = now;
+      const advanceMs = dt * animation.speed * (ANIMATION_BASE_MS_PER_MS / 1000);
+      const next = new Date(state.timeUtc.getTime() + advanceMs);
+      handleIntent({ type: "set-time", time: next });
+      animationRafId = raf(tick);
+    };
+    animationRafId = raf(tick);
+  }
+
+  function stopAnimationLoop(): void {
+    if (animationRafId === null) return;
+    const caf =
+      typeof globalThis.cancelAnimationFrame === "function"
+        ? globalThis.cancelAnimationFrame.bind(globalThis)
+        : null;
+    if (caf !== null) caf(animationRafId);
+    animationRafId = null;
+  }
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
   let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
   let loginModal: ReturnType<typeof createLoginModal> | null = null;
@@ -1256,10 +1301,22 @@ export async function bootstrap(
     refreshTonight(state);
   }
 
-  function handleModeIntent(intent: UIIntent & { type: "set-mode" | "toggle-animation" }): void {
+  function handleModeIntent(
+    intent: UIIntent & { type: "set-mode" | "toggle-animation" | "set-animation-speed" },
+  ): void {
     if (intent.type === "toggle-animation") {
-      // Plan 08 / issue #136 will wire the actual play/pause animator.
-      // TODO(#136): start/stop the time-advance loop here.
+      animation.playing = !animation.playing;
+      bottomHud?.setAnimation(animation.playing, animation.speed);
+      if (animation.playing) {
+        startAnimationLoop();
+      } else {
+        stopAnimationLoop();
+      }
+      return;
+    }
+    if (intent.type === "set-animation-speed") {
+      animation.speed = intent.speed;
+      bottomHud?.setAnimation(animation.playing, animation.speed);
       return;
     }
     // Notebook is a Pro feature (issue #224). Non-Pro users attempting to
@@ -1366,6 +1423,7 @@ export async function bootstrap(
         return handleTrailIntent(intent);
       case "set-mode":
       case "toggle-animation":
+      case "set-animation-speed":
         return handleModeIntent(intent);
       case "open-location-picker":
       case "copy-link":
