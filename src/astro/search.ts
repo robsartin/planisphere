@@ -22,11 +22,38 @@ type IndexEntry = {
   readonly type: SearchResultType;
   readonly alt: number;
   readonly az: number;
+  readonly shingles: ReadonlySet<string>;
 };
 
 export type SearchIndex = {
   readonly entries: readonly IndexEntry[];
 };
+
+/**
+ * Build a lowercased 2-char shingle (bigram) set for a name, with `^` / `$`
+ * boundary markers so the first/last characters contribute distinguishing
+ * signal. Bigrams (over trigrams) are chosen because a single-character typo
+ * destroys fewer bigrams, keeping the Jaccard similarity above the 0.3
+ * fallback threshold for the common mis-spellings we want to catch
+ * (e.g. "sirus" → "sirius", "beetleguse" → "betelgeuse",
+ * "casiopia" → "cassiopeia").
+ */
+function buildShingles(text: string): Set<string> {
+  const padded = "^" + text.toLowerCase() + "$";
+  const shingles = new Set<string>();
+  for (let i = 0; i + 2 <= padded.length; i++) {
+    shingles.add(padded.slice(i, i + 2));
+  }
+  return shingles;
+}
+
+function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const s of a) if (b.has(s)) intersection++;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
 
 /** Map body id string to astronomy-engine Body enum value */
 const BODY_MAP: Record<string, Body> = {
@@ -87,7 +114,15 @@ export function buildSearchIndex(
   for (const star of stars) {
     if (!star.name) continue;
     const { alt, az } = fastRaDecToAltAz(star.ra, star.dec, lat, lon, time);
-    entries.push({ name: star.name, nameLower: star.name.toLowerCase(), type: "star", alt, az });
+    const nameLower = star.name.toLowerCase();
+    entries.push({
+      name: star.name,
+      nameLower,
+      type: "star",
+      alt,
+      az,
+      shingles: buildShingles(nameLower),
+    });
   }
 
   // Constellations — use first referenced star as representative position
@@ -106,19 +141,29 @@ export function buildSearchIndex(
         }
       }
     }
+    const nameLower = constellation.name.toLowerCase();
     entries.push({
       name: constellation.name,
-      nameLower: constellation.name.toLowerCase(),
+      nameLower,
       type: "constellation",
       alt,
       az,
+      shingles: buildShingles(nameLower),
     });
   }
 
   // Bodies (solar system)
   for (const name of bodyNames) {
     const { alt, az } = bodyAltAz(name, lat, lon, time);
-    entries.push({ name, nameLower: name.toLowerCase(), type: "body", alt, az });
+    const nameLower = name.toLowerCase();
+    entries.push({
+      name,
+      nameLower,
+      type: "body",
+      alt,
+      az,
+      shingles: buildShingles(nameLower),
+    });
   }
 
   // Satellites
@@ -126,12 +171,14 @@ export function buildSearchIndex(
   // already propagated separately. The search index is built once; callers should treat
   // satellite positions as approximate and re-propagate on selection if precision matters.
   for (const sat of satellites) {
+    const nameLower = sat.name.toLowerCase();
     entries.push({
       name: sat.name,
-      nameLower: sat.name.toLowerCase(),
+      nameLower,
       type: "satellite",
       alt: 0,
       az: 0,
+      shingles: buildShingles(nameLower),
     });
   }
 
@@ -139,11 +186,29 @@ export function buildSearchIndex(
 }
 
 const MAX_RESULTS = 10;
+const MAX_FUZZY_RESULTS = 5;
+const FUZZY_MIN_SIMILARITY = 0.3;
+
+function toResult(entry: IndexEntry): SearchResult {
+  return {
+    name: entry.name,
+    type: entry.type,
+    alt: entry.alt,
+    az: entry.az,
+    belowHorizon: entry.alt <= 0,
+  };
+}
 
 /**
  * Search the index for objects matching the query.
  *
- * Matching is case-insensitive substring/prefix match. Returns at most 10 results.
+ * Primary path is a case-insensitive substring match (up to 10 results). When
+ * substring returns zero hits, a trigram-style Jaccard fallback runs over the
+ * precomputed shingle sets: entries with similarity ≥ 0.3 are returned, sorted
+ * by descending similarity, capped at 5. The fallback keeps typos like
+ * "beetleguse" → Betelgeuse and "sirus" → Sirius discoverable while adding
+ * negligible latency (it only executes on the previously-empty path).
+ *
  * Returns empty array for queries shorter than 2 characters.
  */
 export function searchObjects(index: SearchIndex, query: string): SearchResult[] {
@@ -155,15 +220,19 @@ export function searchObjects(index: SearchIndex, query: string): SearchResult[]
   for (const entry of index.entries) {
     if (results.length >= MAX_RESULTS) break;
     if (entry.nameLower.includes(q)) {
-      results.push({
-        name: entry.name,
-        type: entry.type,
-        alt: entry.alt,
-        az: entry.az,
-        belowHorizon: entry.alt <= 0,
-      });
+      results.push(toResult(entry));
     }
   }
 
-  return results;
+  if (results.length > 0) return results;
+
+  // Fuzzy fallback: rank all entries by Jaccard similarity of shingle sets.
+  const queryShingles = buildShingles(q);
+  const scored: { entry: IndexEntry; score: number }[] = [];
+  for (const entry of index.entries) {
+    const score = jaccard(queryShingles, entry.shingles);
+    if (score >= FUZZY_MIN_SIMILARITY) scored.push({ entry, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, MAX_FUZZY_RESULTS).map(({ entry }) => toResult(entry));
 }
