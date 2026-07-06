@@ -97,6 +97,7 @@ export type UIIntent =
   | { type: "now" }
   | { type: "open-location-picker" }
   | { type: "toggle-animation" }
+  | { type: "set-animation-speed"; speed: 1 | 10 | 100 }
   | { type: "pin-object"; id: string }
   | { type: "copy-link" }
   | {

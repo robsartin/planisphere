@@ -28,13 +28,26 @@ const CHIP_STYLE: Partial<CSSStyleDeclaration> = {
   fontSize: "13px",
 };
 
+export type AnimationSpeed = 1 | 10 | 100;
+
 export type BottomHud = {
   readonly element: HTMLElement;
   setTime(d: Date): void;
   setObserver(lat: number, lon: number): void;
   setCompass(azDeg: number): void;
+  /** Reflect the current animation state — updates the play/pause icon and
+   *  the speed-cycle button label. Called by app.ts whenever it flips
+   *  animation.playing or animation.speed (#136). */
+  setAnimation(playing: boolean, speed: AnimationSpeed): void;
   destroy(): void;
 };
+
+/** Cycle 1x → 10x → 100x → 1x. Exported for the bottom-hud unit tests. */
+export function nextAnimationSpeed(current: AnimationSpeed): AnimationSpeed {
+  if (current === 1) return 10;
+  if (current === 10) return 100;
+  return 1;
+}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -127,6 +140,67 @@ export function createBottomHud(
     children: [utcEl, localEl],
   });
 
+  // --- Play/pause + speed cycle (#136) ---
+  //
+  // The two buttons sit above the time readout inside the scrub-center area
+  // so they don't steal room from the compass / location chips at the edges.
+  // Click handlers dispatch intents that app.ts translates into rAF-loop
+  // start/stop and speed change; the icon/label is updated via setAnimation
+  // once the intent has been applied to state.
+  let currentSpeed: AnimationSpeed = 1;
+
+  const playBtn = el("button", {
+    testid: "hud-play",
+    type: "button",
+    text: "▶",
+    attrs: { title: "Play / pause (Space)", "aria-label": "Play animation" },
+    style: {
+      background: SURFACE,
+      border: "1px solid rgba(255,255,255,0.25)",
+      borderRadius: "999px",
+      padding: "4px 10px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "13px",
+      cursor: "pointer",
+    },
+    on: {
+      click: (e) => {
+        e.stopPropagation();
+        dispatch({ type: "toggle-animation" });
+      },
+    },
+  });
+
+  const speedBtn = el("button", {
+    testid: "hud-speed",
+    type: "button",
+    text: `${String(currentSpeed)}×`,
+    attrs: { title: "Cycle animation speed 1× → 10× → 100×", "aria-label": "Animation speed" },
+    style: {
+      background: SURFACE,
+      border: "1px solid rgba(255,255,255,0.25)",
+      borderRadius: "999px",
+      padding: "4px 10px",
+      color: TEXT_COLOR,
+      fontFamily: FONT_FAMILY,
+      fontSize: "13px",
+      cursor: "pointer",
+      fontVariantNumeric: "tabular-nums",
+    },
+    on: {
+      click: (e) => {
+        e.stopPropagation();
+        dispatch({ type: "set-animation-speed", speed: nextAnimationSpeed(currentSpeed) });
+      },
+    },
+  });
+
+  const animateRow = el("div", {
+    style: { display: "flex", gap: "6px", alignItems: "center" },
+    children: [playBtn, speedBtn],
+  });
+
   const center = el("div", {
     testid: "hud-scrub",
     attrs: {
@@ -140,7 +214,7 @@ export function createBottomHud(
       justifyContent: "center",
       cursor: "ew-resize",
     },
-    children: [timeRow],
+    children: [animateRow, timeRow],
   });
 
   const compassChip = el("div", {
@@ -282,6 +356,12 @@ export function createBottomHud(
     },
     setCompass(azDeg: number): void {
       compassChip.textContent = formatCompass(azDeg);
+    },
+    setAnimation(playing: boolean, speed: AnimationSpeed): void {
+      currentSpeed = speed;
+      playBtn.textContent = playing ? "⏸" : "▶";
+      playBtn.setAttribute("aria-label", playing ? "Pause animation" : "Play animation");
+      speedBtn.textContent = `${String(speed)}×`;
     },
     destroy(): void {
       clearIdleTimer();
