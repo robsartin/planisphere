@@ -7,10 +7,12 @@ const mockDestroy = vi.fn();
 const mockPick = vi.fn();
 
 vi.mock("cesium", () => ({
-  ScreenSpaceEventHandler: vi.fn().mockImplementation(() => ({
-    setInputAction: mockSetInputAction,
-    destroy: mockDestroy,
-  })),
+  ScreenSpaceEventHandler: vi.fn(function () {
+    return {
+      setInputAction: mockSetInputAction,
+      destroy: mockDestroy,
+    };
+  }),
   ScreenSpaceEventType: { MOUSE_MOVE: 0, LEFT_CLICK: 1 },
   defined: (v: unknown) => v !== undefined && v !== null,
 }));

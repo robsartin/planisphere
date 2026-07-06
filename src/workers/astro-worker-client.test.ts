@@ -26,10 +26,14 @@ beforeEach(() => {
     terminate: vi.fn(),
   };
 
-  // Stub the global Worker constructor
+  // Stub the global Worker constructor. Vitest 4 no longer wraps mocks to
+  // make arrow-fn implementations constructable — use a `function` expression
+  // so `new Worker(...)` doesn't throw "not a constructor".
   vi.stubGlobal(
     "Worker",
-    vi.fn().mockImplementation(() => workerStub),
+    vi.fn(function () {
+      return workerStub;
+    }),
   );
 });
 

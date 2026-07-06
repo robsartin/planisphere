@@ -4,9 +4,9 @@ import type { Scene } from "cesium";
 import { projectAltAzToScreen, screenToAltAz } from "./project";
 
 vi.mock("cesium", () => {
-  const Cartesian3Ctor = vi
-    .fn()
-    .mockImplementation((x: number, y: number, z: number) => ({ x, y, z }));
+  const Cartesian3Ctor = vi.fn(function (x: number, y: number, z: number) {
+    return { x, y, z };
+  });
   (Cartesian3Ctor as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
@@ -27,10 +27,14 @@ vi.mock("cesium", () => {
       toDegrees: (r: number) => (r * 180) / Math.PI,
     },
     Transforms: {
-      eastNorthUpToFixedFrame: vi.fn().mockImplementation(() => ({ __enuToFixed: true })),
+      eastNorthUpToFixedFrame: vi.fn(function () {
+        return { __enuToFixed: true };
+      }),
     },
     Matrix4: Object.assign(
-      vi.fn().mockImplementation(() => ({})),
+      vi.fn(function () {
+        return {};
+      }),
       {
         multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
         // multiplyByPointAsVector ignores translation; the mock treats any matrix

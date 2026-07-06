@@ -18,21 +18,25 @@ const mockAdd = vi.fn().mockReturnValue({ show: true });
 const mockRemoveAll = vi.fn();
 
 vi.mock("cesium", () => {
-  const MockCartesian3 = vi.fn().mockImplementation((x: number, y: number, z: number) => ({
-    x,
-    y,
-    z,
-  }));
+  const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
+    return {
+      x,
+      y,
+      z,
+    };
+  });
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
 
   return {
-    BillboardCollection: vi.fn().mockImplementation(() => ({
-      add: mockAdd,
-      removeAll: mockRemoveAll,
-      length: 0,
-    })),
+    BillboardCollection: vi.fn(function () {
+      return {
+        add: mockAdd,
+        removeAll: mockRemoveAll,
+        length: 0,
+      };
+    }),
     Cartesian3: MockCartesian3,
     Color: {
       fromCssColorString: vi.fn().mockReturnValue({

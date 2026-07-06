@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import { createLoginModal } from "./login-modal";
 import type { AuthError } from "../auth";
 import { err, ok, type Result } from "../result";
 
-function makeOkRequester(): ReturnType<typeof vi.fn> {
-  return vi.fn().mockResolvedValue(ok(undefined) as Result<void, AuthError>);
+type MagicLinkRequester = (email: string) => Promise<Result<void, AuthError>>;
+
+function makeOkRequester(): Mock<MagicLinkRequester> {
+  return vi.fn<MagicLinkRequester>().mockResolvedValue(ok(undefined) as Result<void, AuthError>);
 }
 
 describe("createLoginModal", () => {

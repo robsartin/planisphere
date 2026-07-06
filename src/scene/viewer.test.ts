@@ -4,18 +4,20 @@ import { isOk, isErr } from "../result";
 import { createViewer, repositionCreditBar } from "./viewer";
 
 vi.mock("cesium", () => {
-  const MockViewer = vi.fn().mockImplementation(() => ({
-    scene: {
-      skyBox: undefined,
-      skyAtmosphere: undefined,
-      sun: { show: true },
-      moon: { show: true },
-      backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
-      globe: { show: true },
-    },
-    imageryLayers: { removeAll: vi.fn() },
-    destroy: vi.fn(),
-  }));
+  const MockViewer = vi.fn(function () {
+    return {
+      scene: {
+        skyBox: undefined,
+        skyAtmosphere: undefined,
+        sun: { show: true },
+        moon: { show: true },
+        backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
+        globe: { show: true },
+      },
+      imageryLayers: { removeAll: vi.fn() },
+      destroy: vi.fn(),
+    };
+  });
 
   return {
     Viewer: MockViewer,

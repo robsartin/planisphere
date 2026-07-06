@@ -9,10 +9,12 @@ vi.mock("./workers/astro-worker-client", () => {
     visibleIndices: new Uint16Array([0, 1]),
   });
   return {
-    AstroWorkerClient: vi.fn().mockImplementation(() => ({
-      computeAltAz: mockComputeAltAz,
-      terminate: vi.fn(),
-    })),
+    AstroWorkerClient: vi.fn(function () {
+      return {
+        computeAltAz: mockComputeAltAz,
+        terminate: vi.fn(),
+      };
+    }),
   };
 });
 
@@ -31,38 +33,44 @@ vi.mock("cesium", () => {
     }),
   };
   return {
-    Viewer: vi.fn().mockImplementation(() => ({
-      scene: {
-        skyBox: undefined,
-        skyAtmosphere: undefined,
-        sun: { show: true },
-        moon: { show: true },
-        backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
-        globe: { show: true },
-        primitives: { add: vi.fn() },
-        canvas: document.createElement("canvas"),
-        camera: mockCamera,
-        pick: vi.fn().mockReturnValue(undefined),
-        screenSpaceCameraController: {
-          enableRotate: true,
-          enableTranslate: true,
-          enableZoom: true,
-          enableTilt: true,
-          enableLook: true,
+    Viewer: vi.fn(function () {
+      return {
+        scene: {
+          skyBox: undefined,
+          skyAtmosphere: undefined,
+          sun: { show: true },
+          moon: { show: true },
+          backgroundColor: { red: 0, green: 0, blue: 0, alpha: 1 },
+          globe: { show: true },
+          primitives: { add: vi.fn() },
+          canvas: document.createElement("canvas"),
+          camera: mockCamera,
+          pick: vi.fn().mockReturnValue(undefined),
+          screenSpaceCameraController: {
+            enableRotate: true,
+            enableTranslate: true,
+            enableZoom: true,
+            enableTilt: true,
+            enableLook: true,
+          },
         },
-      },
-      imageryLayers: { removeAll: vi.fn() },
-      camera: mockCamera,
-      destroy: vi.fn(),
-    })),
-    BillboardCollection: vi.fn().mockImplementation(() => ({
-      add: vi.fn(),
-      removeAll: vi.fn(),
-      show: true,
-      length: 0,
-    })),
+        imageryLayers: { removeAll: vi.fn() },
+        camera: mockCamera,
+        destroy: vi.fn(),
+      };
+    }),
+    BillboardCollection: vi.fn(function () {
+      return {
+        add: vi.fn(),
+        removeAll: vi.fn(),
+        show: true,
+        length: 0,
+      };
+    }),
     Cartesian3: Object.assign(
-      vi.fn().mockImplementation((x: number, y: number, z: number) => ({ x, y, z })),
+      vi.fn(function (x: number, y: number, z: number) {
+        return { x, y, z };
+      }),
       {
         fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
         cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
@@ -93,7 +101,9 @@ vi.mock("cesium", () => {
         .mockReturnValue([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
     },
     Matrix4: Object.assign(
-      vi.fn().mockImplementation(() => ({})),
+      vi.fn(function () {
+        return {};
+      }),
       {
         multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
         multiplyByPointAsVector: vi
@@ -109,10 +119,12 @@ vi.mock("cesium", () => {
           ),
       },
     ),
-    ScreenSpaceEventHandler: vi.fn().mockImplementation(() => ({
-      setInputAction: vi.fn(),
-      destroy: vi.fn(),
-    })),
+    ScreenSpaceEventHandler: vi.fn(function () {
+      return {
+        setInputAction: vi.fn(),
+        destroy: vi.fn(),
+      };
+    }),
     ScreenSpaceEventType: {
       MOUSE_MOVE: 0,
       LEFT_DOWN: 1,
@@ -133,19 +145,23 @@ vi.mock("cesium", () => {
       multiply: vi.fn().mockReturnValue({}),
     },
     defined: (v: unknown) => v !== undefined && v !== null,
-    PolylineCollection: vi.fn().mockImplementation(() => ({
-      add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
-      removeAll: vi.fn(),
-      get length() {
-        return 0;
-      },
-      show: true,
-    })),
-    LabelCollection: vi.fn().mockImplementation(() => ({
-      add: vi.fn(),
-      removeAll: vi.fn(),
-      show: true,
-    })),
+    PolylineCollection: vi.fn(function () {
+      return {
+        add: vi.fn().mockReturnValue({ material: { uniforms: { color: { alpha: 1 } } } }),
+        removeAll: vi.fn(),
+        get length() {
+          return 0;
+        },
+        show: true,
+      };
+    }),
+    LabelCollection: vi.fn(function () {
+      return {
+        add: vi.fn(),
+        removeAll: vi.fn(),
+        show: true,
+      };
+    }),
     LabelStyle: { FILL: 0 },
     Material: { fromType: vi.fn().mockReturnValue({ uniforms: { color: { alpha: 1 } } }) },
     SceneTransforms: {
@@ -435,13 +451,15 @@ vi.mock("./ui", () => ({
     ),
   // Object-cards manager — capture the dispatch + projector so tests can exercise
   // the click-to-card intent pathway without a real Cesium scene.
-  createObjectCardsManager: vi.fn().mockImplementation(() => ({
-    open: vi.fn(),
-    close: vi.fn(),
-    closeActive: vi.fn(),
-    update: vi.fn(),
-    destroy: vi.fn(),
-  })),
+  createObjectCardsManager: vi.fn(function () {
+    return {
+      open: vi.fn(),
+      close: vi.fn(),
+      closeActive: vi.fn(),
+      update: vi.fn(),
+      destroy: vi.fn(),
+    };
+  }),
   // Empty-sky popover — tiny floating card + reticle triggered on empty-space clicks.
   // Probe the factory's `dispatch` callback so coverage sees the app.ts arrow function.
   createEmptySkyPopover: vi
