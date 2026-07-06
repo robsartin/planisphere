@@ -590,7 +590,10 @@ vi.mock("../data/tle/visual.txt?raw", () => ({
 
 // Mock the sat module so tests don't do real network/propagation
 vi.mock("./sat", () => ({
-  fetchTle: vi.fn().mockResolvedValue({ ok: true, value: "" }),
+  fetchTle: vi.fn().mockResolvedValue({
+    ok: true,
+    value: { text: "", sourceAgeSeconds: 0, usedFallback: false },
+  }),
   parseTle: vi.fn().mockReturnValue({ ok: true, value: [] }),
   propagateSatellites: vi.fn().mockReturnValue([]),
 }));
@@ -1786,6 +1789,47 @@ describe("handleIntent routing", () => {
     vi.advanceTimersByTime(1000);
     expect(onboardingOverlayMock!.start).not.toHaveBeenCalled();
     globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    document.body.removeChild(root);
+    document.body.removeChild(panelRoot);
+    document
+      .querySelectorAll("[data-testid='onboarding-overlay']")
+      .forEach((el) => el.parentNode?.removeChild(el));
+    vi.useRealTimers();
+  });
+
+  it("does NOT start the onboarding overlay when booting with ?plan=<slug>", async () => {
+    // Regression #353: the transparent onboarding click-shield used to sit
+    // above the plan-reader modal on first visit with ?plan= in the URL,
+    // no-op'ing the modal's "×" close button. When a slug is in the URL the
+    // user has expressed a clear intent to read a plan — hydrate that, not the
+    // tour. Don't persist a "dismissed" flag on this path; they still deserve
+    // the tour on a subsequent open without a slug.
+    vi.useFakeTimers();
+    capturedDispatch = null;
+    onboardingOverlayMock = null;
+    plansModalMock = null;
+    globalThis.localStorage?.removeItem("planisphere.onboarding.v1");
+    getPlanResult = {
+      ok: true,
+      value: {
+        slug: "2026-04",
+        title: "April",
+        month: "2026-04",
+        hemisphere: "both",
+        summary: "Stub",
+        author: "Rob",
+        publishedAt: "2026-04-01T00:00:00.000Z",
+        bodyMd: "Body",
+        objects: [],
+      },
+    };
+    const { root, panelRoot } = makeRoot();
+    await bootstrap(root, new URLSearchParams({ plan: "2026-04" }));
+    expect(onboardingOverlayMock).not.toBeNull();
+    vi.advanceTimersByTime(1000);
+    expect(onboardingOverlayMock!.start).not.toHaveBeenCalled();
+    // The flag stays unset so the tour will still fire on a later open without ?plan=.
+    expect(globalThis.localStorage?.getItem("planisphere.onboarding.v1")).toBeNull();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document

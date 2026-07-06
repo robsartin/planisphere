@@ -171,6 +171,15 @@ export function createSearch(
     showResults(search(query));
   });
 
+  // Escape clears the query and closes the dropdown (Command Palette parity).
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.value = "";
+      hideDropdown();
+    }
+  });
+
   // Close dropdown when focus leaves the wrapper
   document.addEventListener(
     "click",

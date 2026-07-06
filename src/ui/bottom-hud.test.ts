@@ -364,4 +364,116 @@ describe("createBottomHud", () => {
       expect(speedBtn!.textContent).toBe("1×");
     });
   });
+
+  // Offline-TLE staleness pill (#354). Surfaces when the SGP4 propagator is
+  // running against the bundled snapshot and that snapshot is older than the
+  // 7-day accuracy window.
+  describe("TLE staleness pill (#354)", () => {
+    it("does not render the pill when no staleness props are provided", () => {
+      const pill = el.querySelector<HTMLElement>("[data-testid='hud-tle-staleness']");
+      // Either absent from the DOM or hidden — both are acceptable.
+      if (pill !== null) {
+        expect(pill.style.display).toBe("none");
+      }
+    });
+
+    it("renders the pill when usedFallback is true and age > 7 days", () => {
+      const localDispatch = vi.fn();
+      const h = createBottomHud(
+        {
+          timeUtc: BASE_TIME,
+          lat: 0,
+          lon: 0,
+          tleUsedFallback: true,
+          tleSourceAgeSeconds: 10 * 86400,
+        },
+        localDispatch,
+      );
+      document.body.appendChild(h.element);
+      try {
+        const pill = h.element.querySelector<HTMLElement>("[data-testid='hud-tle-staleness']");
+        expect(pill).not.toBeNull();
+        expect(pill!.style.display).not.toBe("none");
+        expect(pill!.textContent).toContain("Offline TLE");
+        expect(pill!.textContent).toContain("10d");
+      } finally {
+        h.destroy();
+        if (h.element.parentNode) h.element.parentNode.removeChild(h.element);
+      }
+    });
+
+    it("hides the pill when usedFallback is true but age ≤ 7 days", () => {
+      const localDispatch = vi.fn();
+      const h = createBottomHud(
+        {
+          timeUtc: BASE_TIME,
+          lat: 0,
+          lon: 0,
+          tleUsedFallback: true,
+          tleSourceAgeSeconds: 6 * 86400,
+        },
+        localDispatch,
+      );
+      document.body.appendChild(h.element);
+      try {
+        const pill = h.element.querySelector<HTMLElement>("[data-testid='hud-tle-staleness']");
+        if (pill !== null) {
+          expect(pill.style.display).toBe("none");
+        }
+      } finally {
+        h.destroy();
+        if (h.element.parentNode) h.element.parentNode.removeChild(h.element);
+      }
+    });
+
+    it("hides the pill when usedFallback is false even if age > 7 days", () => {
+      // A live fetch that happens to serve an old-ish snapshot should not
+      // scare the user — only offline fallback + old data does.
+      const localDispatch = vi.fn();
+      const h = createBottomHud(
+        {
+          timeUtc: BASE_TIME,
+          lat: 0,
+          lon: 0,
+          tleUsedFallback: false,
+          tleSourceAgeSeconds: 30 * 86400,
+        },
+        localDispatch,
+      );
+      document.body.appendChild(h.element);
+      try {
+        const pill = h.element.querySelector<HTMLElement>("[data-testid='hud-tle-staleness']");
+        if (pill !== null) {
+          expect(pill.style.display).toBe("none");
+        }
+      } finally {
+        h.destroy();
+        if (h.element.parentNode) h.element.parentNode.removeChild(h.element);
+      }
+    });
+
+    it("clicking the pill dispatches open-help", () => {
+      const localDispatch = vi.fn();
+      const h = createBottomHud(
+        {
+          timeUtc: BASE_TIME,
+          lat: 0,
+          lon: 0,
+          tleUsedFallback: true,
+          tleSourceAgeSeconds: 10 * 86400,
+        },
+        localDispatch,
+      );
+      document.body.appendChild(h.element);
+      try {
+        const pill = h.element.querySelector<HTMLElement>("[data-testid='hud-tle-staleness']");
+        expect(pill).not.toBeNull();
+        pill!.click();
+        expect(localDispatch).toHaveBeenCalledWith({ type: "open-help" } satisfies UIIntent);
+      } finally {
+        h.destroy();
+        if (h.element.parentNode) h.element.parentNode.removeChild(h.element);
+      }
+    });
+  });
 });
