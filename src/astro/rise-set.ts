@@ -47,7 +47,7 @@ export function computeRiseSet(
   const set = setTime !== null ? setTime.date : null;
 
   // Transit: hour angle = 0 means upper culmination (due south/north)
-  let transit: Date | null = null;
+  let transit: Date | null;
   try {
     const transitStart = new Date(time.getTime() - 12 * 3600 * 1000);
     const hourAngleEvent = SearchHourAngle(body, observer, 0, transitStart);

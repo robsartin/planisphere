@@ -77,7 +77,7 @@ function satEci(satrec: SatelliteRecord["satrec"], time: Date): Vec3 | null {
 
 /** Observer geocentric ECI position (km) for `lat,lon` on Earth's surface at `time`. */
 function observerEci(latRad: number, lonRad: number, time: Date): Vec3 {
-  const ecf = geodeticToEcf({ latitude: latRad, longitude: lonRad, height: 0 as Kilometer });
+  const ecf = geodeticToEcf({ latitude: latRad, longitude: lonRad, height: 0 });
   const gmst = gstime(time);
   const eci = ecfToEci(ecf, gmst);
   return { x: eci.x, y: eci.y, z: eci.z };
