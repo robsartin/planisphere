@@ -16,6 +16,7 @@ export type BoundaryLoadError = { kind: "boundary-load-failed"; message: string 
 
 export type VisibleBoundary = {
   readonly id: string;
+  readonly name: string;
   readonly segments: readonly {
     readonly start: { readonly ra: number; readonly dec: number };
     readonly end: { readonly ra: number; readonly dec: number };
@@ -68,19 +69,32 @@ export function parseBoundaries(raw: unknown): Result<BoundaryRecord[], Boundary
  *
  * @param altFn - injectable altitude calculator for testing; defaults to raDecToAltAz
  */
+export type FilterVisibleBoundariesOptions = {
+  /** Optional lookup from IAU 3-letter code to display name (e.g. `"Ori" → "Orion"`).
+   *  When absent (or a boundary's id has no entry), `name` falls back to `id` —
+   *  the popup keeps working, it just shows the raw code. */
+  readonly namesByCode?: ReadonlyMap<string, string>;
+  /** Injectable altitude function (kept for existing tests that mock it). */
+  readonly altFn?: (ra: number, dec: number, lat: number, lon: number, time: Date) => number;
+};
+
 export function filterVisibleBoundaries(
   boundaries: BoundaryRecord[],
   lat: number,
   lon: number,
   timeUtc: Date,
-  altFn: (ra: number, dec: number, lat: number, lon: number, time: Date) => number = (
-    ra,
-    dec,
-    observerLat,
-    observerLon,
-    time,
-  ) => fastRaDecToAltAz(ra, dec, observerLat, observerLon, time).alt,
+  optionsOrAltFn?:
+    | FilterVisibleBoundariesOptions
+    | ((ra: number, dec: number, lat: number, lon: number, time: Date) => number),
 ): VisibleBoundary[] {
+  const options: FilterVisibleBoundariesOptions =
+    typeof optionsOrAltFn === "function" ? { altFn: optionsOrAltFn } : (optionsOrAltFn ?? {});
+  const altFn =
+    options.altFn ??
+    ((ra, dec, observerLat, observerLon, time) =>
+      fastRaDecToAltAz(ra, dec, observerLat, observerLon, time).alt);
+  const namesByCode = options.namesByCode;
+
   const result: VisibleBoundary[] = [];
 
   for (const boundary of boundaries) {
@@ -94,7 +108,11 @@ export function filterVisibleBoundaries(
       const end = boundary.vertices[(i + 1) % boundary.vertices.length]!;
       segments.push({ start, end });
     }
-    result.push({ id: boundary.id, segments });
+    result.push({
+      id: boundary.id,
+      name: namesByCode?.get(boundary.id) ?? boundary.id,
+      segments,
+    });
   }
 
   return result;
