@@ -12,30 +12,33 @@ import {
 const { mockSetInputAction, mockScreenSpaceEventHandler, mockHandlerDestroy } = vi.hoisted(() => {
   const mockSetInputAction = vi.fn();
   const mockHandlerDestroy = vi.fn();
-  const mockScreenSpaceEventHandler = vi.fn(() => ({
-    setInputAction: mockSetInputAction,
-    destroy: mockHandlerDestroy,
-  }));
+  const mockScreenSpaceEventHandler = vi.fn(function () {
+    return { setInputAction: mockSetInputAction, destroy: mockHandlerDestroy };
+  });
   return { mockSetInputAction, mockScreenSpaceEventHandler, mockHandlerDestroy };
 });
 
 vi.mock("cesium", () => {
-  const Cartesian3 = vi
-    .fn()
-    .mockImplementation((x: number = 0, y: number = 0, z: number = 0) => ({ x, y, z }));
+  const Cartesian3 = vi.fn(function (x: number = 0, y: number = 0, z: number = 0) {
+    return { x, y, z };
+  });
   Object.assign(Cartesian3, {
     fromDegrees: vi.fn().mockReturnValue({ x: 0, y: 0, z: 0 }),
     cross: vi.fn((a: object, _b: object, result: object) => Object.assign(result, a)),
     normalize: vi.fn((_v: object, result: object) => result),
   });
 
-  const Quaternion = vi.fn().mockImplementation(() => ({}));
+  const Quaternion = vi.fn(function () {
+    return {};
+  });
   Object.assign(Quaternion, {
     fromAxisAngle: vi.fn().mockReturnValue({}),
     multiply: vi.fn().mockReturnValue({}),
   });
 
-  const Matrix3 = vi.fn().mockImplementation(() => ({}));
+  const Matrix3 = vi.fn(function () {
+    return {};
+  });
   Object.assign(Matrix3, {
     fromQuaternion: vi.fn().mockReturnValue({}),
     multiplyByVector: vi.fn().mockReturnValue({ x: 0, y: 0, z: 1 }),

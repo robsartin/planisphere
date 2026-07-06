@@ -8,11 +8,13 @@ const mockPolylineRemoveAll = vi.fn();
 const mockPolylines: Array<{ material: { uniforms: { color: { alpha: number } } } }> = [];
 
 vi.mock("cesium", () => {
-  const MockCartesian3 = vi.fn().mockImplementation((x: number, y: number, z: number) => ({
-    x,
-    y,
-    z,
-  }));
+  const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
+    return {
+      x,
+      y,
+      z,
+    };
+  });
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
@@ -22,19 +24,21 @@ vi.mock("cesium", () => {
   });
 
   return {
-    PolylineCollection: vi.fn().mockImplementation(() => ({
-      add: (opts: Record<string, unknown>) => {
-        mockPolylineAdd(opts);
-        const polyline = { material: makeMaterial(), ...opts };
-        mockPolylines.push(polyline as never);
-        return polyline;
-      },
-      removeAll: () => {
-        mockPolylineRemoveAll();
-        mockPolylines.length = 0;
-      },
-      show: true,
-    })),
+    PolylineCollection: vi.fn(function () {
+      return {
+        add: (opts: Record<string, unknown>) => {
+          mockPolylineAdd(opts);
+          const polyline = { material: makeMaterial(), ...opts };
+          mockPolylines.push(polyline as never);
+          return polyline;
+        },
+        removeAll: () => {
+          mockPolylineRemoveAll();
+          mockPolylines.length = 0;
+        },
+        show: true,
+      };
+    }),
     Cartesian3: MockCartesian3,
     Color: {
       WHITE: { withAlpha: (a: number) => ({ r: 1, g: 1, b: 1, alpha: a }) },
@@ -52,7 +56,9 @@ vi.mock("cesium", () => {
       multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
     },
     Material: {
-      fromType: vi.fn().mockImplementation(() => ({ uniforms: { color: { alpha: 1 } } })),
+      fromType: vi.fn(function () {
+        return { uniforms: { color: { alpha: 1 } } };
+      }),
     },
   };
 });

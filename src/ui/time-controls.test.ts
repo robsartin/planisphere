@@ -1,17 +1,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import { createTimeControls } from "./time-controls";
 import type { UIIntent } from "./index";
 
 const BASE_TIME = new Date("2026-04-15T12:00:00Z");
 
 describe("createTimeControls", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
   let controls: { element: HTMLElement; setTime: (d: Date) => void };
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     controls = createTimeControls(BASE_TIME, dispatch);
     el = controls.element;
   });
