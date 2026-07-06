@@ -11,6 +11,12 @@ const MIN_PER_MS = 60_000;
 const HOUR_PER_MS = 3_600_000;
 const DAY_PER_MS = 86_400_000;
 
+/** SGP4 accuracy degrades noticeably beyond ~1 week from the TLE epoch — an
+ *  ISS TLE two weeks old can be tens of km off. Above this threshold, and
+ *  only when we're serving the bundled fallback, we surface the staleness
+ *  pill (#354). */
+const TLE_STALE_THRESHOLD_SECONDS = 7 * 86_400;
+
 /**
  * Pixel-to-millisecond ratio while drag-scrubbing. Tuned so a full-width drag on
  * a ~1000px viewport covers roughly a 30-minute window — enough to feel responsive
@@ -107,7 +113,17 @@ function eventTargetsEditable(e: KeyboardEvent): boolean {
 }
 
 export function createBottomHud(
-  initial: { timeUtc: Date; lat: number; lon: number },
+  initial: {
+    timeUtc: Date;
+    lat: number;
+    lon: number;
+    /** Whether the current TLE dataset came from the bundled fallback (i.e.
+     *  the live Celestrak fetch failed). Combined with `tleSourceAgeSeconds`
+     *  to decide whether to surface the offline-staleness pill (#354). */
+    tleUsedFallback?: boolean;
+    /** Age (seconds) of the newest TLE epoch in the current dataset. */
+    tleSourceAgeSeconds?: number;
+  },
   dispatch: (intent: UIIntent) => void,
 ): BottomHud {
   let currentTime = new Date(initial.timeUtc);
@@ -223,6 +239,49 @@ export function createBottomHud(
     style: { ...CHIP_STYLE, fontVariantNumeric: "tabular-nums" },
   });
 
+  // TLE staleness pill (#354) — subtle amber warning surfaced only when the
+  // network fetch fell back to the bundled snapshot AND that snapshot is
+  // older than 7 days (satellite positions degrade fast — an ISS TLE two
+  // weeks old can be tens of km off). Clicking opens the Help modal so the
+  // user has a place to read what "offline TLE" means.
+  const usedFallback = initial.tleUsedFallback ?? false;
+  const ageSeconds = initial.tleSourceAgeSeconds ?? 0;
+  const shouldShowStalenessPill = usedFallback && ageSeconds > TLE_STALE_THRESHOLD_SECONDS;
+  const stalenessDays = Math.floor(ageSeconds / 86_400);
+  const stalenessPill = el("button", {
+    testid: "hud-tle-staleness",
+    type: "button",
+    text: shouldShowStalenessPill
+      ? `Offline TLE — positions may be off (${String(stalenessDays)}d old)`
+      : "",
+    attrs: {
+      title: "The live TLE fetch failed and the bundled snapshot is old — click for help",
+      "aria-label": "TLE data is stale — click for help",
+    },
+    style: {
+      background: "rgba(120, 80, 0, 0.35)",
+      border: "1px solid rgba(255, 180, 60, 0.55)",
+      borderRadius: "999px",
+      padding: "4px 10px",
+      color: "#ffcc80",
+      fontFamily: FONT_FAMILY,
+      fontSize: "12px",
+      cursor: "pointer",
+      display: shouldShowStalenessPill ? "" : "none",
+    },
+    on: {
+      click: (e) => {
+        e.stopPropagation();
+        dispatch({ type: "open-help" });
+      },
+    },
+  });
+
+  const rightGroup = el("div", {
+    style: { display: "flex", gap: "8px", alignItems: "center" },
+    children: [stalenessPill, compassChip],
+  });
+
   const root = el("div", {
     testid: "bottom-hud",
     style: {
@@ -248,7 +307,7 @@ export function createBottomHud(
       userSelect: "none",
       touchAction: "none",
     },
-    children: [locationChip, center, compassChip],
+    children: [locationChip, center, rightGroup],
   });
 
   // --- Idle fade ---
