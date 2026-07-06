@@ -937,9 +937,15 @@ export async function bootstrap(
 
   // Satellite layer (async)
   let satelliteRecords: SatelliteRecord[] = [];
+  // Captured across the fetchTle boundary so we can decide whether to surface
+  // the offline-TLE staleness pill in the bottom HUD (#354).
+  let tleUsedFallback = false;
+  let tleSourceAgeSeconds = 0;
   const tleResult = await fetchTle();
   if (tleResult.ok) {
-    const satResult = parseTle(tleResult.value);
+    tleUsedFallback = tleResult.value.usedFallback;
+    tleSourceAgeSeconds = tleResult.value.sourceAgeSeconds;
+    const satResult = parseTle(tleResult.value.text);
     if (satResult.ok) {
       satelliteRecords = satResult.value;
       data.satelliteRecords = satResult;
@@ -1480,6 +1486,10 @@ export async function bootstrap(
         updateUrl(state);
         return;
       }
+      case "open-help": {
+        helpModal?.open();
+        return;
+      }
     }
   }
 
@@ -1573,6 +1583,8 @@ export async function bootstrap(
       timeUtc: state.timeUtc,
       lat: state.observer.lat,
       lon: state.observer.lon,
+      tleUsedFallback,
+      tleSourceAgeSeconds,
     },
     handleIntent,
   );
@@ -1722,7 +1734,11 @@ export async function bootstrap(
 
   // First-load onboarding tour — start after a small delay so Cesium has a
   // chance to paint before the dimmed overlay comes up. Skipped when the user
-  // has previously dismissed the tour (persisted in localStorage).
+  // has previously dismissed the tour (persisted in localStorage), and skipped
+  // when a plan slug is in the URL (#353): the reader modal is about to open
+  // and the transparent tour click-shield would sit above it, blocking the
+  // modal's close button. Don't persist "dismissed" on that path — the tour
+  // still deserves to fire on a later open without a slug.
   const onboardingFlag = (() => {
     try {
       return globalThis.localStorage?.getItem(ONBOARDING_STORAGE_KEY);
@@ -1730,7 +1746,7 @@ export async function bootstrap(
       return null;
     }
   })();
-  if (onboardingFlag !== "dismissed") {
+  if (onboardingFlag !== "dismissed" && state.activePlanSlug === null) {
     setTimeout(() => {
       onboardingOverlay.start();
     }, 500);

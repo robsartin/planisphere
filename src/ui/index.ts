@@ -118,6 +118,7 @@ export type UIIntent =
   | { readonly type: "set-active-plan"; readonly slug: string | null }
   | { readonly type: "open-sign-in" }
   | { readonly type: "retry-plans" }
+  | { readonly type: "open-help" }
   // #350 — constellation art overlay
   | { readonly type: "toggle-constellation-art" }
   | { readonly type: "set-constellation-art-opacity"; readonly value: number };
