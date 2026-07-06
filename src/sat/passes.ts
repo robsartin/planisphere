@@ -51,6 +51,7 @@ function satAltAzDeg(
   lonRad: number,
 ): { alt: number; az: number } | null {
   const posVel = propagate(satrec, time);
+  if (!posVel) return null;
   const pos = posVel.position;
   if (!pos || !isValidVec3(pos)) return null;
   const gmst = gstime(time);
@@ -70,6 +71,7 @@ function sunAltDeg(lat: number, lon: number, time: Date): number {
 /** Satellite ECI position (km) at `time`, or null if the propagator failed. */
 function satEci(satrec: SatelliteRecord["satrec"], time: Date): Vec3 | null {
   const posVel = propagate(satrec, time);
+  if (!posVel) return null;
   const p = posVel.position;
   if (!p || !isValidVec3(p)) return null;
   return { x: p.x, y: p.y, z: p.z };
