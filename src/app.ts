@@ -1687,7 +1687,11 @@ export async function bootstrap(
 
   // First-load onboarding tour — start after a small delay so Cesium has a
   // chance to paint before the dimmed overlay comes up. Skipped when the user
-  // has previously dismissed the tour (persisted in localStorage).
+  // has previously dismissed the tour (persisted in localStorage), and skipped
+  // when a plan slug is in the URL (#353): the reader modal is about to open
+  // and the transparent tour click-shield would sit above it, blocking the
+  // modal's close button. Don't persist "dismissed" on that path — the tour
+  // still deserves to fire on a later open without a slug.
   const onboardingFlag = (() => {
     try {
       return globalThis.localStorage?.getItem(ONBOARDING_STORAGE_KEY);
@@ -1695,7 +1699,7 @@ export async function bootstrap(
       return null;
     }
   })();
-  if (onboardingFlag !== "dismissed") {
+  if (onboardingFlag !== "dismissed" && state.activePlanSlug === null) {
     setTimeout(() => {
       onboardingOverlay.start();
     }, 500);
