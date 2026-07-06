@@ -116,7 +116,8 @@ export type UIIntent =
     }
   | { readonly type: "set-active-plan"; readonly slug: string | null }
   | { readonly type: "open-sign-in" }
-  | { readonly type: "retry-plans" };
+  | { readonly type: "retry-plans" }
+  | { readonly type: "open-help" };
 
 export { createPlanCard } from "./plans-card";
 export { createPlansDrawer } from "./plans-drawer";
