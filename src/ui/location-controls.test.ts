@@ -1,14 +1,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import { createLocationControls } from "./location-controls";
 import type { UIIntent } from "./index";
 
 describe("createLocationControls", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  // Vitest 4's `vi.fn()` returns `Mock<Procedure | Constructable>` — a widened
+  // type that is not assignable to a plain `(intent: UIIntent) => void` since
+  // it also carries a constructor signature. Narrow with the explicit callable.
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createLocationControls(33.45, -117.15, dispatch);
   });
 

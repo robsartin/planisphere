@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import {
   createVisibilitySection,
   createOpacitySection,
@@ -28,11 +29,11 @@ const DEFAULT_OPACITY: LayerOpacity = {
 };
 
 describe("createVisibilitySection", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createVisibilitySection(DEFAULT_VISIBILITY, dispatch);
   });
 
@@ -71,11 +72,11 @@ describe("createVisibilitySection", () => {
 });
 
 describe("createOpacitySection", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createOpacitySection(DEFAULT_OPACITY, dispatch);
   });
 
@@ -142,11 +143,11 @@ describe("createOpacitySection", () => {
 });
 
 describe("createMagnitudeFilterSection", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createMagnitudeFilterSection(6.0, dispatch);
   });
 
@@ -200,11 +201,11 @@ describe("createMagnitudeFilterSection", () => {
 });
 
 describe("createLanguageSection", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createLanguageSection("la", dispatch);
   });
 
@@ -239,11 +240,11 @@ describe("createLanguageSection", () => {
 });
 
 describe("createSkycultureSection", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createSkycultureSection("western", dispatch);
   });
 

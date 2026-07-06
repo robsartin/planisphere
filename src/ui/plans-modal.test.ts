@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { createPlansModal } from "./plans-modal";
 import type { Plan } from "../plans";
+import type { UIIntent } from "./index";
 
 const SAMPLE: Plan = {
   slug: "2026-04",
@@ -16,11 +18,11 @@ const SAMPLE: Plan = {
 };
 
 describe("plans modal", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let modal: ReturnType<typeof createPlansModal>;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     modal = createPlansModal({ dispatch });
     document.body.appendChild(modal.element);
   });

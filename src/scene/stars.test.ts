@@ -16,21 +16,20 @@ const mockAdd = vi.fn().mockReturnValue({ show: true, position: null, scale: 1, 
 const mockRemoveAll = vi.fn();
 
 vi.mock("cesium", () => {
-  const MockCartesian3 = vi.fn().mockImplementation((x: number, y: number, z: number) => ({
-    x,
-    y,
-    z,
-  }));
+  // Vitest 4 removed the wrapper that let arrow-fn implementations act as
+  // constructors — use `function` expressions so `new Cartesian3(...)` etc.
+  // don't throw "not a constructor".
+  const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
+    return { x, y, z };
+  });
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
 
   return {
-    BillboardCollection: vi.fn().mockImplementation(() => ({
-      add: mockAdd,
-      removeAll: mockRemoveAll,
-      length: 0,
-    })),
+    BillboardCollection: vi.fn(function () {
+      return { add: mockAdd, removeAll: mockRemoveAll, length: 0 };
+    }),
     Cartesian3: MockCartesian3,
     Color: {
       WHITE: { withAlpha: (a: number) => ({ red: 1, green: 1, blue: 1, alpha: a }) },

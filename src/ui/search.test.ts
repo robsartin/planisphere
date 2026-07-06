@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 import { createSearch } from "./search";
 import type { SearchResult } from "../astro/search";
 import type { UIIntent } from "./index";
@@ -27,11 +28,11 @@ function stubSearch(query: string): SearchResult[] {
 }
 
 describe("createSearch", () => {
-  let dispatch: ReturnType<typeof vi.fn>;
+  let dispatch: Mock<(intent: UIIntent) => void>;
   let el: HTMLElement;
 
   beforeEach(() => {
-    dispatch = vi.fn();
+    dispatch = vi.fn<(intent: UIIntent) => void>();
     el = createSearch(stubSearch, dispatch);
   });
 

@@ -9,24 +9,30 @@ const mockLabelAdd = vi.fn();
 const mockLabelRemoveAll = vi.fn();
 
 vi.mock("cesium", () => {
-  const MockCartesian3 = vi.fn().mockImplementation((x: number, y: number, z: number) => ({
-    x,
-    y,
-    z,
-  }));
+  const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
+    return {
+      x,
+      y,
+      z,
+    };
+  });
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
 
   return {
-    PolylineCollection: vi.fn().mockImplementation(() => ({
-      add: mockPolylineAdd,
-      removeAll: mockPolylineRemoveAll,
-    })),
-    LabelCollection: vi.fn().mockImplementation(() => ({
-      add: mockLabelAdd,
-      removeAll: mockLabelRemoveAll,
-    })),
+    PolylineCollection: vi.fn(function () {
+      return {
+        add: mockPolylineAdd,
+        removeAll: mockPolylineRemoveAll,
+      };
+    }),
+    LabelCollection: vi.fn(function () {
+      return {
+        add: mockLabelAdd,
+        removeAll: mockLabelRemoveAll,
+      };
+    }),
     Cartesian3: MockCartesian3,
     Color: {
       WHITE: { withAlpha: (a: number) => ({ alpha: a }) },

@@ -8,11 +8,13 @@ const mockPolylineRemoveAll = vi.fn();
 const mockPolylines: Record<string, unknown>[] = [];
 
 vi.mock("cesium", () => {
-  const MockCartesian3 = vi.fn().mockImplementation((x: number, y: number, z: number) => ({
-    x,
-    y,
-    z,
-  }));
+  const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
+    return {
+      x,
+      y,
+      z,
+    };
+  });
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
@@ -20,22 +22,24 @@ vi.mock("cesium", () => {
   const mockMaterial = { uniforms: { color: { alpha: 1 } } };
 
   return {
-    PolylineCollection: vi.fn().mockImplementation(() => ({
-      add: (opts: Record<string, unknown>) => {
-        mockPolylineAdd(opts);
-        const polyline = { material: mockMaterial, ...opts };
-        mockPolylines.push(polyline);
-        return polyline;
-      },
-      removeAll: () => {
-        mockPolylineRemoveAll();
-        mockPolylines.length = 0;
-      },
-      get length() {
-        return mockPolylines.length;
-      },
-      show: true,
-    })),
+    PolylineCollection: vi.fn(function () {
+      return {
+        add: (opts: Record<string, unknown>) => {
+          mockPolylineAdd(opts);
+          const polyline = { material: mockMaterial, ...opts };
+          mockPolylines.push(polyline);
+          return polyline;
+        },
+        removeAll: () => {
+          mockPolylineRemoveAll();
+          mockPolylines.length = 0;
+        },
+        get length() {
+          return mockPolylines.length;
+        },
+        show: true,
+      };
+    }),
     Cartesian3: MockCartesian3,
     Color: {
       WHITE: { withAlpha: (a: number) => ({ r: 1, g: 1, b: 1, alpha: a }) },
