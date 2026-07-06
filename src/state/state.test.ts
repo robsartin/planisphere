@@ -517,3 +517,129 @@ describe("activePlanSlug", () => {
     expect(s.activePlanSlug).toBeNull();
   });
 });
+
+describe("animation — defaults", () => {
+  it("defaults to paused, speed=1", () => {
+    expect(DEFAULT_STATE.animation.playing).toBe(false);
+    expect(DEFAULT_STATE.animation.speed).toBe(1);
+  });
+
+  it("returns default animation when both params absent", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    expect(s.animation.playing).toBe(false);
+    expect(s.animation.speed).toBe(1);
+  });
+});
+
+describe("animation — parse from URL", () => {
+  it("parses anim=play as playing=true", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ anim: "play" })));
+    expect(s.animation.playing).toBe(true);
+  });
+
+  it("parses anim=paused as playing=false", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ anim: "paused" })));
+    expect(s.animation.playing).toBe(false);
+  });
+
+  it("falls back to paused for unknown anim value", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ anim: "wat" })));
+    expect(s.animation.playing).toBe(false);
+  });
+
+  it("parses speed=1", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "1" })));
+    expect(s.animation.speed).toBe(1);
+  });
+
+  it("parses speed=10", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "10" })));
+    expect(s.animation.speed).toBe(10);
+  });
+
+  it("parses speed=100", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "100" })));
+    expect(s.animation.speed).toBe(100);
+  });
+
+  it("falls back to 1 for out-of-range speed", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "42" })));
+    expect(s.animation.speed).toBe(1);
+  });
+
+  it("falls back to 1 for non-numeric speed", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "abc" })));
+    expect(s.animation.speed).toBe(1);
+  });
+
+  it("falls back to 1 for empty speed", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ speed: "" })));
+    expect(s.animation.speed).toBe(1);
+  });
+
+  it("parses both anim and speed together", () => {
+    const s = expectOk(
+      parseStateFromSearchParams(new URLSearchParams({ anim: "play", speed: "10" })),
+    );
+    expect(s.animation.playing).toBe(true);
+    expect(s.animation.speed).toBe(10);
+  });
+});
+
+describe("animation — serialize round-trip", () => {
+  it("omits anim param when paused (default)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("anim")).toBe(false);
+  });
+
+  it("omits speed param when speed=1 (default)", () => {
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
+    const out = serializeStateToSearchParams(s);
+    expect(out.has("speed")).toBe(false);
+  });
+
+  it("writes anim=play when playing", () => {
+    const out = serializeStateToSearchParams({
+      ...DEFAULT_STATE,
+      animation: { playing: true, speed: 1 },
+    });
+    expect(out.get("anim")).toBe("play");
+  });
+
+  it("writes speed=10 when non-default", () => {
+    const out = serializeStateToSearchParams({
+      ...DEFAULT_STATE,
+      animation: { playing: false, speed: 10 },
+    });
+    expect(out.get("speed")).toBe("10");
+  });
+
+  it("writes speed=100 when non-default", () => {
+    const out = serializeStateToSearchParams({
+      ...DEFAULT_STATE,
+      animation: { playing: false, speed: 100 },
+    });
+    expect(out.get("speed")).toBe("100");
+  });
+
+  it("round-trips playing=true, speed=100", () => {
+    const encoded = serializeStateToSearchParams({
+      ...DEFAULT_STATE,
+      animation: { playing: true, speed: 100 },
+    });
+    const decoded = expectOk(parseStateFromSearchParams(encoded));
+    expect(decoded.animation.playing).toBe(true);
+    expect(decoded.animation.speed).toBe(100);
+  });
+
+  it("round-trips playing=false, speed=10", () => {
+    const encoded = serializeStateToSearchParams({
+      ...DEFAULT_STATE,
+      animation: { playing: false, speed: 10 },
+    });
+    const decoded = expectOk(parseStateFromSearchParams(encoded));
+    expect(decoded.animation.playing).toBe(false);
+    expect(decoded.animation.speed).toBe(10);
+  });
+});

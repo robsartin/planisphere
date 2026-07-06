@@ -1099,12 +1099,9 @@ export async function bootstrap(
 
   let bottomHud: BottomHud | null = null;
 
-  // #136 — time animation state. Not URL-synced; animation is a transient
-  // client-side thing that shouldn't survive reload.
-  const animation: { playing: boolean; speed: 1 | 10 | 100 } = {
-    playing: false,
-    speed: 1,
-  };
+  // #136 — time animation state. Since #348, URL-synced via ?anim / ?speed so
+  // that "Copy link" while animating captures the play state and speed. The
+  // authoritative store is `state.animation`; RAF bookkeeping stays local.
   let animationRafId: number | null = null;
   let animationLastFrameMs = 0;
   const ANIMATION_BASE_MS_PER_MS = 60_000; // 1× wall-second = 1 minute of sky time
@@ -1118,7 +1115,7 @@ export async function bootstrap(
         : null;
     if (raf === null) return;
     const tick = (): void => {
-      if (!animation.playing) {
+      if (!state.animation.playing) {
         animationRafId = null;
         return;
       }
@@ -1126,7 +1123,7 @@ export async function bootstrap(
         typeof globalThis.performance?.now === "function" ? globalThis.performance.now() : 0;
       const dt = animationLastFrameMs === 0 ? 16 : now - animationLastFrameMs;
       animationLastFrameMs = now;
-      const advanceMs = dt * animation.speed * (ANIMATION_BASE_MS_PER_MS / 1000);
+      const advanceMs = dt * state.animation.speed * (ANIMATION_BASE_MS_PER_MS / 1000);
       const next = new Date(state.timeUtc.getTime() + advanceMs);
       handleIntent({ type: "set-time", time: next });
       animationRafId = raf(tick);
@@ -1305,18 +1302,21 @@ export async function bootstrap(
     intent: UIIntent & { type: "set-mode" | "toggle-animation" | "set-animation-speed" },
   ): void {
     if (intent.type === "toggle-animation") {
-      animation.playing = !animation.playing;
-      bottomHud?.setAnimation(animation.playing, animation.speed);
-      if (animation.playing) {
+      const nextPlaying = !state.animation.playing;
+      state = { ...state, animation: { ...state.animation, playing: nextPlaying } };
+      bottomHud?.setAnimation(nextPlaying, state.animation.speed);
+      if (nextPlaying) {
         startAnimationLoop();
       } else {
         stopAnimationLoop();
       }
+      updateUrl(state);
       return;
     }
     if (intent.type === "set-animation-speed") {
-      animation.speed = intent.speed;
-      bottomHud?.setAnimation(animation.playing, animation.speed);
+      state = { ...state, animation: { ...state.animation, speed: intent.speed } };
+      bottomHud?.setAnimation(state.animation.playing, state.animation.speed);
+      updateUrl(state);
       return;
     }
     // Notebook is a Pro feature (issue #224). Non-Pro users attempting to
@@ -1543,6 +1543,16 @@ export async function bootstrap(
   );
   document.body.appendChild(bottomHud.element);
   bottomHud.setCompass(getCameraHeadingDeg(viewer.camera));
+
+  // #348 — hydrate the animation state that came in from ?anim / ?speed.
+  // Reflects to the HUD immediately so the play button and speed pill match
+  // the URL, and kicks off the RAF loop when the link was captured mid-play.
+  if (state.animation.playing || state.animation.speed !== 1) {
+    bottomHud.setAnimation(state.animation.playing, state.animation.speed);
+  }
+  if (state.animation.playing) {
+    startAnimationLoop();
+  }
 
   // Location picker overlay (milestone 1B of Plan 07, issue #193). Created once at
   // bootstrap and opened via the `open-location-picker` intent fired from the bottom
