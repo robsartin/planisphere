@@ -661,6 +661,30 @@ describe("bootstrap", () => {
     await expect(bootstrap(null)).resolves.toBeUndefined();
   });
 
+  it("sets window.__PLANISPHERE_READY__ and dispatches planisphere:ready when bootstrap completes (#373)", async () => {
+    const readyWindow = globalThis as { __PLANISPHERE_READY__?: boolean };
+    readyWindow.__PLANISPHERE_READY__ = false;
+    let eventFired = false;
+    const listener = (): void => {
+      eventFired = true;
+    };
+    globalThis.addEventListener("planisphere:ready", listener);
+    const root = document.createElement("main");
+    root.id = "app";
+    const cesiumDiv = document.createElement("div");
+    cesiumDiv.id = "cesium-container";
+    root.appendChild(cesiumDiv);
+    const errorDiv = document.createElement("div");
+    errorDiv.id = "error";
+    root.appendChild(errorDiv);
+    document.body.appendChild(root);
+    await bootstrap(root);
+    expect(readyWindow.__PLANISPHERE_READY__).toBe(true);
+    expect(eventFired).toBe(true);
+    globalThis.removeEventListener("planisphere:ready", listener);
+    document.body.removeChild(root);
+  });
+
   it("shows error text when state parsing fails", async () => {
     const root = document.createElement("main");
     root.id = "app";

@@ -1824,6 +1824,22 @@ export async function bootstrap(
   if (state.activePlanSlug !== null) {
     void openPlanBySlug(state.activePlanSlug);
   }
+
+  // Ready signal for e2e (#373). Fires only after `bootstrap` has finished
+  // wiring the full DOM — bottom-HUD, tooltip, drawers, empty-sky popover.
+  // Cesium's first paint is much earlier (see the synchronous `doRerender`
+  // above), so tests relying on `waitForCesiumPainted` alone were racing the
+  // rest of bootstrap on slow CI runners. This is the stable signal to gate
+  // any e2e assertion that touches DOM chrome or hover-pick / tooltip state.
+  //
+  // Set as a global flag *and* dispatched as a CustomEvent so tests can wait
+  // either way (waitForFunction on the flag is the simplest; the event lets
+  // any early listener catch it too).
+  const readyWindow = globalThis as { __PLANISPHERE_READY__?: boolean };
+  readyWindow.__PLANISPHERE_READY__ = true;
+  if (typeof globalThis.dispatchEvent === "function") {
+    globalThis.dispatchEvent(new CustomEvent("planisphere:ready"));
+  }
 }
 
 function showError(el: HTMLElement | null, message: string): void {
