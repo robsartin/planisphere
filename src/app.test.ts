@@ -417,6 +417,16 @@ vi.mock("./ui", () => ({
       isOpen: vi.fn().mockReturnValue(false),
     };
   }),
+  createDescribeSkyModal: vi.fn().mockImplementation(() => {
+    const element = document.createElement("div");
+    element.dataset.testid = "describe-sky-modal";
+    return {
+      element,
+      open: vi.fn(),
+      close: vi.fn(),
+      isOpen: vi.fn().mockReturnValue(false),
+    };
+  }),
   createSettingsDrawer: vi.fn().mockImplementation(() => {
     const element = document.createElement("div");
     element.dataset.testid = "settings-drawer-root";
