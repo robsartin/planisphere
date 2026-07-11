@@ -96,6 +96,7 @@ import type { NotebookWorkspace } from "./ui/notebook-workspace";
 import type { PlansDrawerView } from "./ui";
 import { getPlan, listPlans } from "./plans";
 import { currentUser, requestMagicLink } from "./auth";
+import { createShareLink } from "./share";
 import { isPro, setUser } from "./features";
 import type { OnboardingStep } from "./ui";
 import type {
@@ -1381,15 +1382,41 @@ export async function bootstrap(
         locationPicker?.open();
         return;
       case "copy-link": {
-        // Fire-and-forget: clipboard is optional; failure is silent.
+        // Race the shortlink API against a 400 ms budget (#377). If the
+        // network wins, the user gets a `/s/<code>` short URL on their
+        // clipboard. Otherwise we fall back to the long URL — the user
+        // never waits on the network. Any failure path is silent; the
+        // whole feature is best-effort.
         const href = globalThis.location?.href ?? "";
         const clipboard = navigator.clipboard as
           { writeText?: (s: string) => Promise<void> } | undefined;
-        if (clipboard !== undefined && typeof clipboard.writeText === "function") {
-          void clipboard.writeText(href).catch(() => {
-            // Clipboard access denied — nothing we can do.
-          });
+        if (clipboard === undefined || typeof clipboard.writeText !== "function") {
+          return;
         }
+        const writeText = clipboard.writeText.bind(clipboard);
+        const shortenPromise = createShareLink(href);
+        // Race the shortlink against a 400 ms budget. Capture the timer id
+        // so we can `clearTimeout` on the winning branch — leaving it
+        // pending would leak a real-timer handle into subsequent code
+        // (and into `vi.useFakeTimers()`-based tests).
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timeoutId = setTimeout(() => {
+            resolve(null);
+          }, 400);
+        });
+        void Promise.race([shortenPromise, timeoutPromise]).then((raced) => {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          if (raced !== null && raced.ok) {
+            void writeText(raced.value.shortUrl).catch(() => {
+              // Clipboard denied — nothing to do.
+            });
+            return;
+          }
+          void writeText(href).catch(() => {
+            // Clipboard denied — nothing to do.
+          });
+        });
         return;
       }
       case "open-object-card": {
