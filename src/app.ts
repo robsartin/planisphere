@@ -87,12 +87,12 @@ import {
   createLocationPickerOverlay,
   createEmptySkyPopover,
   createOnboardingOverlay,
-  createNotebookWorkspace,
   createLoginModal,
   createPlansDrawer,
   createPlansModal,
   ONBOARDING_STORAGE_KEY,
 } from "./ui";
+import type { NotebookWorkspace } from "./ui/notebook-workspace";
 import type { PlansDrawerView } from "./ui";
 import { getPlan, listPlans } from "./plans";
 import { currentUser, requestMagicLink } from "./auth";
@@ -1173,7 +1173,8 @@ export async function bootstrap(
     animationRafId = null;
   }
   let locationPicker: ReturnType<typeof createLocationPickerOverlay> | null = null;
-  let notebookWorkspace: ReturnType<typeof createNotebookWorkspace> | null = null;
+  let notebookWorkspace: NotebookWorkspace | null = null;
+  let notebookWorkspacePromise: Promise<NotebookWorkspace> | null = null;
   let loginModal: ReturnType<typeof createLoginModal> | null = null;
   let plansDrawer: ReturnType<typeof createPlansDrawer> | null = null;
   let plansModal: ReturnType<typeof createPlansModal> | null = null;
@@ -1359,7 +1360,13 @@ export async function bootstrap(
       return;
     }
     state = { ...state, mode: intent.mode };
-    notebookWorkspace?.setVisible(intent.mode === "notebook");
+    if (intent.mode === "notebook") {
+      void ensureNotebookWorkspace().then((ws) => {
+        ws.setVisible(true);
+      });
+    } else {
+      notebookWorkspace?.setVisible(false);
+    }
     nightVisionPanel?.setMode(intent.mode);
     updateUrl(state);
   }
@@ -1648,17 +1655,35 @@ export async function bootstrap(
   // Notebook workspace (milestone 2A / 2D of Plan 07, issues #216 + #219).
   // Right-side shell shown only when state.mode === "notebook". The tiptap
   // editor inside autosaves to /api/notebooks via the default NotebookApi.
-  notebookWorkspace = createNotebookWorkspace({
-    getCurrentView: () => ({
-      href: globalThis.location.href,
-      timeUtc: state.timeUtc,
-    }),
-    onProRequired: () => {
-      loginModal?.open();
-    },
-  });
-  document.body.appendChild(notebookWorkspace.element);
-  notebookWorkspace.setVisible(state.mode === "notebook");
+  //
+  // Loaded lazily via dynamic import so free-tier / non-Notebook users never
+  // pay for the ~432 KB tiptap chunk on first paint (#372). The helper caches
+  // the in-flight promise so double-clicks don't double-load.
+  async function ensureNotebookWorkspace(): Promise<NotebookWorkspace> {
+    if (notebookWorkspace !== null) return notebookWorkspace;
+    if (notebookWorkspacePromise !== null) return notebookWorkspacePromise;
+    notebookWorkspacePromise = (async () => {
+      const { createNotebookWorkspace } = await import("./ui/notebook-workspace");
+      const ws = createNotebookWorkspace({
+        getCurrentView: () => ({
+          href: globalThis.location.href,
+          timeUtc: state.timeUtc,
+        }),
+        onProRequired: () => {
+          loginModal?.open();
+        },
+      });
+      document.body.appendChild(ws.element);
+      notebookWorkspace = ws;
+      return ws;
+    })();
+    return notebookWorkspacePromise;
+  }
+  if (state.mode === "notebook") {
+    void ensureNotebookWorkspace().then((ws) => {
+      ws.setVisible(true);
+    });
+  }
 
   // Poll the camera heading on each animation frame so the compass chip mirrors
   // drag-rotation of the view. Cesium's camera doesn't emit a change event.
