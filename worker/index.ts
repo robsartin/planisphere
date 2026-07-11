@@ -12,6 +12,7 @@ import {
   handleUpdateNotebook,
 } from "./routes/notebooks";
 import { handleGetPlan, handleListPlans } from "./routes/plans";
+import { handleCreateShareLink, handleShareRedirect } from "./routes/share";
 import type { Env } from "./types";
 
 /**
@@ -67,6 +68,15 @@ export default {
       if (planDetailMatch !== null) {
         if (method !== "GET") return methodNotAllowed();
         return await handleGetPlan(request, env, planDetailMatch[1]!);
+      }
+      if (path === "/api/share") {
+        if (method !== "POST") return methodNotAllowed();
+        return await handleCreateShareLink(request, env);
+      }
+      const shareRedirectMatch = /^\/s\/([^/]+)$/.exec(path);
+      if (shareRedirectMatch !== null) {
+        if (method !== "GET") return methodNotAllowed();
+        return await handleShareRedirect(request, env, shareRedirectMatch[1]!);
       }
       return notFound();
     } catch (err) {

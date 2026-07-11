@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage } from "./fixtures";
+import { seedDefaultStorage, waitForPlanisphereReady } from "./fixtures";
 
 /**
  * Deep-link plan modal test (issue #303 #3).
@@ -66,6 +66,12 @@ test("deep-link ?plan=<slug> opens the plan reader modal with the plan title", a
   // its `setPlan` is fired by `openPlanBySlug` immediately after bootstrap
   // (URL hydration → set-active-plan intent → `getPlan` → `plansModal.setPlan`).
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
+  // The plans-modal element is created near the bootstrap tail (after all
+  // other drawers), and `openPlanBySlug` fires only once the full DOM is
+  // wired. Waiting on the bootstrap-complete flag before hunting for the
+  // modal card eliminates the "waited 10s for modal that hadn't been
+  // created yet" flake on slow Xvfb (#373).
+  await waitForPlanisphereReady(page);
 
   // The modal renders into a fixed `data-plans-modal-card` container. Title
   // text is set by `setPlan(plan)` in `src/ui/plans-modal.ts`.

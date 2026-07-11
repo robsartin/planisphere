@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { seedDefaultStorage, waitForCesiumPainted, waitForPlanisphereReady } from "./fixtures";
 
 /**
  * Hover-pick sweep regression test (issue #303, motivated by #302).
@@ -33,6 +33,11 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   const canvas = page.locator("#cesium-container canvas");
   await expect(canvas).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  // Tooltip element and pick handler are wired mid-bootstrap; `waitForCesiumPainted`
+  // returns as soon as the first star field paints, which can happen before those
+  // are attached on slow Xvfb runners. Wait for the bootstrap-complete flag so
+  // the sweep doesn't start with 0 hits (#373).
+  await waitForPlanisphereReady(page);
 
   // Pre-warm: nudge the mouse to register a real DOM event before sweeping.
   // Without this Cesium occasionally drops the first 1-2 picks of a run.
