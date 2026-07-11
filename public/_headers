@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# Cloudflare Workers Static Assets honors a `_headers` file at the root of
+# the assets directory (`dist/` after vite copies `public/` → `dist/`).
+#
+# All paths listed here are either:
+#  (a) content-hashed by the tool that built them (Vite for /assets/*,
+#      Cesium's own build for /cesium/**), OR
+#  (b) versioned via the immediate parent directory (Cesium's Assets /
+#      ThirdParty / Widgets / Workers).
+#
+# Both are safe for `immutable, max-age=31536000` — a new build changes the
+# hashed filename or the directory, so cached files never become wrong.
+# HTML and the manifest keep default caching so redeploys propagate to
+# visitors on their next navigation.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/cesium/Cesium.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/cesium/Assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/cesium/ThirdParty/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/cesium/Widgets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/cesium/Workers/*
+  Cache-Control: public, max-age=31536000, immutable
