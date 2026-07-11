@@ -65,14 +65,24 @@ const SCHEMA_STATEMENTS = [
     created_at   INTEGER NOT NULL,
     updated_at   INTEGER NOT NULL
   )`,
+  `CREATE TABLE share_links (
+    code        TEXT PRIMARY KEY,
+    target_url  TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    created_by  INTEGER,
+    hit_count   INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+  )`,
   `CREATE INDEX idx_magic_links_email ON magic_links(email)`,
   `CREATE INDEX idx_magic_links_expires ON magic_links(expires_at)`,
   `CREATE INDEX idx_sessions_expires ON sessions(expires_at)`,
   `CREATE INDEX idx_notebooks_user_updated ON notebooks(user_id, updated_at DESC)`,
   `CREATE INDEX idx_plans_month ON plans(month)`,
+  `CREATE INDEX idx_share_links_created_at ON share_links(created_at)`,
 ] as const;
 
 export async function resetDb(): Promise<void> {
+  await testEnv.DB.prepare("DROP TABLE IF EXISTS share_links").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS plans").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS notebooks").run();
   await testEnv.DB.prepare("DROP TABLE IF EXISTS sessions").run();
