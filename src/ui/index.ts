@@ -27,6 +27,8 @@ export { createTonightDrawer } from "./tonight-drawer";
 export type { TonightDrawer, TonightDrawerOptions } from "./tonight-drawer";
 export type { HelpModal, HelpModalOptions } from "./help-modal";
 export { createHelpModal } from "./help-modal";
+export type { DescribeSkyModal, DescribeSkyModalOptions } from "./describe-sky-modal";
+export { createDescribeSkyModal } from "./describe-sky-modal";
 export type { LoginModal, LoginModalOptions } from "./login-modal";
 export { createLoginModal } from "./login-modal";
 export { createOnboardingOverlay, ONBOARDING_STORAGE_KEY } from "./onboarding-overlay";

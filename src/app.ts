@@ -79,6 +79,7 @@ import {
   createFovControls,
   createEventsDrawer,
   createHelpModal,
+  createDescribeSkyModal,
   createBottomHud,
   createCommandPalette,
   createSettingsDrawer,
@@ -119,6 +120,7 @@ import type {
   PaletteObjectType,
 } from "./ui";
 import { computeUpcomingEvents } from "./astro/events";
+import { describeSky } from "./astro/describe-sky";
 import type { CelestialEvent } from "./astro/events";
 import type { UIIntent } from "./ui";
 import { buildSearchIndex, searchObjects } from "./astro/search";
@@ -1583,6 +1585,39 @@ export async function bootstrap(
     },
   });
   document.body.appendChild(helpModal.element);
+
+  // Describe-sky modal (#381) — Alt+D turns the WebGL canvas into English
+  // prose for screen-reader users. Uses body positions + camera heading.
+  // Constellations are omitted from the summary in this first pass; that
+  // list lives inside the render pipeline and hoisting it here would
+  // require plumbing that isn't warranted for a still-useful summary.
+  function currentSkySummary(): string {
+    const observer = { lat: state.observer.lat, lon: state.observer.lon };
+    const bodies = computeBodyPositions(observer.lat, observer.lon, state.timeUtc, false).map(
+      (b) => ({ id: b.id, alt: b.alt, az: b.az, mag: b.mag }),
+    );
+    const heading = getCameraHeadingDeg(viewer.camera);
+    const base = {
+      observer,
+      timeUtc: state.timeUtc,
+      bodies,
+      constellations: [] as [],
+    };
+    return Number.isFinite(heading)
+      ? describeSky({ ...base, cameraHeadingDeg: heading })
+      : describeSky(base);
+  }
+  const describeSkyModal = createDescribeSkyModal({
+    getSummary: currentSkySummary,
+  });
+  document.body.appendChild(describeSkyModal.element);
+  // Alt+D — describe the sky.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "d" && e.altKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      describeSkyModal.open(currentSkySummary());
+    }
+  });
 
   // Events drawer — slide-in surface holding the upcoming-events list (replaces
   // the always-on side-panel section). Created here (after handleIntent is in
