@@ -319,6 +319,27 @@ const eventsDrawerOpen = vi.fn();
 const tonightDrawerSetBodies = vi.fn();
 const tonightDrawerOpen = vi.fn();
 
+// Mock the lazily-loaded notebook workspace factory. Its production module now
+// lives behind a dynamic `import("./ui/notebook-workspace")` in app.ts (#372),
+// so mocking the "./ui" barrel is not enough — Vitest resolves the dynamic
+// specifier as its own module.
+vi.mock("./ui/notebook-workspace", () => ({
+  createNotebookWorkspace: vi
+    .fn()
+    .mockImplementation((opts?: { getCurrentView?: unknown; onProRequired?: () => void }) => {
+      const element = document.createElement("aside");
+      element.dataset.testid = "notebook-workspace";
+      const mock = {
+        element,
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+        onProRequired: opts?.onProRequired ?? null,
+      };
+      notebookWorkspaceMock = mock;
+      return mock;
+    }),
+}));
+
 // Mock UI modules — they exercise DOM which is fully covered in their own tests
 vi.mock("./ui", () => ({
   createPanel: vi.fn().mockImplementation(
@@ -479,20 +500,6 @@ vi.mock("./ui", () => ({
         close: vi.fn(),
         isOpen: vi.fn().mockReturnValue(false),
       };
-    }),
-  createNotebookWorkspace: vi
-    .fn()
-    .mockImplementation((opts?: { getCurrentView?: unknown; onProRequired?: () => void }) => {
-      const element = document.createElement("aside");
-      element.dataset.testid = "notebook-workspace";
-      const mock = {
-        element,
-        setVisible: vi.fn(),
-        destroy: vi.fn(),
-        onProRequired: opts?.onProRequired ?? null,
-      };
-      notebookWorkspaceMock = mock;
-      return mock;
     }),
   createLoginModal: vi
     .fn()
@@ -1923,32 +1930,18 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("mounts the notebook workspace on the document body", async () => {
+  it("does NOT mount the notebook workspace in planetarium bootstrap (#372 lazy load)", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(notebookWorkspaceMock).not.toBeNull();
-    expect(document.querySelector("[data-testid='notebook-workspace']")).not.toBeNull();
+    // Notebook workspace is loaded via dynamic import in app.ts; without a
+    // mode=notebook URL param it must not be created — tiptap's 432 KB chunk
+    // should never enter the initial page for a planetarium-mode user (#372).
+    expect(notebookWorkspaceMock).toBeNull();
+    expect(document.querySelector("[data-testid='notebook-workspace']")).toBeNull();
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
-    document
-      .querySelectorAll("[data-testid='notebook-workspace']")
-      .forEach((el) => el.parentNode?.removeChild(el));
-  });
-
-  it("notebook workspace starts hidden in planetarium mode", async () => {
-    capturedDispatch = null;
-    notebookWorkspaceMock = null;
-    const { root, panelRoot } = makeRoot();
-    await bootstrap(root);
-    expect(notebookWorkspaceMock).not.toBeNull();
-    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(false);
-    document.body.removeChild(root);
-    document.body.removeChild(panelRoot);
-    document
-      .querySelectorAll("[data-testid='notebook-workspace']")
-      .forEach((el) => el.parentNode?.removeChild(el));
   });
 
   it("notebook workspace is shown when bootstrapping with mode=notebook", async () => {
@@ -1956,8 +1949,10 @@ describe("handleIntent routing", () => {
     notebookWorkspaceMock = null;
     const { root, panelRoot } = makeRoot();
     await bootstrap(root, new URLSearchParams({ mode: "notebook" }));
-    expect(notebookWorkspaceMock).not.toBeNull();
-    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    await vi.waitFor(() => {
+      expect(notebookWorkspaceMock).not.toBeNull();
+      expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    });
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
     document
@@ -1965,7 +1960,7 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode intent toggles the notebook workspace visibility (Pro user)", async () => {
+  it("set-mode intent lazily loads and toggles the notebook workspace visibility (Pro user)", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
     // Notebook is a Pro feature (issue #224); establish Pro identity first.
@@ -1973,10 +1968,14 @@ describe("handleIntent routing", () => {
     setUser("rob.sartin@gmail.com");
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
-    expect(notebookWorkspaceMock).not.toBeNull();
-    notebookWorkspaceMock!.setVisible.mockClear();
+    // Not created at bootstrap in planetarium mode — that's the whole point of #372.
+    expect(notebookWorkspaceMock).toBeNull();
+
     capturedDispatch!({ type: "set-mode", mode: "notebook" });
-    expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    await vi.waitFor(() => {
+      expect(notebookWorkspaceMock).not.toBeNull();
+      expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(true);
+    });
     capturedDispatch!({ type: "set-mode", mode: "planetarium" });
     expect(notebookWorkspaceMock!.setVisible).toHaveBeenCalledWith(false);
     globalThis.localStorage?.clear();
@@ -2035,7 +2034,7 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("set-mode notebook while NOT Pro opens the login modal and does NOT flip", async () => {
+  it("set-mode notebook while NOT Pro opens the login modal and does NOT lazy-load the workspace", async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
     loginModalMock = null;
@@ -2043,19 +2042,19 @@ describe("handleIntent routing", () => {
     const { root, panelRoot } = makeRoot();
     await bootstrap(root);
     expect(loginModalMock).not.toBeNull();
-    expect(notebookWorkspaceMock).not.toBeNull();
-    notebookWorkspaceMock!.setVisible.mockClear();
+    // Not lazy-loaded at bootstrap in planetarium mode (#372).
+    expect(notebookWorkspaceMock).toBeNull();
     loginModalMock!.open.mockClear();
 
     capturedDispatch!({ type: "set-mode", mode: "notebook" });
     expect(loginModalMock!.open).toHaveBeenCalledTimes(1);
-    expect(notebookWorkspaceMock!.setVisible).not.toHaveBeenCalledWith(true);
+    // The Pro gate should also prevent the tiptap chunk from being fetched —
+    // no dynamic import should happen when the user hits the paywall.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(notebookWorkspaceMock).toBeNull();
 
     document.body.removeChild(root);
     document.body.removeChild(panelRoot);
-    document
-      .querySelectorAll("[data-testid='notebook-workspace']")
-      .forEach((el) => el.parentNode?.removeChild(el));
     document
       .querySelectorAll("[data-testid='login-modal']")
       .forEach((el) => el.parentNode?.removeChild(el));
@@ -2125,14 +2124,22 @@ describe("handleIntent routing", () => {
       .forEach((el) => el.parentNode?.removeChild(el));
   });
 
-  it("notebook workspace's onProRequired opens the login modal", async () => {
+  it("notebook workspace's onProRequired opens the login modal", { timeout: 15_000 }, async () => {
     capturedDispatch = null;
     notebookWorkspaceMock = null;
     loginModalMock = null;
     globalThis.localStorage?.clear();
+    // The workspace is only mounted when the user actually enters notebook
+    // mode (#372). Bootstrap with mode=notebook so the lazy import resolves
+    // and the mock captures the onProRequired callback wiring.
     const { root, panelRoot } = makeRoot();
-    await bootstrap(root);
-    expect(notebookWorkspaceMock).not.toBeNull();
+    await bootstrap(root, new URLSearchParams({ mode: "notebook" }));
+    await vi.waitFor(
+      () => {
+        expect(notebookWorkspaceMock).not.toBeNull();
+      },
+      { timeout: 10_000 },
+    );
     expect(notebookWorkspaceMock!.onProRequired).not.toBeNull();
     expect(loginModalMock).not.toBeNull();
     loginModalMock!.open.mockClear();

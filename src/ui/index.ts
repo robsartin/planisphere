@@ -45,7 +45,10 @@ export type {
 } from "./location-picker-overlay";
 export { createCommandPalette } from "./command-palette";
 export type { CommandPalette, CommandPaletteOptions } from "./command-palette";
-export { createNotebookWorkspace } from "./notebook-workspace";
+// createNotebookWorkspace is intentionally NOT re-exported from this barrel —
+// it lives behind a dynamic import in src/app.ts so tiptap/ProseMirror (~432
+// KB) never enters the initial chunk for free-tier or planetarium users
+// (#372). Import it directly from "./ui/notebook-workspace" when needed.
 export type {
   NotebookApi,
   NotebookWorkspace,
