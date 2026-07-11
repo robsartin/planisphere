@@ -30,6 +30,30 @@ export async function seedDefaultStorage(page: Page): Promise<void> {
 }
 
 /**
+ * Wait for the SPA's bootstrap to fully complete (#373). Cesium's first paint
+ * — what `waitForCesiumPainted` observes — happens very early in `bootstrap`,
+ * before the bottom-HUD, tooltip, drawers, and empty-sky popover are wired
+ * into the DOM. Tests that then poked those elements were racing the tail
+ * of bootstrap on slow Xvfb runners, producing the intermittent
+ * `bottom-hud-smoke` / `hover-pick-sweep` / `plan-modal` flake trio.
+ *
+ * `app.ts` sets `window.__PLANISPHERE_READY__ = true` (and dispatches a
+ * `planisphere:ready` CustomEvent) as the final line of `bootstrap`.
+ * `page.waitForFunction` polls the flag until it flips.
+ *
+ * Use this INSTEAD of / AFTER `waitForCesiumPainted` for anything that
+ * asserts on DOM chrome; only paint-only tests (like `cesium-initialises`)
+ * can rely on the pixel poll alone.
+ */
+export async function waitForPlanisphereReady(page: Page, timeoutMs = 15_000): Promise<void> {
+  await page.waitForFunction(
+    () => (window as unknown as { __PLANISPHERE_READY__?: boolean }).__PLANISPHERE_READY__ === true,
+    undefined,
+    { timeout: timeoutMs },
+  );
+}
+
+/**
  * Wait until Cesium has painted a non-black centre crop. Why screenshots
  * rather than `canvas.toDataURL()` / `drawImage(canvas)` / `gl.readPixels`?
  *

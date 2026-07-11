@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { seedDefaultStorage, waitForCesiumPainted, waitForPlanisphereReady } from "./fixtures";
 
 /**
  * Bottom-HUD / drawer-rail smoke test (issue #303 #4).
@@ -31,6 +31,10 @@ test("bottom-hud is present and each drawer trigger opens its drawer", async ({ 
   await page.goto("/?lat=61.2&lon=-149.9&t=2026-04-25T08:00:00Z");
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  // Bottom-hud chrome is only appended near the tail of bootstrap; without
+  // this the earlier `waitForCesiumPainted` alone could return before the
+  // HUD lands in the DOM on slow Xvfb runners (#373).
+  await waitForPlanisphereReady(page);
 
   // Bottom HUD chrome is mounted.
   await expect(page.locator("[data-testid='bottom-hud']")).toBeVisible();
