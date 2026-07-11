@@ -41,6 +41,28 @@ export default defineConfig({
   build: {
     target: "es2022",
     sourcemap: true,
+    // Cesium's ~5 MB runtime is externalized by vite-plugin-cesium (see the
+    // `<script src="cesium/Cesium.js">` tag it injects), so it never enters
+    // any chunk here. The manualChunks below split what's actually in the
+    // main-entry graph so the first paint doesn't have to parse everything.
+    //
+    // Notebook is dynamically imported by app.ts (#372), so the "notebook"
+    // chunk is only fetched when the user enters Notebook mode. All other
+    // chunks are still statically reachable and get loaded eagerly, but
+    // splitting them keeps individual chunks under the 750 KB threshold.
+    chunkSizeWarningLimit: 750,
+    rollupOptions: {
+      output: {
+        manualChunks(id): string | undefined {
+          if (id.includes("@tiptap/") || id.includes("@tiptap+") || id.includes("prosemirror-"))
+            return "notebook";
+          if (id.includes("astronomy-engine")) return "astronomy";
+          if (id.includes("satellite.js")) return "satellite";
+          if (id.includes("marked") || id.includes("dompurify")) return "markdown";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port: 5173,
