@@ -26,6 +26,7 @@ Template: [`000-template.md`](000-template.md).
 | 014 | [Email delivery: Resend HTTP API](014-email-delivery.md)                                          | 2026-04-20 |
 | 015 | [Viewing Plans storage and Pro-gate enforcement](015-viewing-plans-storage-and-pro-gate.md)       | 2026-04-24 |
 | 016 | [Playwright for end-to-end browser tests](016-playwright-e2e.md)                                  | 2026-04-25 |
+| 017 | [Constellation art pack (schema + placeholder-fallback loader)](017-constellation-art-pack.md)    | 2026-08-11 |
 
 ## Conventions
 

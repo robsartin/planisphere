@@ -1,21 +1,43 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { BillboardCollection, Color, HorizontalOrigin, VerticalOrigin } from "cesium";
+import {
+  BillboardCollection,
+  Color,
+  Math as CesiumMath,
+  HorizontalOrigin,
+  VerticalOrigin,
+} from "cesium";
 import type { Scene } from "cesium";
 import type { VisibleConstellation } from "../astro";
 import { collectionAt, collectionLength, setCollectionVisible } from "./cesium-collections";
 import { altAzToCartesian } from "./stars";
+import bundledManifest from "../../data/art/western/manifest.json";
 
-// TODO(#350-art-assets): This layer ships with a single generated placeholder
-// sprite used for every constellation. The real deliverable is one SVG per IAU
-// constellation packaged under `data/art/western/`, with:
-//   * per-file attribution added to `NOTICE`
-//   * an ADR under `docs/adr/` recording the culture-pack licence
-//     (Stellarium's western skyculture is CC-BY-SA; check compatibility with
-//     Apache 2.0 before bundling)
-//   * per-constellation scale/rotation metadata so each figure sits
-//     roughly aligned with the stick figure
-// The layer plumbing here (URL param, Settings toggle + slider, dispatch
-// wiring) is stable; only the sprite resolution + attribution work remains.
+/**
+ * Manifest entry for a single Western/IAU 88 constellation.
+ *
+ * `file` is the SVG basename under `data/art/western/`, or `null` when no
+ * asset is available (the layer falls back to the placeholder sprite).
+ * Transforms are applied when the sprite is drawn:
+ *   * `scale` multiplies the billboard's base scale
+ *   * `rotationDeg` rotates about the sprite centre (CCW positive)
+ *   * `offsetAlt` / `offsetAz` shift the anchor from the constellation
+ *     centroid, in degrees.
+ * See ADR 017.
+ */
+export type ConstellationArtEntry = {
+  file: string | null;
+  scale: number;
+  rotationDeg: number;
+  offsetAlt: number;
+  offsetAz: number;
+};
+
+export type ConstellationArtManifest = {
+  culture: string;
+  version: number;
+  notes?: string;
+  constellations: Record<string, ConstellationArtEntry>;
+};
 
 export type ConstellationArtLayer = {
   update: (constellations: VisibleConstellation[], lat: number, lon: number) => void;
@@ -23,14 +45,30 @@ export type ConstellationArtLayer = {
   setOpacity: (opacity: number) => void;
 };
 
+type ArtImage = HTMLImageElement | HTMLCanvasElement;
+
+export type CreateConstellationArtLayerOptions = {
+  manifest?: ConstellationArtManifest;
+  loadImage?: (url: string) => ArtImage;
+};
+
+const DEFAULT_MANIFEST = bundledManifest as ConstellationArtManifest;
+
+const IDENTITY_ENTRY: ConstellationArtEntry = {
+  file: null,
+  scale: 1.0,
+  rotationDeg: 0.0,
+  offsetAlt: 0.0,
+  offsetAz: 0.0,
+};
+
 const PLACEHOLDER_SPRITE_SIZE = 96;
 
 /**
- * Generate a single placeholder sprite used for every constellation until the
- * per-constellation art assets land (see the TODO above). It's a subtle radial
- * glow with a dashed circular hint so the layer is visible when toggled on but
- * doesn't pretend to be finished art. Real art assets will replace this with a
- * `Map<constellationId, HTMLImageElement>` lookup keyed on the ISO 88 code.
+ * Generate the fallback sprite used when a constellation has no bundled art
+ * file (either its manifest entry has `file: null` or no entry exists). It's
+ * a subtle radial glow with a dashed circular hint so the layer is visible
+ * when toggled on but doesn't pretend to be finished art.
  */
 function generatePlaceholderSprite(): HTMLCanvasElement {
   const size = PLACEHOLDER_SPRITE_SIZE;
@@ -62,36 +100,72 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
   return canvas;
 }
 
+function defaultLoadImage(url: string): HTMLImageElement {
+  const img = new Image();
+  img.src = url;
+  return img;
+}
+
+// Vite's asset plugin rewrites `new URL(<literal>, import.meta.url)` refs to
+// hashed bundle URLs at build time — but only when the first argument is a
+// literal string. Keeping the *base* as a literal here (and concatenating the
+// dynamic basename separately) is what makes the rewrite fire correctly.
+const ASSET_BASE = new URL("../../data/art/western/", import.meta.url).href;
+
+function resolveAssetUrl(file: string): string {
+  return ASSET_BASE + file;
+}
+
 /**
- * Constellation art overlay layer (issue #350).
+ * Constellation art overlay layer (issue #350, manifest scaffolding #366).
  *
  * Renders one billboard per visible constellation, positioned at the same
- * centroid the label layer uses. Off by default; toggled by `?art=on` and the
- * Settings-drawer switch. The URL-synced opacity slider defaults to 0.35.
+ * centroid the label layer uses (optionally offset via the manifest entry).
+ * Off by default; toggled by `?art=on` and the Settings-drawer switch.
+ * The URL-synced opacity slider defaults to 0.35.
  *
- * The layer follows the same shape as {@link import("./constellations").ConstellationLayer}:
- *   * `update(constellations, lat, lon)` rebuilds billboards from a fresh list
- *     of visible constellations.
- *   * `setVisible(visible)` flips the collection's show flag.
- *   * `setOpacity(alpha)` rescales the alpha channel of every billboard so the
- *     slider tracks live.
+ * The layer reads per-constellation art metadata from the bundled
+ * `data/art/western/manifest.json`. When an entry's `file` is populated,
+ * the sprite is loaded via {@link CreateConstellationArtLayerOptions.loadImage};
+ * when it's `null` (or the entry is missing), the fallback placeholder
+ * canvas is used. See ADR 017 for the manifest schema and rollout plan.
  */
-export function createConstellationArtLayer(scene: Scene): ConstellationArtLayer {
+export function createConstellationArtLayer(
+  scene: Scene,
+  options: CreateConstellationArtLayerOptions = {},
+): ConstellationArtLayer {
+  const manifest = options.manifest ?? DEFAULT_MANIFEST;
+  const loadImage = options.loadImage ?? defaultLoadImage;
+
   const billboards = new BillboardCollection({ scene });
   scene.primitives.add(billboards);
-  const sprite = generatePlaceholderSprite();
+  const placeholder = generatePlaceholderSprite();
+  const imageCache = new Map<string, ArtImage>();
 
   // Current opacity — remembered so `update()` can paint new billboards with
   // the slider's live value instead of the hard-coded default.
   let currentOpacity = 0.35;
 
+  function spriteFor(entry: ConstellationArtEntry): ArtImage {
+    if (entry.file === null) return placeholder;
+    const cached = imageCache.get(entry.file);
+    if (cached !== undefined) return cached;
+    const loaded = loadImage(resolveAssetUrl(entry.file));
+    imageCache.set(entry.file, loaded);
+    return loaded;
+  }
+
   function update(constellations: VisibleConstellation[], lat: number, lon: number): void {
     billboards.removeAll();
     for (const constellation of constellations) {
+      const entry = manifest.constellations[constellation.id] ?? IDENTITY_ENTRY;
+      const alt = constellation.centroid.alt + entry.offsetAlt;
+      const az = constellation.centroid.az + entry.offsetAz;
       billboards.add({
-        position: altAzToCartesian(constellation.centroid.alt, constellation.centroid.az, lat, lon),
-        image: sprite,
-        scale: 1.0,
+        position: altAzToCartesian(alt, az, lat, lon),
+        image: spriteFor(entry),
+        scale: entry.scale,
+        rotation: CesiumMath.toRadians(entry.rotationDeg),
         color: Color.WHITE.withAlpha(currentOpacity),
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
