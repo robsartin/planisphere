@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createConstellationArtLayer, type ConstellationArtManifest } from "./constellation-art";
+import {
+  createConstellationArtLayer,
+  type AnchorStarLookup,
+  type ConstellationArtManifest,
+} from "./constellation-art";
 import type { VisibleConstellation } from "../astro";
 
 const mockGetContext = vi.fn().mockReturnValue(null);
@@ -88,14 +92,19 @@ const CONSTELLATIONS: VisibleConstellation[] = [
 ];
 
 function makeManifest(
-  overrides: Partial<Record<string, Partial<ConstellationArtManifest["constellations"][string]>>>,
+  entries: Record<string, ConstellationArtManifest["constellations"][string]>,
 ): ConstellationArtManifest {
-  const base = { file: null, scale: 1.0, rotationDeg: 0.0, offsetAlt: 0.0, offsetAz: 0.0 };
-  const constellations: ConstellationArtManifest["constellations"] = {};
-  for (const [id, entry] of Object.entries(overrides)) {
-    constellations[id] = { ...base, ...entry };
-  }
-  return { culture: "western", version: 1, constellations };
+  return { culture: "western", version: 2, constellations: entries };
+}
+
+// Lookup that always returns undefined — anchors never resolve, layer falls
+// back to placeholder + centroid for every constellation.
+const NEVER_LOOKUP: AnchorStarLookup = () => undefined;
+
+// Build a lookup that returns the same stub alt/az for the given HIPs and
+// undefined for the rest.
+function stubLookup(positions: Record<number, { alt: number; az: number }>): AnchorStarLookup {
+  return (hip) => positions[hip];
 }
 
 beforeEach(() => {
@@ -130,27 +139,27 @@ describe("createConstellationArtLayer", () => {
 describe("ConstellationArtLayer.update", () => {
   it("adds one billboard per visible constellation (3 → 3 add calls)", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never);
-    layer.update(CONSTELLATIONS, 33, -117);
+    layer.update(CONSTELLATIONS, NEVER_LOOKUP, 33, -117);
     expect(mockAdd).toHaveBeenCalledTimes(CONSTELLATIONS.length);
   });
 
   it("clears previous billboards before adding new ones", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never);
-    layer.update(CONSTELLATIONS, 33, -117);
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
+    layer.update(CONSTELLATIONS, NEVER_LOOKUP, 33, -117);
+    layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
     expect(mockRemoveAll).toHaveBeenCalledTimes(2);
   });
 
   it("works with empty input", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never);
-    layer.update([], 0, 0);
+    layer.update([], NEVER_LOOKUP, 0, 0);
     expect(mockRemoveAll).toHaveBeenCalledOnce();
     expect(mockAdd).not.toHaveBeenCalled();
   });
 
   it("attaches the VisibleConstellation to the billboard id (pickable)", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never);
-    layer.update(CONSTELLATIONS, 33, -117);
+    layer.update(CONSTELLATIONS, NEVER_LOOKUP, 33, -117);
     const firstCall = mockAdd.mock.calls[0]![0] as { id: unknown };
     expect(firstCall.id).toMatchObject({ id: "Ori" });
   });
@@ -163,12 +172,11 @@ describe("ConstellationArtLayer manifest lookup", () => {
       manifest: makeManifest({ Ori: { file: null } }),
       loadImage,
     });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
+    layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
     expect(loadImage).not.toHaveBeenCalled();
-    const call = mockAdd.mock.calls[0]![0] as { image: unknown };
-    // Placeholder is a canvas element, not the string basename.
-    expect(call.image).not.toBe("ori.svg");
+    const call = mockAdd.mock.calls[0]![0] as { image: unknown; scale: number };
     expect(call.image).toBeDefined();
+    expect(call.scale).toBe(1.0);
   });
 
   it("uses the placeholder when the constellation is not in the manifest", () => {
@@ -177,67 +185,181 @@ describe("ConstellationArtLayer manifest lookup", () => {
       manifest: makeManifest({}),
       loadImage,
     });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
+    layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
     expect(loadImage).not.toHaveBeenCalled();
     expect(mockAdd).toHaveBeenCalledOnce();
   });
 
-  it("calls loadImage when the manifest entry has a file set", () => {
-    const fakeImg = { src: "" } as unknown as HTMLImageElement;
-    const loadImage = vi.fn().mockReturnValue(fakeImg);
-    const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({ Ori: { file: "ori.svg" } }),
-      loadImage,
-    });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
-    expect(loadImage).toHaveBeenCalledOnce();
-    expect(loadImage.mock.calls[0]![0]).toContain("ori.svg");
-    const call = mockAdd.mock.calls[0]![0] as { image: unknown };
-    expect(call.image).toBe(fakeImg);
-  });
-
-  it("caches loadImage calls per file across multiple constellations", () => {
-    const fakeImg = { src: "" } as unknown as HTMLImageElement;
-    const loadImage = vi.fn().mockReturnValue(fakeImg);
+  it("uses the placeholder when a file is set but no anchors resolve", () => {
+    // Entry has anchors, but lookup returns undefined for every HIP → cannot
+    // solve the affine → falls back to placeholder + centroid.
+    const loadImage = vi.fn().mockReturnValue({ src: "" } as HTMLImageElement);
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({
-        Ori: { file: "shared.svg" },
-        UMa: { file: "shared.svg" },
-        Sco: { file: "shared.svg" },
+        Ori: {
+          file: "Ori.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 27913 },
+            { pos: [300, 200], hip: 27366 },
+            { pos: [200, 400], hip: 22449 },
+          ],
+        },
       }),
       loadImage,
     });
-    layer.update(CONSTELLATIONS, 33, -117);
+    layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
+    expect(loadImage).not.toHaveBeenCalled();
+    const call = mockAdd.mock.calls[0]![0] as { scale: number };
+    expect(call.scale).toBe(1.0);
+  });
+
+  it("loads the file and applies the anchored scale when all anchors resolve", () => {
+    const fakeImg = { src: "" } as HTMLImageElement;
+    const loadImage = vi.fn().mockReturnValue(fakeImg);
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: makeManifest({
+        Ori: {
+          file: "Ori.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 27913 },
+            { pos: [300, 200], hip: 27366 },
+            { pos: [200, 400], hip: 22449 },
+          ],
+        },
+      }),
+      loadImage,
+    });
+    layer.update(
+      CONSTELLATIONS.slice(0, 1),
+      stubLookup({
+        27913: { alt: 40, az: 170 },
+        27366: { alt: 30, az: 175 },
+        22449: { alt: 45, az: 180 },
+      }),
+      33,
+      -117,
+    );
+    expect(loadImage).toHaveBeenCalledOnce();
+    expect(loadImage.mock.calls[0]![0]).toContain("Ori.png");
+    const call = mockAdd.mock.calls[0]![0] as { image: unknown; scale: number };
+    expect(call.image).toBe(fakeImg);
+    // Anchored path applies BASE_ANCHORED_SCALE (0.5), not the placeholder 1.0
+    expect(call.scale).toBe(0.5);
+  });
+
+  it("caches loadImage calls per file across multiple constellations", () => {
+    const fakeImg = { src: "" } as HTMLImageElement;
+    const loadImage = vi.fn().mockReturnValue(fakeImg);
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: makeManifest({
+        Ori: {
+          file: "shared.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 1 },
+            { pos: [300, 200], hip: 2 },
+            { pos: [200, 400], hip: 3 },
+          ],
+        },
+        UMa: {
+          file: "shared.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 1 },
+            { pos: [300, 200], hip: 2 },
+            { pos: [200, 400], hip: 3 },
+          ],
+        },
+        Sco: {
+          file: "shared.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 1 },
+            { pos: [300, 200], hip: 2 },
+            { pos: [200, 400], hip: 3 },
+          ],
+        },
+      }),
+      loadImage,
+    });
+    layer.update(
+      CONSTELLATIONS,
+      stubLookup({
+        1: { alt: 40, az: 170 },
+        2: { alt: 30, az: 175 },
+        3: { alt: 45, az: 180 },
+      }),
+      33,
+      -117,
+    );
     expect(loadImage).toHaveBeenCalledOnce();
     expect(mockAdd).toHaveBeenCalledTimes(3);
   });
 
-  it("applies scale from the manifest entry to the billboard", () => {
+  it("falls back to placeholder when only some anchor stars are visible", () => {
+    // 2 of 3 anchors resolve — not enough to solve; placeholder path.
+    const loadImage = vi.fn();
     const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({ Ori: { scale: 2.5 } }),
+      manifest: makeManifest({
+        Ori: {
+          file: "Ori.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 1 },
+            { pos: [300, 200], hip: 2 },
+            { pos: [200, 400], hip: 3 },
+          ],
+        },
+      }),
+      loadImage,
     });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
+    layer.update(
+      CONSTELLATIONS.slice(0, 1),
+      stubLookup({
+        1: { alt: 40, az: 170 },
+        2: { alt: 30, az: 175 },
+        // HIP 3 missing → below horizon or not in visible-star list
+      }),
+      33,
+      -117,
+    );
+    expect(loadImage).not.toHaveBeenCalled();
     const call = mockAdd.mock.calls[0]![0] as { scale: number };
-    expect(call.scale).toBe(2.5);
-  });
-
-  it("passes rotationDeg through as radians on the billboard", () => {
-    const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({ Ori: { rotationDeg: 90 } }),
-    });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
-    const call = mockAdd.mock.calls[0]![0] as { rotation?: number };
-    expect(call.rotation).toBeCloseTo(Math.PI / 2, 6);
-  });
-
-  it("defaults scale=1 and rotation=0 for identity entries", () => {
-    const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({ Ori: {} }),
-    });
-    layer.update(CONSTELLATIONS.slice(0, 1), 33, -117);
-    const call = mockAdd.mock.calls[0]![0] as { scale: number; rotation?: number };
     expect(call.scale).toBe(1.0);
-    expect(call.rotation ?? 0).toBe(0);
+  });
+
+  it("falls back to placeholder when the three anchor pixels are collinear", () => {
+    // Degenerate triangle — barycentric solve fails, no anchored position.
+    const loadImage = vi.fn();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: makeManifest({
+        Ori: {
+          file: "Ori.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [0, 0], hip: 1 },
+            { pos: [100, 100], hip: 2 },
+            { pos: [200, 200], hip: 3 },
+          ],
+        },
+      }),
+      loadImage,
+    });
+    layer.update(
+      CONSTELLATIONS.slice(0, 1),
+      stubLookup({
+        1: { alt: 40, az: 170 },
+        2: { alt: 30, az: 175 },
+        3: { alt: 45, az: 180 },
+      }),
+      33,
+      -117,
+    );
+    expect(loadImage).not.toHaveBeenCalled();
+    const call = mockAdd.mock.calls[0]![0] as { scale: number };
+    expect(call.scale).toBe(1.0);
   });
 });
 
@@ -265,7 +387,7 @@ describe("ConstellationArtLayer.setOpacity", () => {
 
   it("does not throw when setOpacity is called after update", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never);
-    layer.update(CONSTELLATIONS, 33, -117);
+    layer.update(CONSTELLATIONS, NEVER_LOOKUP, 33, -117);
     mockBillboardLength = CONSTELLATIONS.length;
     mockGet.mockImplementation(() => ({ color: { alpha: 0 } }));
     expect(() => layer.setOpacity(0.5)).not.toThrow();

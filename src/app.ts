@@ -489,19 +489,26 @@ function updateConstellationLayer(
   lat: number,
   lon: number,
 ): readonly { id: string; centroid: { alt: number; az: number } }[] {
+  // #366 — the constellation-art overlay uses Stellarium's 3-anchor scheme
+  // to position each illustration (see ADR 018). Build a HIP → alt/az map
+  // once per rerender; every anchored constellation calls the lookup three
+  // times, so a linear scan would be quadratic across the star list.
+  const anchorMap = new Map<number, { alt: number; az: number }>();
+  for (const s of visibleStars) anchorMap.set(s.hip, { alt: s.alt, az: s.az });
+  const anchorLookup = (hip: number): { alt: number; az: number } | undefined => anchorMap.get(hip);
   if (data.activeAsterisms !== null) {
     const visible = filterVisibleAsterisms(data.activeAsterisms, visibleStars);
     layers.constellation.update(visible, lat, lon);
     // #350 — mirror the same visible list into the constellation-art overlay
     // so its billboards sit on the current-frame centroids. Visibility /
     // opacity are applied downstream from the URL-synced state.
-    layers.constellationArt.update(visible, lat, lon);
+    layers.constellationArt.update(visible, anchorLookup, lat, lon);
     return visible;
   }
   if (data.constellations.ok) {
     const visible = filterVisibleConstellations(data.constellations.value, visibleStars);
     layers.constellation.update(visible, lat, lon);
-    layers.constellationArt.update(visible, lat, lon);
+    layers.constellationArt.update(visible, anchorLookup, lat, lon);
     return visible;
   }
   return [];
