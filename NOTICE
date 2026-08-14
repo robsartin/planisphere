@@ -29,8 +29,15 @@ Copyright Stellarium's Team.
 License: Free Art License 1.3
 https://artlibre.org/licence/lal/en/
 https://github.com/Stellarium/stellarium/tree/master/skycultures/modern
-Files renamed from Latin lowercase (andromeda.png, canis-major.png, …)
-to IAU 3-letter codes (And.png, CMa.png, …). Bytes unmodified.
+Modifications by Rob Sartin, 2026 (also under Free Art License 1.3 per
+the licence's share-alike provision):
+  - Files renamed from Latin lowercase (andromeda.png, canis-major.png,
+    …) to IAU 3-letter codes (And.png, CMa.png, …).
+  - Colour space normalised to RGBA and luminance-remapped to the alpha
+    channel so that Stellarium's black-is-transparent convention renders
+    correctly under standard alpha blending. Pixel data otherwise
+    preserved (RGB values unchanged; original grayscale values become
+    the new alpha).
 
 Constellation art anchor metadata (data/art/western/manifest.json)
 derived from Stellarium's `modern` skyculture index.json.

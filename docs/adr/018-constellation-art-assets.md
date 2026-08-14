@@ -42,10 +42,22 @@ via the same 3-anchor scheme Stellarium itself uses. Specifically:
   have no upstream illustration (Argo Navis is a single image assigned to
   Carina; Serpens is historically split into Caput / Cauda). These three
   fall back to the placeholder sprite the layer already draws.
-- **Weight**: ~2.1 MB across all 85 PNGs (median ~20 KB, max ~57 KB). Vite
+- **Modification**: Stellarium ships these as opaque 8-bit grayscale (or
+  RGB) with the convention "black = transparent" baked into its custom
+  shader. Cesium's billboard renderer uses standard alpha blending, so we
+  re-encode each PNG to RGBA with the luminance value remapped into the
+  alpha channel (RGB values preserved; a pixel that was fully black in
+  the upstream becomes fully transparent, a pixel that was fully bright
+  becomes fully opaque). The pixel information is preserved 1:1; the
+  channel layout changes so the same visual intent renders correctly
+  under standard blending. This modification is a "derivative work"
+  under the Free Art License and is itself re-licensed under FAL 1.3
+  per the licence's share-alike clause. See NOTICE for attribution.
+- **Weight**: ~3.0 MB across all 85 PNGs after re-encoding to RGBA (from
+  ~2.1 MB upstream; the alpha channel adds a byte per pixel). Vite
   emits each as a hashed asset; the loader only fetches images for
   currently-visible constellations (lazy in `update()` with per-file
-  caching), so a typical mid-latitude night pulls ~600–1000 KB.
+  caching), so a typical mid-latitude night pulls ~800 KB–1.4 MB.
 
 ### Manifest schema (v2)
 
