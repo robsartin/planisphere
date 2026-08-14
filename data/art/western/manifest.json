@@ -1,0 +1,623 @@
+{
+  "culture": "western",
+  "version": 1,
+  "notes": "Per-constellation art metadata for the Western/IAU 88. `file` is the SVG basename under this directory (null = fall back to placeholder). Transforms are applied when the sprite is drawn: `scale` multiplies the base size, `rotationDeg` rotates about the sprite centre (CCW positive), and `offsetAlt`/`offsetAz` shift the anchor from the constellation centroid in degrees. See ADR 017.",
+  "constellations": {
+    "And": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ant": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Aps": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Aql": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Aqr": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ara": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ari": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Aur": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Boo": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cae": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cam": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cap": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Car": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cas": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cen": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cep": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cet": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cha": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cir": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "CMa": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "CMi": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cnc": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Col": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Com": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "CrA": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "CrB": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Crt": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cru": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Crv": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "CVn": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Cyg": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Del": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Dor": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Dra": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Equ": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Eri": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "For": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Gem": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Gru": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Her": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Hor": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Hya": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Hyi": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ind": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lac": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Leo": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lep": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lib": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "LMi": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lup": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lyn": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Lyr": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Men": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Mic": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Mon": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Mus": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Nor": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Oct": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Oph": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ori": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Pav": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Peg": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Per": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Phe": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Pic": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "PsA": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Psc": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Pup": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Pyx": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ret": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Scl": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Sco": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Sct": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Ser": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Sex": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Sge": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Sgr": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Tau": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Tel": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "TrA": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Tri": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Tuc": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "UMa": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "UMi": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Vel": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Vir": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Vol": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    },
+    "Vul": {
+      "file": null,
+      "scale": 1.0,
+      "rotationDeg": 0.0,
+      "offsetAlt": 0.0,
+      "offsetAz": 0.0
+    }
+  }
+}
