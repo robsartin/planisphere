@@ -41,10 +41,16 @@ test("`?art=on` overlay adds pixels above the art-off baseline", async ({ page }
   await waitForPlanisphereReady(page);
   const artOn = await countNonBlackPixelsOnPage(page);
 
-  // Placeholder halos are subtle radial glows (opacity ~0.12 effective) but
-  // even at ~30 visible constellations they should add well over a thousand
-  // pixels above the black-threshold. The margin here is a floor picked with
-  // room for both the star-field varying frame-to-frame and the eventual
-  // real-art slice pushing this delta into the tens of thousands.
-  expect(artOn).toBeGreaterThan(artOff + 500);
+  // Assert the overlay *changed* the visible pixel count meaningfully in
+  // either direction. Not a directional assertion (`artOn > artOff`) because
+  // the two rendering modes shift the count opposite ways:
+  //   * Placeholder halos are dense radial glows → many additional above-
+  //     threshold pixels.
+  //   * Anchor-driven illustrations (Stellarium, PR #404) are sparse line
+  //     figures with alpha < 1 → they dim more stars behind them than they
+  //     add fresh pixels above threshold, so the total dips.
+  // Either way the layer visibly modifies the frame; the >500 floor rejects
+  // both "layer failed to render at all" (delta near 0) and star-field
+  // frame-to-frame jitter (typically < 100).
+  expect(Math.abs(artOn - artOff)).toBeGreaterThan(500);
 });
