@@ -1,28 +1,29 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import { expect, test } from "@playwright/test";
-import {
-  countNonBlackPixelsOnPage,
-  seedDefaultStorage,
-  waitForCesiumPainted,
-  waitForPlanisphereReady,
-} from "./fixtures";
+import { expect, test, type Page } from "@playwright/test";
+import { seedDefaultStorage, waitForCesiumPainted, waitForPlanisphereReady } from "./fixtures";
 
 /**
  * Constellation-art overlay smoke test (issue #366).
  *
- * The scaffolding slice (PR #401 / ADR 017) ships a placeholder sprite for
- * every constellation and a manifest-driven loader that will pick up real
- * SVG assets when they land under `data/art/western/`. This test asserts the
- * overlay actually paints something on the canvas when `?art=on` is set —
- * a differential check against the same URL with the overlay off, so it
- * survives the transition from placeholder → real art without needing an
- * absolute pixel threshold to re-tune.
+ * Captures two screenshots against the same fixture — once with the overlay
+ * off, once with `?art=on` — and asserts a meaningful number of pixels
+ * differ between them. Differential rather than absolute-threshold so it
+ * survives the transition from placeholder halos (#401) through anchor-
+ * driven Stellarium art (#404) without needing a hand-tuned count each
+ * time.
+ *
+ * Uses per-pixel diff (not the count-of-above-threshold difference) because
+ * the two rendering modes shift pixel counts opposite ways — placeholders
+ * add above-threshold pixels, anchor-driven illustrations dim some stars
+ * behind them via the alpha blend AND light up others in the illustration.
+ * The two effects roughly cancel in count-space even though many pixels
+ * change; a per-pixel diff captures both directions correctly.
  *
  * If this test fails, either the manifest broke, the loader stopped feeding
  * billboards to the scene, or `?art=on` no longer flips the state — all
  * regressions worth catching before merge.
  */
-test("`?art=on` overlay adds pixels above the art-off baseline", async ({ page }) => {
+test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ page }) => {
   await seedDefaultStorage(page);
   // Anchorage at midnight — same fixture used by the other Cesium E2Es;
   // gives a rich set of visible constellations so the overlay has plenty
@@ -34,9 +35,9 @@ test("`?art=on` overlay adds pixels above the art-off baseline", async ({ page }
   await waitForCesiumPainted(page, 5_000);
   await waitForPlanisphereReady(page);
   // `networkidle` catches the tail of Vite's asset fetches so the baseline
-  // frame is fully painted before the sample.
+  // frame is fully painted before the screenshot.
   await page.waitForLoadState("networkidle");
-  const artOff = await countNonBlackPixelsOnPage(page);
+  const offPng = await page.screenshot({ type: "png", animations: "disabled" });
 
   await page.goto(`${baseUrl}&art=on`);
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
@@ -44,23 +45,72 @@ test("`?art=on` overlay adds pixels above the art-off baseline", async ({ page }
   await waitForPlanisphereReady(page);
   // The anchor-driven overlay (#404) lazy-loads a PNG per currently-visible
   // constellation on the first `?art=on` frame. Cesium renders a billboard
-  // with an incomplete `HTMLImageElement` as empty pixels, so a screenshot
+  // with an incomplete HTMLImageElement as empty pixels, so a screenshot
   // taken before the sprites finish downloading measures a not-yet-rendered
   // scene. `networkidle` waits for 500 ms of quiet after the image fetches
   // finish, so the sample reflects the actual art layer.
   await page.waitForLoadState("networkidle");
-  const artOn = await countNonBlackPixelsOnPage(page);
+  const onPng = await page.screenshot({ type: "png", animations: "disabled" });
 
-  // Assert the overlay *changed* the visible pixel count meaningfully in
-  // either direction. Not a directional assertion (`artOn > artOff`) because
-  // the two rendering modes shift the count opposite ways:
-  //   * Placeholder halos are dense radial glows → many additional above-
-  //     threshold pixels.
-  //   * Anchor-driven illustrations (Stellarium, PR #404) are sparse line
-  //     figures with alpha < 1 → they dim more stars behind them than they
-  //     add fresh pixels above threshold, so the total dips.
-  // Either way the layer visibly modifies the frame; the >500 floor rejects
-  // both "layer failed to render at all" (delta near 0) and star-field
-  // frame-to-frame jitter (typically < 100).
-  expect(Math.abs(artOn - artOff)).toBeGreaterThan(500);
+  const differing = await countDifferingPixels(page, offPng, onPng);
+
+  // 500 is a floor picked to:
+  //   * reject "layer failed to render at all" (perfect equality → 0)
+  //   * absorb star-field frame-to-frame jitter (small aliasing shifts are
+  //     typically < 100 changed pixels)
+  //   * pass on both the placeholder-halo era (thousands of new bright
+  //     pixels) and the anchor-driven era (thousands of dimmed stars +
+  //     hundreds of new illustration pixels)
+  expect(differing).toBeGreaterThan(500);
 });
+
+/**
+ * Count pixels whose RGB differs between two PNG screenshots. A per-channel
+ * tolerance of 8 rejects tiny compression jitter but catches any real
+ * overlay change. Both PNGs are decoded inside the page context so we can
+ * use the browser's native decoder + canvas (jsdom in the runner would need
+ * a heavier PNG parser dep).
+ */
+async function countDifferingPixels(page: Page, a: Buffer, b: Buffer): Promise<number> {
+  return page.evaluate(
+    async ([bytesA, bytesB]: [number[], number[]]) => {
+      async function decode(bytes: number[]): Promise<Uint8ClampedArray | null> {
+        const blob = new Blob([new Uint8Array(bytes)], { type: "image/png" });
+        const url = URL.createObjectURL(blob);
+        try {
+          const img = new Image();
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              resolve();
+            };
+            img.onerror = () => {
+              reject(new Error("image decode failed"));
+            };
+            img.src = url;
+          });
+          const c = document.createElement("canvas");
+          c.width = img.width;
+          c.height = img.height;
+          const ctx = c.getContext("2d");
+          if (ctx === null) return null;
+          ctx.drawImage(img, 0, 0);
+          return ctx.getImageData(0, 0, c.width, c.height).data;
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+      const da = await decode(bytesA);
+      const db = await decode(bytesB);
+      if (da === null || db === null || da.length !== db.length) return -1;
+      let count = 0;
+      for (let i = 0; i < da.length; i += 4) {
+        const dr = Math.abs((da[i] ?? 0) - (db[i] ?? 0));
+        const dg = Math.abs((da[i + 1] ?? 0) - (db[i + 1] ?? 0));
+        const dbl = Math.abs((da[i + 2] ?? 0) - (db[i + 2] ?? 0));
+        if (dr > 8 || dg > 8 || dbl > 8) count += 1;
+      }
+      return count;
+    },
+    [Array.from(a), Array.from(b)],
+  );
+}
