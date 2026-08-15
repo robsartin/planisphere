@@ -33,12 +33,22 @@ test("`?art=on` overlay adds pixels above the art-off baseline", async ({ page }
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 5_000);
   await waitForPlanisphereReady(page);
+  // `networkidle` catches the tail of Vite's asset fetches so the baseline
+  // frame is fully painted before the sample.
+  await page.waitForLoadState("networkidle");
   const artOff = await countNonBlackPixelsOnPage(page);
 
   await page.goto(`${baseUrl}&art=on`);
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 5_000);
   await waitForPlanisphereReady(page);
+  // The anchor-driven overlay (#404) lazy-loads a PNG per currently-visible
+  // constellation on the first `?art=on` frame. Cesium renders a billboard
+  // with an incomplete `HTMLImageElement` as empty pixels, so a screenshot
+  // taken before the sprites finish downloading measures a not-yet-rendered
+  // scene. `networkidle` waits for 500 ms of quiet after the image fetches
+  // finish, so the sample reflects the actual art layer.
+  await page.waitForLoadState("networkidle");
   const artOn = await countNonBlackPixelsOnPage(page);
 
   // Assert the overlay *changed* the visible pixel count meaningfully in
