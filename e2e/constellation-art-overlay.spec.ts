@@ -67,6 +67,10 @@ test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ pag
   // image fetches finish, so the sample reflects the actual art layer.
   await page.waitForLoadState("networkidle");
   const onPng = await page.screenshot({ type: "png", animations: "disabled" });
+  // The check at line 60 only catches faults present at that first frame;
+  // texture upload happens later, during the `networkidle` wait above, so
+  // re-check right before the screenshot to catch a crash at upload time too.
+  await expectNoRenderErrors(page);
 
   const differing = await countDifferingPixels(page, offPng, onPng);
 
