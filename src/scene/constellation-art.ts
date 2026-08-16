@@ -120,9 +120,19 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
 // directory base. Vite's asset plugin only rewrites `new URL()` when the
 // ENTIRE path is a static literal, so that emitted nothing and every art
 // fetch 404'd in production (#404 review).
-const ART_URLS = import.meta.glob("../../data/art/western/*.png", {
+//
+// `no-inline` matters: vite.config.ts sets no `build.assetsInlineLimit`, so
+// the 4096-byte default applies and `?url` alone does not opt out. Any art PNG
+// under 4 KB would silently become a data URI — fine in the app, but it would
+// emit no file, so scripts/check-art-emitted.mjs would report it missing.
+// Pinning `no-inline` keeps "every manifest file is a file in dist/assets"
+// true by construction rather than by luck of the byte count.
+// The explicit <string> is needed because Vite only special-cases the bare
+// "?url" query in its glob typings; any other query widens the value to
+// unknown.
+const ART_URLS = import.meta.glob<string>("../../data/art/western/*.png", {
   eager: true,
-  query: "?url",
+  query: "?url&no-inline",
   import: "default",
 });
 
@@ -168,6 +178,13 @@ function anchoredMatrix(
 // Unit quad in model space, wound image top-left → top-right → bottom-right →
 // bottom-left. The modelMatrix maps it onto the sky; see
 // constellation-art-affine.ts for the mapping convention.
+//
+// COUPLED TO `scene3DOnly: true` in viewer.ts. These vertices stay in model
+// space (the affine is applied as the Primitive's modelMatrix, not baked in),
+// and one of them is the origin. Without that flag Cesium projects these raw
+// positions to 2D for the unused 2D/Columbus scene modes, and projecting
+// (0, 0, 0) throws a DeveloperError that kills the render loop. Keep the flag
+// if you edit this vertex list or add another Primitive user.
 const QUAD_POSITIONS = new Float64Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]);
 // Image space runs y-down, texture space runs t-up, so t is flipped.
 const QUAD_ST = new Float32Array([0, 1, 1, 1, 1, 0, 0, 0]);
