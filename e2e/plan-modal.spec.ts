@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForPlanisphereReady } from "./fixtures";
+import { expectNoRenderErrors, seedDefaultStorage, waitForPlanisphereReady } from "./fixtures";
 
 /**
  * Deep-link plan modal test (issue #303 #3).
@@ -72,6 +72,7 @@ test("deep-link ?plan=<slug> opens the plan reader modal with the plan title", a
   // modal card eliminates the "waited 10s for modal that hadn't been
   // created yet" flake on slow Xvfb (#373).
   await waitForPlanisphereReady(page);
+  await expectNoRenderErrors(page);
 
   // The modal renders into a fixed `data-plans-modal-card` container. Title
   // text is set by `setPlan(plan)` in `src/ui/plans-modal.ts`.

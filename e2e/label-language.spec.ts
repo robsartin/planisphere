@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { expectNoRenderErrors, seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
 
 /**
  * Constellation-label language regression test (#306).
@@ -26,6 +26,7 @@ test("?lang=zh renders constellation labels in Chinese (DOM mirror asserted, not
 
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  await expectNoRenderErrors(page);
 
   const mirror = page.locator("[data-label-mirror='constellations']");
   await expect(mirror).toBeAttached();
@@ -47,6 +48,7 @@ test("?sky=chinese renders Chinese skyculture asterism labels", async ({ page })
 
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  await expectNoRenderErrors(page);
 
   // The Chinese asterism set doesn't use IAU ids, so we can't target a
   // single well-known asterism; instead assert the mirror is populated with

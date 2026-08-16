@@ -1,6 +1,8 @@
 dist
 coverage
 .worktrees
+# Git-ignored scratch workspace for subagent-driven plan execution.
+.superpowers
 pnpm-lock.yaml
 public
 playwright-report

@@ -1,75 +1,89 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import {
   BillboardCollection,
+  BoundingSphere,
   Color,
-  Math as CesiumMath,
+  ComponentDatatype,
+  Geometry,
+  GeometryAttribute,
+  GeometryAttributes,
+  GeometryInstance,
   HorizontalOrigin,
+  Material,
+  MaterialAppearance,
+  Primitive,
+  PrimitiveCollection,
+  PrimitiveType,
   VerticalOrigin,
 } from "cesium";
-import type { Scene } from "cesium";
+import type { Cartesian3, Matrix4, Scene } from "cesium";
 import type { VisibleConstellation } from "../astro";
 import { collectionAt, collectionLength, setCollectionVisible } from "./cesium-collections";
+import { anchorModelMatrix } from "./constellation-art-affine";
 import { altAzToCartesian } from "./stars";
 import bundledManifest from "../../data/art/western/manifest.json";
 
 /**
- * Manifest entry for a single Western/IAU 88 constellation.
+ * A single Stellarium-style alignment anchor for a constellation illustration:
+ * pins the pixel `pos` in the image to the Hipparcos-catalogue star `hip`.
+ * Manifest entries carry three of these, which together define the affine
+ * mapping from image pixels to the celestial sphere. See ADR 018.
+ */
+export type ConstellationArtAnchor = {
+  readonly pos: readonly [number, number];
+  readonly hip: number;
+};
+
+/**
+ * Manifest entry for a single IAU 88 constellation.
  *
- * `file` is the SVG basename under `data/art/western/`, or `null` when no
- * asset is available (the layer falls back to the placeholder sprite).
- * Transforms are applied when the sprite is drawn:
- *   * `scale` multiplies the billboard's base scale
- *   * `rotationDeg` rotates about the sprite centre (CCW positive)
- *   * `offsetAlt` / `offsetAz` shift the anchor from the constellation
- *     centroid, in degrees.
- * See ADR 017.
+ * When `file` is null the layer draws its placeholder sprite at the
+ * constellation centroid. When `file` is set, `size` and `anchors` must
+ * accompany it: the layer uses the three anchors + the current-frame alt/az
+ * of the corresponding stars to project the image onto the sky. Falls back
+ * to the placeholder at the centroid if any anchor's star isn't currently
+ * visible.
  */
 export type ConstellationArtEntry = {
-  file: string | null;
-  scale: number;
-  rotationDeg: number;
-  offsetAlt: number;
-  offsetAz: number;
+  readonly file: string | null;
+  readonly size?: readonly [number, number];
+  readonly anchors?: readonly ConstellationArtAnchor[];
 };
 
 export type ConstellationArtManifest = {
-  culture: string;
-  version: number;
-  notes?: string;
-  constellations: Record<string, ConstellationArtEntry>;
+  readonly culture: string;
+  readonly version: number;
+  readonly notes?: string;
+  readonly source?: string;
+  readonly constellations: Readonly<Record<string, ConstellationArtEntry>>;
 };
 
+/**
+ * Callback the app passes each frame: given a Hipparcos number, return the
+ * star's current alt/az (or undefined if not currently visible). Keeps the
+ * layer decoupled from the visible-star list's shape.
+ */
+export type AnchorStarLookup = (hip: number) => { alt: number; az: number } | undefined;
+
 export type ConstellationArtLayer = {
-  update: (constellations: VisibleConstellation[], lat: number, lon: number) => void;
+  update: (
+    constellations: VisibleConstellation[],
+    lookup: AnchorStarLookup,
+    lat: number,
+    lon: number,
+  ) => void;
   setVisible: (visible: boolean) => void;
   setOpacity: (opacity: number) => void;
 };
 
-type ArtImage = HTMLImageElement | HTMLCanvasElement;
-
 export type CreateConstellationArtLayerOptions = {
   manifest?: ConstellationArtManifest;
-  loadImage?: (url: string) => ArtImage;
 };
 
-const DEFAULT_MANIFEST = bundledManifest as ConstellationArtManifest;
-
-const IDENTITY_ENTRY: ConstellationArtEntry = {
-  file: null,
-  scale: 1.0,
-  rotationDeg: 0.0,
-  offsetAlt: 0.0,
-  offsetAz: 0.0,
-};
+const DEFAULT_MANIFEST = bundledManifest as unknown as ConstellationArtManifest;
 
 const PLACEHOLDER_SPRITE_SIZE = 96;
 
-/**
- * Generate the fallback sprite used when a constellation has no bundled art
- * file (either its manifest entry has `file: null` or no entry exists). It's
- * a subtle radial glow with a dashed circular hint so the layer is visible
- * when toggled on but doesn't pretend to be finished art.
- */
 function generatePlaceholderSprite(): HTMLCanvasElement {
   const size = PLACEHOLDER_SPRITE_SIZE;
   const canvas = document.createElement("canvas");
@@ -82,7 +96,6 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
     ctx = null;
   }
   if (ctx === null) return canvas;
-
   const center = size / 2;
   const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
   gradient.addColorStop(0, "rgba(200, 180, 120, 0.35)");
@@ -90,7 +103,6 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
   gradient.addColorStop(1, "rgba(200, 180, 120, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
-
   ctx.strokeStyle = "rgba(220, 200, 150, 0.5)";
   ctx.lineWidth = 1.2;
   ctx.setLineDash([3, 3]);
@@ -100,72 +112,262 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
   return canvas;
 }
 
-function defaultLoadImage(url: string): HTMLImageElement {
-  const img = new Image();
-  img.src = url;
-  return img;
+// Vite resolves this glob to a map of source path → hashed emitted asset URL
+// at build time. `eager` resolves URLs only — it does not fetch image data;
+// the texture itself is fetched by Cesium when a material first uses the URL.
+//
+// The previous implementation concatenated a dynamic basename onto a literal
+// directory base. Vite's asset plugin only rewrites `new URL()` when the
+// ENTIRE path is a static literal, so that emitted nothing and every art
+// fetch 404'd in production (#404 review).
+//
+// `no-inline` matters: vite.config.ts sets no `build.assetsInlineLimit`, so
+// the 4096-byte default applies and `?url` alone does not opt out. Any art PNG
+// under 4 KB would silently become a data URI — fine in the app, but it would
+// emit no file, so scripts/check-art-emitted.mjs would report it missing.
+// Pinning `no-inline` keeps "every manifest file is a file in dist/assets"
+// true by construction rather than by luck of the byte count.
+// The explicit <string> is needed because Vite only special-cases the bare
+// "?url" query in its glob typings; any other query widens the value to
+// unknown.
+const ART_URLS = import.meta.glob<string>("../../data/art/western/*.png", {
+  eager: true,
+  query: "?url&no-inline",
+  import: "default",
+});
+
+const ART_URL_BY_BASENAME: ReadonlyMap<string, string> = new Map(
+  Object.entries(ART_URLS).map(([path, url]) => [path.slice(path.lastIndexOf("/") + 1), url]),
+);
+
+/**
+ * Resolve a manifest basename (e.g. `"Ori.png"`) to its Vite-emitted asset
+ * URL. Returns null when no such asset exists, which is what makes a missing
+ * or misnamed file detectable instead of silently 404-ing at runtime.
+ */
+export function artAssetUrl(file: string): string | null {
+  return ART_URL_BY_BASENAME.get(file) ?? null;
 }
 
-// Vite's asset plugin rewrites `new URL(<literal>, import.meta.url)` refs to
-// hashed bundle URLs at build time — but only when the first argument is a
-// literal string. Keeping the *base* as a literal here (and concatenating the
-// dynamic basename separately) is what makes the rewrite fire correctly.
-const ASSET_BASE = new URL("../../data/art/western/", import.meta.url).href;
+// Uniform shrink applied to every anchored illustration, about its own centre
+// (see anchorModelMatrix). Stellarium's anchors size each image to span its
+// constellation exactly, which at the default zoom reads as a wash of overlapping
+// figures rather than distinct ones. Pulling them in slightly leaves the
+// constellation's own stars and lines legible around the edges. Presentation
+// only — it does not affect alignment, rotation or shear.
+const ART_SCALE = 0.85;
 
-function resolveAssetUrl(file: string): string {
-  return ASSET_BASE + file;
+/**
+ * Resolve the world-space affine for an anchored illustration, given the live
+ * alt/az of each anchor star. Returns null when the entry cannot be anchored:
+ * no `file` (placeholder-only entry, e.g. Pup / Ser / Vel), missing anchors or
+ * size, any anchor star below the horizon, or a degenerate anchor triangle.
+ */
+function anchoredMatrix(
+  entry: ConstellationArtEntry,
+  lookup: AnchorStarLookup,
+  lat: number,
+  lon: number,
+): Matrix4 | null {
+  if (entry.file === null) return null;
+  if (entry.size === undefined || entry.anchors === undefined) return null;
+  if (entry.anchors.length < 3) return null;
+
+  const world: Cartesian3[] = [];
+  for (const a of entry.anchors.slice(0, 3)) {
+    const s = lookup(a.hip);
+    if (s === undefined) return null;
+    world.push(altAzToCartesian(s.alt, s.az, lat, lon));
+  }
+
+  return anchorModelMatrix(entry.anchors, world, entry.size, ART_SCALE);
+}
+
+// Unit quad in model space, wound image top-left → top-right → bottom-right →
+// bottom-left. The modelMatrix maps it onto the sky; see
+// constellation-art-affine.ts for the mapping convention.
+//
+// COUPLED TO `scene3DOnly: true` in viewer.ts. These vertices stay in model
+// space (the affine is applied as the Primitive's modelMatrix, not baked in),
+// and one of them is the origin. Without that flag Cesium projects these raw
+// positions to 2D for the unused 2D/Columbus scene modes, and projecting
+// (0, 0, 0) throws a DeveloperError that kills the render loop. Keep the flag
+// if you edit this vertex list or add another Primitive user.
+const QUAD_POSITIONS = new Float64Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]);
+// Image space runs y-down, texture space runs t-up, so t is flipped.
+const QUAD_ST = new Float32Array([0, 1, 1, 1, 1, 0, 0, 0]);
+// The quad is flat in model space, so every vertex normal is model +Z — the
+// column the affine fills with the world-space unit normal. MaterialAppearance's
+// textured vertex shader declares `in vec3 normal`, and Primitive's
+// validateShaderMatching throws if the geometry does not supply it.
+const QUAD_NORMALS = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+const QUAD_INDICES = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+/**
+ * `VisibleConstellation` with its fields writable. `filterVisibleConstellations`
+ * allocates a fresh frozen-by-type object every rerender, but `Primitive` bakes
+ * its pick ids at creation and drops `geometryInstances` after upload
+ * (`releaseGeometryInstances` defaults true), so a cached primitive's pick
+ * payload can never be reassigned. The layer therefore attaches its own mirror
+ * and refreshes its contents in place — the baked reference stays valid while
+ * the values it exposes track the current frame.
+ */
+type MutableVisibleConstellation = {
+  -readonly [K in keyof VisibleConstellation]: VisibleConstellation[K];
+};
+
+type CachedArt = {
+  readonly primitive: Primitive;
+  // Held here rather than read back off the primitive at eviction time:
+  // PrimitiveCollection.remove destroys the primitive, and destroyObject
+  // replaces every property with a throwing accessor.
+  readonly material: Material;
+  readonly pickPayload: MutableVisibleConstellation;
+};
+
+function buildQuad(constellation: VisibleConstellation): GeometryInstance {
+  const attributes = new GeometryAttributes();
+  attributes.position = new GeometryAttribute({
+    componentDatatype: ComponentDatatype.DOUBLE,
+    componentsPerAttribute: 3,
+    values: QUAD_POSITIONS.slice(),
+  });
+  attributes.normal = new GeometryAttribute({
+    componentDatatype: ComponentDatatype.FLOAT,
+    componentsPerAttribute: 3,
+    values: QUAD_NORMALS.slice(),
+  });
+  attributes.st = new GeometryAttribute({
+    componentDatatype: ComponentDatatype.FLOAT,
+    componentsPerAttribute: 2,
+    values: QUAD_ST.slice(),
+  });
+
+  // fromVertices derives radius sqrt(0.5) from the quad's model-space
+  // diagonal — the true distance from center (0.5, 0.5, 0) to a corner only
+  // when the model matrix's columns are orthogonal. Cesium instead scales
+  // this radius by Matrix4.getMaximumScale (max(|colX|, |colY|, 1)), while
+  // the real far corner sits at 0.5*|colX + colY|, which exceeds
+  // sqrt(0.5)*scale whenever colX and colY are not perpendicular. Real
+  // anchor triangles always carry some shear — that's the entire premise of
+  // supporting the full affine — so this under-covers and can cull the quad
+  // a few percent early at the screen edge. Override with 1.0, the radius
+  // that safely bounds the worst case (colX parallel to colY).
+  const boundingSphere = BoundingSphere.fromVertices(Array.from(QUAD_POSITIONS));
+  boundingSphere.radius = 1.0;
+
+  return new GeometryInstance({
+    geometry: new Geometry({
+      attributes,
+      indices: QUAD_INDICES.slice(),
+      primitiveType: PrimitiveType.TRIANGLES,
+      boundingSphere,
+    }),
+    // Matches the ConstellationLayer polyline pick contract so hover / click
+    // over the art resolves back to a typed constellation payload.
+    id: constellation,
+  });
+}
+
+function buildMaterial(image: string, alpha: number): Material {
+  const material = Material.fromType("Image", {
+    image,
+    color: Color.WHITE.withAlpha(alpha),
+  });
+  // The built-in Image material registers `translucent` as a function of
+  // color.alpha, and Appearance.isTranslucent() prefers the material's answer
+  // over the appearance's flag — so at alpha 1.0 the render state would flip
+  // to depth-writing with no alpha blending and every PNG's transparent
+  // background would draw opaque. The public property takes precedence over
+  // the registered function.
+  material.translucent = true;
+  return material;
 }
 
 /**
- * Constellation art overlay layer (issue #350, manifest scaffolding #366).
+ * Constellation art overlay layer (issue #366, assets slice).
  *
- * Renders one billboard per visible constellation, positioned at the same
- * centroid the label layer uses (optionally offset via the manifest entry).
- * Off by default; toggled by `?art=on` and the Settings-drawer switch.
- * The URL-synced opacity slider defaults to 0.35.
+ * When the manifest carries an image + three anchor stars for a constellation,
+ * the illustration is drawn as a textured world-space quad whose model matrix
+ * is the exact affine Stellarium's anchors define — position, scale, rotation
+ * and shear (see ADR 018). It therefore turns with the sky and holds its
+ * angular extent through zoom.
  *
- * The layer reads per-constellation art metadata from the bundled
- * `data/art/western/manifest.json`. When an entry's `file` is populated,
- * the sprite is loaded via {@link CreateConstellationArtLayerOptions.loadImage};
- * when it's `null` (or the entry is missing), the fallback placeholder
- * canvas is used. See ADR 017 for the manifest schema and rollout plan.
+ * Constellations without an anchored entry, whose anchor stars aren't
+ * currently visible, or whose art asset was never emitted fall back to a
+ * screen-aligned placeholder billboard at the centroid, so the layer never
+ * draws a wrong-positioned illustration.
+ *
+ * Off by default; toggled by `?art=on` and the Settings drawer. Opacity
+ * defaults to DEFAULT_CONSTELLATION_ART_OPACITY in state.ts and is URL-synced.
  */
 export function createConstellationArtLayer(
   scene: Scene,
   options: CreateConstellationArtLayerOptions = {},
 ): ConstellationArtLayer {
   const manifest = options.manifest ?? DEFAULT_MANIFEST;
-  const loadImage = options.loadImage ?? defaultLoadImage;
 
   const billboards = new BillboardCollection({ scene });
   scene.primitives.add(billboards);
+  const primitives = new PrimitiveCollection();
+  scene.primitives.add(primitives);
   const placeholder = generatePlaceholderSprite();
-  const imageCache = new Map<string, ArtImage>();
 
-  // Current opacity — remembered so `update()` can paint new billboards with
-  // the slider's live value instead of the hard-coded default.
-  let currentOpacity = 0.35;
+  // Constructing a Primitive compiles shaders and uploads vertex buffers, and
+  // constructing its Material starts an image fetch that only binds on a later
+  // update — so a primitive rebuilt every frame never finishes loading and
+  // renders as Cesium's default 1x1 white texture. Camera moves and the
+  // time-animation loop both drive `update` continuously, so primitives are
+  // cached by constellation id and a rerender only reassigns `modelMatrix`.
+  const primitiveCache = new Map<string, CachedArt>();
 
-  function spriteFor(entry: ConstellationArtEntry): ArtImage {
-    if (entry.file === null) return placeholder;
-    const cached = imageCache.get(entry.file);
-    if (cached !== undefined) return cached;
-    const loaded = loadImage(resolveAssetUrl(entry.file));
-    imageCache.set(entry.file, loaded);
-    return loaded;
-  }
+  // Pre-init fallback only — app.ts calls setOpacity with the URL-synced
+  // state value on bootstrap. Kept in step with DEFAULT_CONSTELLATION_ART_OPACITY.
+  let currentOpacity = 0.5;
 
-  function update(constellations: VisibleConstellation[], lat: number, lon: number): void {
+  function update(
+    constellations: VisibleConstellation[],
+    lookup: AnchorStarLookup,
+    lat: number,
+    lon: number,
+  ): void {
     billboards.removeAll();
+    const stillAnchored = new Set<string>();
+
     for (const constellation of constellations) {
-      const entry = manifest.constellations[constellation.id] ?? IDENTITY_ENTRY;
-      const alt = constellation.centroid.alt + entry.offsetAlt;
-      const az = constellation.centroid.az + entry.offsetAz;
+      const entry: ConstellationArtEntry = manifest.constellations[constellation.id] ?? {
+        file: null,
+      };
+      const modelMatrix = anchoredMatrix(entry, lookup, lat, lon);
+      const url = entry.file !== null ? artAssetUrl(entry.file) : null;
+
+      if (modelMatrix !== null && url !== null) {
+        stillAnchored.add(constellation.id);
+        const cached = primitiveCache.get(constellation.id);
+        if (cached !== undefined) {
+          cached.primitive.modelMatrix = modelMatrix;
+          // Copy wholesale so a new VisibleConstellation field cannot be
+          // silently left stale. The id is the cache key, so it is a no-op.
+          Object.assign(cached.pickPayload, constellation);
+          continue;
+        }
+        const pickPayload: MutableVisibleConstellation = { ...constellation };
+        const material = buildMaterial(url, currentOpacity);
+        const primitive = new Primitive({
+          geometryInstances: buildQuad(pickPayload),
+          appearance: new MaterialAppearance({ material, translucent: true, flat: true }),
+          asynchronous: false,
+          modelMatrix,
+        });
+        primitiveCache.set(constellation.id, { primitive, material, pickPayload });
+        primitives.add(primitive);
+        continue;
+      }
+
       billboards.add({
-        position: altAzToCartesian(alt, az, lat, lon),
-        image: spriteFor(entry),
-        scale: entry.scale,
-        rotation: CesiumMath.toRadians(entry.rotationDeg),
+        position: altAzToCartesian(constellation.centroid.alt, constellation.centroid.az, lat, lon),
+        image: placeholder,
+        scale: 1.0,
         color: Color.WHITE.withAlpha(currentOpacity),
         horizontalOrigin: HorizontalOrigin.CENTER,
         verticalOrigin: VerticalOrigin.CENTER,
@@ -176,20 +378,36 @@ export function createConstellationArtLayer(
         id: constellation,
       });
     }
+
+    // PrimitiveCollection.remove destroys the primitive (destroyPrimitives
+    // defaults to true), so the cache entry has to go with it — a destroyed
+    // Primitive throws on reuse. Primitive.destroy tears down _sp / _va /
+    // _pickIds / _batchTable but never appearance.material, so the material
+    // and its GPU texture have to be released by hand.
+    for (const [id, entry] of primitiveCache) {
+      if (stillAnchored.has(id)) continue;
+      primitives.remove(entry.primitive);
+      entry.material.destroy();
+      primitiveCache.delete(id);
+    }
   }
 
   function setVisible(visible: boolean): void {
     setCollectionVisible(billboards, visible);
+    setCollectionVisible(primitives, visible);
   }
 
   function setOpacity(opacity: number): void {
     currentOpacity = opacity;
-    const count = collectionLength(billboards);
-    for (let i = 0; i < count; i++) {
+    const billboardCount = collectionLength(billboards);
+    for (let i = 0; i < billboardCount; i++) {
       const bb = collectionAt<{ color: { alpha: number } }>(billboards, i);
       if (bb?.color !== undefined) {
         bb.color.alpha = opacity;
       }
+    }
+    for (const entry of primitiveCache.values()) {
+      (entry.material.uniforms as { color: { alpha: number } }).color.alpha = opacity;
     }
   }
 

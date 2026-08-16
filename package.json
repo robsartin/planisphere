@@ -17,6 +17,7 @@
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json && vite build",
     "preview": "vite preview",
     "seed-plans": "node scripts/seed-plans.mjs",
+    "build:art": "node scripts/build-art.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
     "lint": "eslint . --max-warnings=0 && node scripts/check-spdx.mjs",
     "lint:spdx": "node scripts/check-spdx.mjs",

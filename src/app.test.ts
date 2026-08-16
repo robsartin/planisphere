@@ -155,6 +155,16 @@ vi.mock("cesium", () => {
         show: true,
       };
     }),
+    PrimitiveCollection: vi.fn(function () {
+      return {
+        add: vi.fn(),
+        removeAll: vi.fn(),
+        get length() {
+          return 0;
+        },
+        show: true,
+      };
+    }),
     LabelCollection: vi.fn(function () {
       return {
         add: vi.fn(),

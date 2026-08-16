@@ -25,6 +25,12 @@ export function createViewer(containerId: string): Result<Viewer, SceneInitError
       infoBox: false,
       navigationHelpButton: false,
       sceneModePicker: false,
+      // The app is 3D-only (the scene-mode picker is off), and the
+      // constellation-art layer draws unit quads whose model-space vertices
+      // include the origin. Without this flag Cesium's geometry pipeline
+      // projects those raw model-space positions to 2D, and projecting
+      // (0, 0, 0) throws a DeveloperError that stops the render loop.
+      scene3DOnly: true,
       selectionIndicator: false,
       timeline: false,
       skyBox: false,

@@ -1,6 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { countNonBlackPixelsOnPage, seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import {
+  countNonBlackPixelsOnPage,
+  expectNoRenderErrors,
+  seedDefaultStorage,
+  waitForCesiumPainted,
+} from "./fixtures";
 
 /**
  * Cesium-initialises smoke test. Boots the app at a stable URL and asserts
@@ -25,6 +30,7 @@ test("cesium WebGL canvas paints non-black pixels within 5 s", async ({ page }) 
   // test fails with the timeout in the stack — clearer than a downstream
   // assertion failing on a black screenshot.
   await waitForCesiumPainted(page, 5_000);
+  await expectNoRenderErrors(page);
 
   // Full-viewport non-black pixel count for the meaningful "non-empty"
   // assertion. Includes the side panel chrome, but the side panel alone

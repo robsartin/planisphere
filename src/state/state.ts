@@ -52,7 +52,7 @@ export type AppState = {
   readonly activePlanSlug: string | null; // URL-synced via ?plan=<slug>
   readonly animation: Animation; // #348 — URL-synced via ?anim=play&speed=<1|10|100>
   // #350 — constellation art overlay. Off by default; toggled by ?art=on and
-  // the Settings-drawer switch. Opacity slider defaults to 0.35.
+  // the Settings-drawer switch. Opacity slider defaults to 0.5.
   readonly constellationArt: boolean;
   readonly constellationArtOpacity: number; // 0–1
 };
@@ -100,7 +100,7 @@ export const DEFAULT_MODE: AppMode = "planetarium";
 export const DEFAULT_ACTIVE_PLAN_SLUG: string | null = null;
 export const DEFAULT_ANIMATION: Animation = { playing: false, speed: 1 };
 export const DEFAULT_CONSTELLATION_ART = false;
-export const DEFAULT_CONSTELLATION_ART_OPACITY = 0.35;
+export const DEFAULT_CONSTELLATION_ART_OPACITY = 0.5;
 
 export const DEFAULT_STATE: AppState = {
   observer: { lat: 0, lon: 0 },
