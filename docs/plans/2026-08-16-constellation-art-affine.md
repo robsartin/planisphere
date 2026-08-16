@@ -867,6 +867,31 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Task 3 rebuilds every primitive on every `update()`. Camera moves dispatch state through a 50 ms-debounced `scheduleRerender`, so that recompiles ~30 primitives several times a second. `Primitive.modelMatrix` is mutable and transforms all geometry instances model→world, so a rerender should assign matrices, not rebuild geometry.
 
+**This task also carries three findings from the Task 3 review. They are requirements here, not optional cleanup.**
+
+**(a) The rebuild is a visual defect, not just a cost — and it needs a regression guard.** The time-animation RAF loop dispatches `set-time` every frame ([src/app.ts:1159-1173](../../src/app.ts)), which reaches `update()` every frame. Each frame currently builds a brand-new `Material` per constellation. A fresh `Material` with a string `image` uniform starts bound to Cesium's **default 1×1 white texture** and only swaps to the real image after `Resource.fetchImage` resolves on a later `Material.update(context)`. Meanwhile `primitives.removeAll()` destroys the `Primitive`s, but `Primitive.destroy` does **not** destroy `appearance.material` — so every frame orphans N materials mid-load and none ever binds. Net effect while animating: **every anchored constellation renders as a solid white parallelogram**, plus a leaked material and in-flight image fetch per constellation per frame. Caching the `Primitive` (and therefore its `Material`) fixes this. The deleted `caches loadImage calls per file` test used to guard this property; the caching tests below are its replacement, so do not close this task without them.
+
+**(b) Replace the custom GLSL fabric with the built-in `Image` material.** The brief for Task 3 justified a hand-written fabric on the grounds that `Material.fromType("Image")` exposes no alpha uniform. That is false — the built-in declares `uniforms: { image, repeat, color }` and its alpha component is `texture(image, …).a * color.a`. The real trap is different and must be handled explicitly: the built-in registers `translucent` as a _function_ returning `uniforms.color.alpha < 1.0`, and `Appearance.isTranslucent()` prefers the material's answer over the appearance's flag — so at opacity 1.0 the render state flips to `depthMask: true` with no alpha blending and every PNG's transparent background renders **opaque**. Setting the public `translucent` property overrides that, because `Material.isTranslucent` checks it before the registered function. So:
+
+```ts
+function buildMaterial(image: string, alpha: number): Material {
+  const material = Material.fromType("Image", {
+    image,
+    color: Color.WHITE.withAlpha(alpha),
+  });
+  // The built-in Image material reports translucency as a function of
+  // color.alpha, which would flip the render state to opaque at alpha 1.0 and
+  // render every PNG's transparent background as black. The public property
+  // takes precedence over that function.
+  material.translucent = true;
+  return material;
+}
+```
+
+Two lines replace fourteen, it drops hand-written GLSL that no test in this repo can execute (jsdom has no WebGL), it drops the permanent `Material._materialCache` entry that a named custom `type` retains for the life of the page, and it matches the idiom already used in [constellations.ts](../../src/scene/constellations.ts). `setOpacity` then drives `uniforms.color.alpha` — the same shape the neighbouring polyline layer uses. Update the `Material` mock in the test file accordingly: it needs a `fromType` static returning `{ uniforms: { color: { alpha: 1 } }, translucent: false }`.
+
+**(c) Make the collection-registration test symmetric.** `registers a PrimitiveCollection with scene.primitives` asserts only `toHaveBeenCalledTimes(2)`, while its billboard sibling checks collection identity. Add an identity check so the pair match.
+
 **Files:**
 
 - Modify: `src/scene/constellation-art.ts` (`createConstellationArtLayer` internals)
