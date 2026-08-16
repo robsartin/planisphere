@@ -67,14 +67,17 @@ via the same 3-anchor scheme Stellarium itself uses. Specifically:
   currently-visible constellation, and Cesium fetches a texture the first
   time a material references it, so a typical mid-latitude night pulls a
   fraction of the total rather than all 3.1 MB.
-- **Reproducibility**: `scripts/build-art.mjs` performs the rename and the
-  manifest extraction (the RGBA re-encode is documented there but left
-  manual — automating it needs an image-codec dependency, and every
-  dependency in this repo needs its own ADR). Two upstream quirks are
-  encoded in that script because they are exactly what a future
-  regeneration would trip over: Carina's illustration is the reused
-  `argonavis.png` (the single Argo Navis image), and Horologium's upstream
-  file is misspelled `horlogium.png`, missing the second "o".
+- **Reproducibility**: `scripts/build-art.mjs` performs the manifest
+  extraction only — it fetches upstream's `index.json` and writes
+  `manifest.json`. It never reads, downloads, renames, or re-encodes a
+  single PNG; the download-and-rename step and the RGBA re-encode are both
+  manual documented procedure (the latter left manual because automating it
+  needs an image-codec dependency, and every dependency in this repo needs
+  its own ADR). Two upstream quirks are encoded in that script because they
+  are exactly what a future regeneration would trip over: Carina's
+  illustration is the reused `argonavis.png` (the single Argo Navis image),
+  and Horologium's upstream file is misspelled `horlogium.png`, missing the
+  second "o".
 
 ### Manifest schema (v2)
 
