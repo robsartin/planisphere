@@ -8,7 +8,8 @@
 > is a textured world-space quad carrying the full affine. The sections
 > below reflect the amended decision, not the original one; the paragraphs
 > that deferred zoom-correct rendering have been replaced rather than
-> annotated, so nothing here describes the superseded design.
+> annotated, so no section still _recommends_ the superseded design. It
+> survives only under "Alternatives considered", as a rejected option.
 
 ## Context
 
@@ -126,7 +127,7 @@ The layer computes each frame:
 
 Working in `Cartesian3` world space rather than alt/az avoids wraparound
 issues near the meridian and pole. The quad's corners need not sit exactly
-on the sky sphere — Cesium projects world-space geometry regardless of
+on the sky sphere — Cesium renders world-space geometry regardless of
 whether it is on-sphere, and at sky-sphere radius the flat quad is
 visually indistinguishable from a curved patch.
 
@@ -252,8 +253,9 @@ NOTICE lists them per-file, Apache 2.0 governs everything we authored.
   billboard could have delivered both rotation and zoom-correctness with
   no new primitive machinery, and the deferral rested on a wrong premise
   rather than on a real constraint. It was rejected here only because a
-  billboard remains an axis-aligned rectangle about its axis: it can
-  express translation, uniform scale and rotation, but **not shear**.
+  billboard remains an axis-aligned rectangle about its axis: with
+  `width`/`height` under `sizeInMeters` it can express translation,
+  rotation and even non-uniform scale, but **not shear**.
   Stellarium's three-anchor alignment produces a general affine, and
   dropping its shear component mis-registers the illustration against
   its own anchor stars. Expressing shear is the sole reason the
