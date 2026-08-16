@@ -58,6 +58,14 @@ export default defineConfig({
           branches: 85,
         },
 
+        // Pure affine math, despite living in scene/ (Cesium Matrix4 types).
+        "src/scene/constellation-art-affine.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 85,
+        },
+
         // Integration modules — 80% lines
         "src/scene/**": {
           lines: 80,
