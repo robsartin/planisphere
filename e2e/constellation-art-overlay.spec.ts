@@ -1,6 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test, type Page } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted, waitForPlanisphereReady } from "./fixtures";
+import {
+  expectNoRenderErrors,
+  seedDefaultStorage,
+  waitForCesiumPainted,
+  waitForPlanisphereReady,
+} from "./fixtures";
 
 /**
  * Constellation-art overlay smoke test (issue #366).
@@ -20,8 +25,14 @@ import { seedDefaultStorage, waitForCesiumPainted, waitForPlanisphereReady } fro
  * change; a per-pixel diff captures both directions correctly.
  *
  * If this test fails, either the manifest broke, the loader stopped feeding
- * billboards to the scene, or `?art=on` no longer flips the state — all
+ * geometry to the scene, or `?art=on` no longer flips the state — all
  * regressions worth catching before merge.
+ *
+ * The pixel diff alone is NOT sufficient, which is why this spec also calls
+ * `expectNoRenderErrors`: a crashed render loop leaves the last presented
+ * frame on screen, and that frozen frame differs from the art-off baseline
+ * by far more than 500 pixels. The delta assertion therefore passes just as
+ * happily on a dead scene as on a correctly drawn one.
  */
 test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ page }) => {
   await seedDefaultStorage(page);
@@ -34,6 +45,7 @@ test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ pag
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 5_000);
   await waitForPlanisphereReady(page);
+  await expectNoRenderErrors(page);
   // `networkidle` catches the tail of Vite's asset fetches so the baseline
   // frame is fully painted before the screenshot.
   await page.waitForLoadState("networkidle");
@@ -43,12 +55,16 @@ test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ pag
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 5_000);
   await waitForPlanisphereReady(page);
-  // The anchor-driven overlay (#404) lazy-loads a PNG per currently-visible
-  // constellation on the first `?art=on` frame. Cesium renders a billboard
-  // with an incomplete HTMLImageElement as empty pixels, so a screenshot
-  // taken before the sprites finish downloading measures a not-yet-rendered
-  // scene. `networkidle` waits for 500 ms of quiet after the image fetches
-  // finish, so the sample reflects the actual art layer.
+  // Assert the render loop survived the `?art=on` frame BEFORE comparing
+  // screenshots — the comparison cannot tell a crash from a success.
+  await expectNoRenderErrors(page);
+  // The anchor-driven overlay (#404) fetches a texture per currently-visible
+  // constellation on the first `?art=on` frame: each art `Primitive` uses a
+  // Cesium `Image` material, which loads its own texture from the emitted
+  // asset URL and renders as untextured white until that fetch resolves. A
+  // screenshot taken before the textures land therefore measures a
+  // half-drawn scene. `networkidle` waits for 500 ms of quiet after the
+  // image fetches finish, so the sample reflects the actual art layer.
   await page.waitForLoadState("networkidle");
   const onPng = await page.screenshot({ type: "png", animations: "disabled" });
 
@@ -61,6 +77,10 @@ test("`?art=on` overlay changes the frame vs the art-off baseline", async ({ pag
   //   * pass on both the placeholder-halo era (thousands of new bright
   //     pixels) and the anchor-driven era (thousands of dimmed stars +
   //     hundreds of new illustration pixels)
+  //
+  // It cannot reject "the render loop crashed" — a frozen last-presented
+  // frame clears this floor easily. `expectNoRenderErrors` above is what
+  // covers that; don't re-derive this number expecting it to.
   expect(differing).toBeGreaterThan(500);
 });
 

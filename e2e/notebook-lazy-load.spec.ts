@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { expectNoRenderErrors, seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
 
 /**
  * Notebook lazy-load smoke test (issue #372).
@@ -47,6 +47,7 @@ test("notebook chunk is not fetched on planetarium bootstrap", async ({ page }) 
   await page.goto("/?lat=61.2&lon=-149.9&t=2026-04-25T08:00:00Z");
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  await expectNoRenderErrors(page);
 
   // Give Vite a beat to have finished any modulepreload chain.
   await page.waitForLoadState("networkidle");

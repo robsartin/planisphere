@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { expect, test } from "@playwright/test";
-import { seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
+import { expectNoRenderErrors, seedDefaultStorage, waitForCesiumPainted } from "./fixtures";
 
 /**
  * URL-state round-trip test (issue #303 #2).
@@ -25,6 +25,7 @@ test("URL params survive bootstrap and the FOV reticle is rendered", async ({ pa
 
   await expect(page.locator("#cesium-container canvas")).toBeVisible();
   await waitForCesiumPainted(page, 10_000);
+  await expectNoRenderErrors(page);
 
   const params = await page.evaluate(() => {
     const search = new URLSearchParams(window.location.search);

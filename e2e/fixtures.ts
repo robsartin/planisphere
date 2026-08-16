@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
  * Pre-seed localStorage so the SPA boots in the state every E2E test wants:
@@ -51,6 +51,30 @@ export async function waitForPlanisphereReady(page: Page, timeoutMs = 15_000): P
     undefined,
     { timeout: timeoutMs },
   );
+}
+
+/**
+ * Assert Cesium's render loop is still alive.
+ *
+ * A thrown error inside `Scene.render` does not surface as a test failure on
+ * its own: Cesium catches it, stops the render loop, and the browser keeps
+ * compositing the last presented frame. Every pixel-based check in this
+ * suite is fooled by that frozen frame — `waitForCesiumPainted` needs only
+ * 4 non-black pixels in an 80×80 crop, and the art-overlay diff sees a
+ * *large* delta from a dead scene, so a crash reads as a pass.
+ *
+ * That is not hypothetical. The anchored-art `Primitive` threw
+ * `DeveloperError: Could not project point (0, 0, 0) to 2D` on every
+ * `?art=on` load (fixed by `scene3DOnly` in `src/scene/viewer.ts`), and the
+ * overlay spec passed green throughout.
+ *
+ * `CesiumWidget` renders `<div class="cesium-widget-errorPanel">` into the
+ * DOM when the render loop dies (`showRenderLoopErrors` defaults true and
+ * `viewer.ts` does not disable it), so the check is a DOM assertion — no
+ * console plumbing, no timing race.
+ */
+export async function expectNoRenderErrors(page: Page): Promise<void> {
+  await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
 }
 
 /**
