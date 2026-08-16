@@ -23,10 +23,21 @@ let mockBillboardShow = true;
 let mockBillboardLength = 0;
 
 const mockPrimitiveAdd = vi.fn();
+const mockPrimitiveRemove = vi.fn();
 const mockPrimitiveRemoveAll = vi.fn();
 const mockPrimitiveGet = vi.fn();
 let mockPrimitiveCollectionShow = true;
 let mockPrimitiveCollectionLength = 0;
+
+// Hoisted so the `vi.mock` factory can reference it as a property value (a
+// plain module-scope const would still be in its TDZ when the factory runs).
+// The caching tests count constructor calls, so they need the spy itself
+// rather than the collection's `add`.
+const { mockPrimitiveCtor } = vi.hoisted(() => ({
+  mockPrimitiveCtor: vi.fn(function (opts: unknown) {
+    return { ...(opts as object), isPrimitive: true };
+  }),
+}));
 
 vi.mock("cesium", () => {
   const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
@@ -76,6 +87,7 @@ vi.mock("cesium", () => {
     PrimitiveCollection: vi.fn(function () {
       return {
         add: mockPrimitiveAdd,
+        remove: mockPrimitiveRemove,
         removeAll: mockPrimitiveRemoveAll,
         get: mockPrimitiveGet,
         get length() {
@@ -89,9 +101,7 @@ vi.mock("cesium", () => {
         },
       };
     }),
-    Primitive: vi.fn(function (opts: unknown) {
-      return { ...(opts as object), isPrimitive: true };
-    }),
+    Primitive: mockPrimitiveCtor,
     GeometryInstance: vi.fn(function (opts: unknown) {
       return { ...(opts as object) };
     }),
@@ -185,7 +195,9 @@ beforeEach(() => {
   mockBillboardShow = true;
   mockBillboardLength = 0;
   mockPrimitiveAdd.mockClear();
+  mockPrimitiveRemove.mockClear();
   mockPrimitiveRemoveAll.mockClear();
+  mockPrimitiveCtor.mockClear();
   mockPrimitiveGet.mockClear();
   mockPrimitiveCollectionShow = true;
   mockPrimitiveCollectionLength = 0;
@@ -452,13 +464,71 @@ describe("ConstellationArtLayer anchored primitives", () => {
     expect(uniforms.alpha).toBe(0.42);
   });
 
-  it("clears both collections before adding new content", () => {
+  it("clears placeholder billboards before adding new content", () => {
     const scene = makeMockScene();
     const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
     layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
 
+    // Billboards are cheap and rebuilt wholesale; the primitive collection
+    // reconciles against the visible set instead, so it is never cleared.
     expect(mockRemoveAll).toHaveBeenCalled();
-    expect(mockPrimitiveRemoveAll).toHaveBeenCalled();
+    expect(mockPrimitiveRemoveAll).not.toHaveBeenCalled();
+  });
+
+  it("reuses the cached primitive across rerenders of the same constellation", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    // Rebuilding geometry every rerender would recompile ~30 primitives at the
+    // 50ms scheduleRerender cadence, and would orphan a half-loaded Material
+    // per constellation per frame while the time animation runs.
+    expect(mockPrimitiveCtor).toHaveBeenCalledTimes(1);
+    expect(mockPrimitiveAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("reassigns the modelMatrix of the cached primitive on rerender", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const primitive = mockPrimitiveCtor.mock.results[0]!.value as { modelMatrix: unknown };
+    primitive.modelMatrix = { stale: true };
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(primitive.modelMatrix).toEqual({ isMatrix4: true });
+  });
+
+  it("drops the cached primitive when the constellation stops being visible", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const first = mockPrimitiveCtor.mock.results[0]!.value;
+    layer.update([], ALL_VISIBLE, 61, -149);
+
+    // PrimitiveCollection.remove destroys the primitive by default, so the
+    // cache entry must go with it — reusing a destroyed Primitive throws.
+    expect(mockPrimitiveRemove).toHaveBeenCalledWith(first);
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    expect(mockPrimitiveCtor).toHaveBeenCalledTimes(2);
+  });
+
+  it("evicts the cached primitive when the constellation falls back to a placeholder", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const first = mockPrimitiveCtor.mock.results[0]!.value;
+    // Anchor stars set below the horizon: still "visible" as a constellation,
+    // but no longer anchorable, so the art must leave the collection.
+    layer.update([CONSTELLATIONS[0]!], NEVER_LOOKUP, 61, -149);
+
+    expect(mockPrimitiveRemove).toHaveBeenCalledWith(first);
+    expect(mockAdd).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to a placeholder billboard when the art asset was not emitted", () => {

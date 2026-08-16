@@ -258,6 +258,14 @@ export function createConstellationArtLayer(
   scene.primitives.add(primitives);
   const placeholder = generatePlaceholderSprite();
 
+  // Constructing a Primitive compiles shaders and uploads vertex buffers, and
+  // constructing its Material starts an image fetch that only binds on a later
+  // update — so a primitive rebuilt every frame never finishes loading and
+  // renders as Cesium's default 1x1 white texture. Camera moves and the
+  // time-animation loop both drive `update` continuously, so primitives are
+  // cached by constellation id and a rerender only reassigns `modelMatrix`.
+  const primitiveCache = new Map<string, Primitive>();
+
   let currentOpacity = 0.35;
 
   function update(
@@ -267,7 +275,7 @@ export function createConstellationArtLayer(
     lon: number,
   ): void {
     billboards.removeAll();
-    primitives.removeAll();
+    const stillAnchored = new Set<string>();
 
     for (const constellation of constellations) {
       const entry: ConstellationArtEntry = manifest.constellations[constellation.id] ?? {
@@ -277,18 +285,24 @@ export function createConstellationArtLayer(
       const url = entry.file !== null ? artAssetUrl(entry.file) : null;
 
       if (modelMatrix !== null && url !== null) {
-        primitives.add(
-          new Primitive({
-            geometryInstances: buildQuad(constellation),
-            appearance: new MaterialAppearance({
-              material: buildMaterial(url, currentOpacity),
-              translucent: true,
-              flat: true,
-            }),
-            asynchronous: false,
-            modelMatrix,
+        stillAnchored.add(constellation.id);
+        const cached = primitiveCache.get(constellation.id);
+        if (cached !== undefined) {
+          cached.modelMatrix = modelMatrix;
+          continue;
+        }
+        const created = new Primitive({
+          geometryInstances: buildQuad(constellation),
+          appearance: new MaterialAppearance({
+            material: buildMaterial(url, currentOpacity),
+            translucent: true,
+            flat: true,
           }),
-        );
+          asynchronous: false,
+          modelMatrix,
+        });
+        primitiveCache.set(constellation.id, created);
+        primitives.add(created);
         continue;
       }
 
@@ -305,6 +319,15 @@ export function createConstellationArtLayer(
         // matches the ConstellationLayer polyline pick contract.
         id: constellation,
       });
+    }
+
+    // PrimitiveCollection.remove destroys the primitive (destroyPrimitives
+    // defaults to true), so the cache entry has to go with it — a destroyed
+    // Primitive throws on reuse.
+    for (const [id, primitive] of primitiveCache) {
+      if (stillAnchored.has(id)) continue;
+      primitives.remove(primitive);
+      primitiveCache.delete(id);
     }
   }
 
