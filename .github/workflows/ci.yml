@@ -80,6 +80,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # `pnpm build` succeeds even when the constellation art fails to emit —
+      # that is exactly how the missing-asset bug shipped green. Cross-check
+      # the manifest against dist/assets/ so a regression fails the build job.
+      - run: node scripts/check-art-emitted.mjs
       - uses: actions/upload-artifact@v7
         with:
           name: dist
