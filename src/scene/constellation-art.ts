@@ -149,6 +149,14 @@ export function artAssetUrl(file: string): string | null {
   return ART_URL_BY_BASENAME.get(file) ?? null;
 }
 
+// Uniform shrink applied to every anchored illustration, about its own centre
+// (see anchorModelMatrix). Stellarium's anchors size each image to span its
+// constellation exactly, which at the default zoom reads as a wash of overlapping
+// figures rather than distinct ones. Pulling them in slightly leaves the
+// constellation's own stars and lines legible around the edges. Presentation
+// only — it does not affect alignment, rotation or shear.
+const ART_SCALE = 0.85;
+
 /**
  * Resolve the world-space affine for an anchored illustration, given the live
  * alt/az of each anchor star. Returns null when the entry cannot be anchored:
@@ -172,7 +180,7 @@ function anchoredMatrix(
     world.push(altAzToCartesian(s.alt, s.az, lat, lon));
   }
 
-  return anchorModelMatrix(entry.anchors, world, entry.size);
+  return anchorModelMatrix(entry.anchors, world, entry.size, ART_SCALE);
 }
 
 // Unit quad in model space, wound image top-left → top-right → bottom-right →
@@ -291,7 +299,7 @@ function buildMaterial(image: string, alpha: number): Material {
  * draws a wrong-positioned illustration.
  *
  * Off by default; toggled by `?art=on` and the Settings drawer. Opacity
- * defaults to 0.35 and is URL-synced.
+ * defaults to DEFAULT_CONSTELLATION_ART_OPACITY in state.ts and is URL-synced.
  */
 export function createConstellationArtLayer(
   scene: Scene,
@@ -313,7 +321,9 @@ export function createConstellationArtLayer(
   // cached by constellation id and a rerender only reassigns `modelMatrix`.
   const primitiveCache = new Map<string, CachedArt>();
 
-  let currentOpacity = 0.35;
+  // Pre-init fallback only — app.ts calls setOpacity with the URL-synced
+  // state value on bootstrap. Kept in step with DEFAULT_CONSTELLATION_ART_OPACITY.
+  let currentOpacity = 0.5;
 
   function update(
     constellations: VisibleConstellation[],

@@ -136,3 +136,58 @@ describe("anchorModelMatrix", () => {
     expect(anchorModelMatrix(anchors, world, SIZE)).toBeNull();
   });
 });
+
+describe("anchorModelMatrix scale", () => {
+  // A 10x20 world rectangle from corner anchors — centre at (5, 10, 0).
+  const ANCHORS = [anchor(0, 0, 1), anchor(512, 0, 2), anchor(0, 512, 3)];
+  const WORLD = [new Cartesian3(0, 0, 0), new Cartesian3(10, 0, 0), new Cartesian3(0, 20, 0)];
+
+  it("defaults to the exact anchor-derived size when no scale is given", () => {
+    const m = anchorModelMatrix(ANCHORS, WORLD, SIZE);
+    expect(m).not.toBeNull();
+    if (m === null) return;
+    expectClose(corner(m, 0, 0), 0, 0, 0);
+    expectClose(corner(m, 1, 1), 10, 20, 0);
+  });
+
+  it("is a no-op at scale 1", () => {
+    const exact = anchorModelMatrix(ANCHORS, WORLD, SIZE);
+    const scaled = anchorModelMatrix(ANCHORS, WORLD, SIZE, 1);
+    expect(exact).not.toBeNull();
+    expect(scaled).not.toBeNull();
+    if (exact === null || scaled === null) return;
+    expectClose(corner(scaled, 0, 0), corner(exact, 0, 0).x, 0, 0);
+    expectClose(corner(scaled, 1, 1), 10, 20, 0);
+  });
+
+  it("shrinks about the image centre, leaving the centre fixed", () => {
+    // The whole point: the art must get smaller without sliding off the
+    // constellation it is anchored to. At scale 0.5 the quad spans half the
+    // width and half the height, still centred on (5, 10, 0).
+    const m = anchorModelMatrix(ANCHORS, WORLD, SIZE, 0.5);
+    expect(m).not.toBeNull();
+    if (m === null) return;
+
+    expectClose(corner(m, 0.5, 0.5), 5, 10, 0);
+    expectClose(corner(m, 0, 0), 2.5, 5, 0);
+    expectClose(corner(m, 1, 1), 7.5, 15, 0);
+  });
+
+  it("preserves shear while scaling", () => {
+    // Shear is the entire reason this is a Primitive rather than a billboard,
+    // so a uniform shrink must not quietly orthogonalise the basis.
+    const shearedWorld = [
+      new Cartesian3(0, 0, 0),
+      new Cartesian3(10, 0, 0),
+      new Cartesian3(5, 20, 0),
+    ];
+    const m = anchorModelMatrix(ANCHORS, shearedWorld, SIZE, 0.5);
+    expect(m).not.toBeNull();
+    if (m === null) return;
+
+    // Exact centre is (7.5, 10, 0); the sheared far corner keeps its lean.
+    expectClose(corner(m, 0.5, 0.5), 7.5, 10, 0);
+    expectClose(corner(m, 0, 1), 6.25, 15, 0);
+    expectClose(corner(m, 1, 1), 11.25, 15, 0);
+  });
+});

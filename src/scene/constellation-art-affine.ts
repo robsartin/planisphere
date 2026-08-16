@@ -14,6 +14,13 @@ import type { ConstellationArtAnchor } from "./constellation-art";
  * Unit-quad convention: (0,0) is the image's top-left pixel (0,0) and (1,1)
  * is its bottom-right pixel (w,h).
  *
+ * `scale` uniformly shrinks (or grows) the quad **about its own centre**, so
+ * the art stays centred on the same patch of sky. It is a presentation knob,
+ * not part of Stellarium's alignment: at 1 the quad is exactly the size the
+ * anchors dictate. Values below 1 pull the illustration in from its anchor
+ * stars, which reads better at the default zoom — see ART_SCALE in
+ * constellation-art.ts. Shear is preserved either way.
+ *
  * Returns null when the transform is undefined — fewer than three anchors,
  * fewer than three resolved world positions, or three collinear anchor pixels
  * (a degenerate triangle). Callers fall back to the placeholder sprite.
@@ -22,6 +29,7 @@ export function anchorModelMatrix(
   anchors: readonly ConstellationArtAnchor[],
   world: readonly Cartesian3[],
   size: readonly [number, number],
+  scale = 1,
 ): Matrix4 | null {
   if (anchors.length < 3 || world.length < 3) return null;
 
@@ -65,6 +73,24 @@ export function anchorModelMatrix(
   // back by its own pixel offset.
   const originOffset = perPixel(-a0.pos[0], -a0.pos[1]);
   const origin = Cartesian3.add(w0, originOffset, new Cartesian3());
+
+  // Scale about the quad's centre rather than its (0,0) corner. The centre is
+  // origin + (colX + colY)/2; holding it fixed while the basis shrinks means
+  // pushing the origin out by half the size the quad loses.
+  if (scale !== 1) {
+    const inset = (1 - scale) / 2;
+    Cartesian3.add(
+      origin,
+      Cartesian3.add(
+        Cartesian3.multiplyByScalar(colX, inset, new Cartesian3()),
+        Cartesian3.multiplyByScalar(colY, inset, new Cartesian3()),
+        new Cartesian3(),
+      ),
+      origin,
+    );
+    Cartesian3.multiplyByScalar(colX, scale, colX);
+    Cartesian3.multiplyByScalar(colY, scale, colY);
+  }
 
   // Column 2 carries no geometric meaning — the quad is flat — but a zero
   // column would make the matrix singular, so use the unit normal.

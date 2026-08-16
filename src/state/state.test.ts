@@ -492,13 +492,13 @@ describe("constellationArt — defaults", () => {
     expect(DEFAULT_STATE.constellationArt).toBe(false);
   });
 
-  it("defaults constellationArtOpacity to 0.35 when art_op param is absent", () => {
+  it("defaults constellationArtOpacity to 0.5 when art_op param is absent", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
-    expect(s.constellationArtOpacity).toBeCloseTo(0.35);
+    expect(s.constellationArtOpacity).toBeCloseTo(0.5);
   });
 
-  it("DEFAULT_STATE.constellationArtOpacity is 0.35", () => {
-    expect(DEFAULT_STATE.constellationArtOpacity).toBeCloseTo(0.35);
+  it("DEFAULT_STATE.constellationArtOpacity is 0.5", () => {
+    expect(DEFAULT_STATE.constellationArtOpacity).toBeCloseTo(0.5);
   });
 });
 
@@ -514,8 +514,10 @@ describe("constellationArt — parse from URL", () => {
   });
 
   it("parses art_op as a 0–1 fraction", () => {
-    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "50" })));
-    expect(s.constellationArtOpacity).toBeCloseTo(0.5);
+    // Deliberately not 50: that is the default, so it could not tell a real
+    // parse from a silent fallback.
+    const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "70" })));
+    expect(s.constellationArtOpacity).toBeCloseTo(0.7);
   });
 
   it("clamps art_op above maximum to 1.0", () => {
@@ -528,9 +530,9 @@ describe("constellationArt — parse from URL", () => {
     expect(s.constellationArtOpacity).toBe(0.0);
   });
 
-  it("falls back to default (0.35) for non-numeric art_op", () => {
+  it("falls back to default (0.5) for non-numeric art_op", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams({ art_op: "bright" })));
-    expect(s.constellationArtOpacity).toBeCloseTo(0.35);
+    expect(s.constellationArtOpacity).toBeCloseTo(0.5);
   });
 });
 
@@ -547,7 +549,7 @@ describe("constellationArt — serialize round-trip", () => {
     expect(out.get("art")).toBe("on");
   });
 
-  it("omits art_op when at default (0.35)", () => {
+  it("omits art_op when at default (0.5)", () => {
     const s = expectOk(parseStateFromSearchParams(new URLSearchParams()));
     const out = serializeStateToSearchParams(s);
     expect(out.has("art_op")).toBe(false);
