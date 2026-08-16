@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  artAssetUrl,
   createConstellationArtLayer,
   type AnchorStarLookup,
   type ConstellationArtManifest,
 } from "./constellation-art";
 import type { VisibleConstellation } from "../astro";
+import bundledManifest from "../../data/art/western/manifest.json";
 
 const mockGetContext = vi.fn().mockReturnValue(null);
 beforeAll(() => {
@@ -255,7 +257,7 @@ describe("ConstellationArtLayer manifest lookup", () => {
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({
         Ori: {
-          file: "shared.png",
+          file: "Ori.png",
           size: [512, 512],
           anchors: [
             { pos: [100, 100], hip: 1 },
@@ -264,7 +266,7 @@ describe("ConstellationArtLayer manifest lookup", () => {
           ],
         },
         UMa: {
-          file: "shared.png",
+          file: "Ori.png",
           size: [512, 512],
           anchors: [
             { pos: [100, 100], hip: 1 },
@@ -273,7 +275,7 @@ describe("ConstellationArtLayer manifest lookup", () => {
           ],
         },
         Sco: {
-          file: "shared.png",
+          file: "Ori.png",
           size: [512, 512],
           anchors: [
             { pos: [100, 100], hip: 1 },
@@ -391,5 +393,28 @@ describe("ConstellationArtLayer.setOpacity", () => {
     mockBillboardLength = CONSTELLATIONS.length;
     mockGet.mockImplementation(() => ({ color: { alpha: 0 } }));
     expect(() => layer.setOpacity(0.5)).not.toThrow();
+  });
+});
+
+describe("artAssetUrl", () => {
+  it("returns null for a file that was never emitted as an asset", () => {
+    // The old concatenating implementation returned a plausible-looking
+    // string for ANY input, which is exactly why a missing asset could not
+    // be detected. A resolver backed by Vite's emitted-asset map knows the
+    // difference between a real file and a typo.
+    expect(artAssetUrl("NotAConstellation.png")).toBeNull();
+  });
+
+  it("resolves every non-null file in the bundled manifest", () => {
+    const files = Object.values(bundledManifest.constellations)
+      .map((entry) => (entry as { file: string | null }).file)
+      .filter((file): file is string => file !== null);
+
+    // Guards two failure modes at once: assets Vite never emitted (the #404
+    // production bug), and manifest entries naming a PNG that is not on disk.
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      expect(artAssetUrl(file), `no emitted asset for ${file}`).not.toBeNull();
+    }
   });
 });

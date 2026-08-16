@@ -110,14 +110,31 @@ function defaultLoadImage(url: string): HTMLImageElement {
   return img;
 }
 
-// Vite's asset plugin rewrites `new URL(<literal>, import.meta.url)` refs to
-// hashed bundle URLs at build time — but only when the first argument is a
-// literal string. Keeping the *base* as a literal here (and concatenating the
-// dynamic basename separately) is what makes the rewrite fire correctly.
-const ASSET_BASE = new URL("../../data/art/western/", import.meta.url).href;
+// Vite resolves this glob to a map of source path → hashed emitted asset URL
+// at build time. `eager` resolves URLs only — it does not fetch image data —
+// so the per-constellation lazy loading in `loadedImage` is unaffected.
+//
+// The previous implementation concatenated a dynamic basename onto a literal
+// directory base. Vite's asset plugin only rewrites `new URL()` when the
+// ENTIRE path is a static literal, so that emitted nothing and every art
+// fetch 404'd in production (#404 review).
+const ART_URLS = import.meta.glob("../../data/art/western/*.png", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
 
-function resolveAssetUrl(file: string): string {
-  return ASSET_BASE + file;
+const ART_URL_BY_BASENAME: ReadonlyMap<string, string> = new Map(
+  Object.entries(ART_URLS).map(([path, url]) => [path.slice(path.lastIndexOf("/") + 1), url]),
+);
+
+/**
+ * Resolve a manifest basename (e.g. `"Ori.png"`) to its Vite-emitted asset
+ * URL. Returns null when no such asset exists, which is what makes a missing
+ * or misnamed file detectable instead of silently 404-ing at runtime.
+ */
+export function artAssetUrl(file: string): string | null {
+  return ART_URL_BY_BASENAME.get(file) ?? null;
 }
 
 /**
@@ -224,10 +241,12 @@ export function createConstellationArtLayer(
 
   let currentOpacity = 0.35;
 
-  function loadedImage(file: string): ArtImage {
+  function loadedImage(file: string): ArtImage | null {
     const cached = imageCache.get(file);
     if (cached !== undefined) return cached;
-    const loaded = loadImage(resolveAssetUrl(file));
+    const url = artAssetUrl(file);
+    if (url === null) return null;
+    const loaded = loadImage(url);
     imageCache.set(file, loaded);
     return loaded;
   }
@@ -247,8 +266,8 @@ export function createConstellationArtLayer(
       const position =
         anchored?.position ??
         altAzToCartesian(constellation.centroid.alt, constellation.centroid.az, lat, lon);
-      const image =
-        anchored !== null && entry.file !== null ? loadedImage(entry.file) : placeholder;
+      const resolved = anchored !== null && entry.file !== null ? loadedImage(entry.file) : null;
+      const image = resolved ?? placeholder;
       const scale = anchored?.scale ?? 1.0;
       billboards.add({
         position,
