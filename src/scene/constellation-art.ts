@@ -235,12 +235,25 @@ function buildQuad(constellation: VisibleConstellation): GeometryInstance {
     values: QUAD_ST.slice(),
   });
 
+  // fromVertices derives radius sqrt(0.5) from the quad's model-space
+  // diagonal — the true distance from center (0.5, 0.5, 0) to a corner only
+  // when the model matrix's columns are orthogonal. Cesium instead scales
+  // this radius by Matrix4.getMaximumScale (max(|colX|, |colY|, 1)), while
+  // the real far corner sits at 0.5*|colX + colY|, which exceeds
+  // sqrt(0.5)*scale whenever colX and colY are not perpendicular. Real
+  // anchor triangles always carry some shear — that's the entire premise of
+  // supporting the full affine — so this under-covers and can cull the quad
+  // a few percent early at the screen edge. Override with 1.0, the radius
+  // that safely bounds the worst case (colX parallel to colY).
+  const boundingSphere = BoundingSphere.fromVertices(Array.from(QUAD_POSITIONS));
+  boundingSphere.radius = 1.0;
+
   return new GeometryInstance({
     geometry: new Geometry({
       attributes,
       indices: QUAD_INDICES.slice(),
       primitiveType: PrimitiveType.TRIANGLES,
-      boundingSphere: BoundingSphere.fromVertices(Array.from(QUAD_POSITIONS)),
+      boundingSphere,
     }),
     // Matches the ConstellationLayer polyline pick contract so hover / click
     // over the art resolves back to a typed constellation payload.

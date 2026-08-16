@@ -132,7 +132,10 @@ vi.mock("cesium", () => {
     Material: { fromType: mockMaterialFromType },
     ComponentDatatype: { DOUBLE: 0, FLOAT: 1 },
     PrimitiveType: { TRIANGLES: 4 },
-    BoundingSphere: { fromVertices: vi.fn().mockReturnValue({ radius: 1 }) },
+    // Real Cesium fromVertices on the unit quad returns radius sqrt(0.5)
+    // (distance from center (0.5, 0.5, 0) to a corner) — the under-covering
+    // value the source code is expected to override.
+    BoundingSphere: { fromVertices: vi.fn().mockReturnValue({ radius: Math.sqrt(0.5) }) },
     HorizontalOrigin: { CENTER: 0 },
     VerticalOrigin: { CENTER: 0 },
     Color: {
@@ -440,6 +443,20 @@ describe("ConstellationArtLayer anchored primitives", () => {
 
     expect(mockAdd).toHaveBeenCalledTimes(1);
     expect(mockPrimitiveAdd).not.toHaveBeenCalled();
+  });
+
+  it("widens the quad's bounding sphere radius past fromVertices' orthonormal-basis estimate", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    // fromVertices' sqrt(0.5) radius only covers the quad's far corner when
+    // the model matrix's column vectors are orthogonal; real anchor bases
+    // carry shear, so the layer must widen the radius rather than trust it.
+    const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
+      geometryInstances: { geometry: { boundingSphere: { radius: number } } };
+    };
+    expect(primitive.geometryInstances.geometry.boundingSphere.radius).toBe(1.0);
   });
 
   it("attaches a VisibleConstellation as the geometry instance id (pickable)", () => {
