@@ -22,6 +22,12 @@ const mockGet = vi.fn();
 let mockBillboardShow = true;
 let mockBillboardLength = 0;
 
+const mockPrimitiveAdd = vi.fn();
+const mockPrimitiveRemoveAll = vi.fn();
+const mockPrimitiveGet = vi.fn();
+let mockPrimitiveCollectionShow = true;
+let mockPrimitiveCollectionLength = 0;
+
 vi.mock("cesium", () => {
   const MockCartesian3 = vi.fn(function (x: number, y: number, z: number) {
     return { x, y, z };
@@ -29,6 +35,26 @@ vi.mock("cesium", () => {
   (MockCartesian3 as unknown as { fromDegrees: ReturnType<typeof vi.fn> }).fromDegrees = vi
     .fn()
     .mockReturnValue({ x: 1, y: 2, z: 3 });
+  // `constellation-art-affine` is imported by the module under test, so it
+  // receives this mock too. Stub the vector ops it calls rather than
+  // re-asserting the real math here — that is covered by
+  // constellation-art-affine.test.ts against the real Cesium.
+  (MockCartesian3 as unknown as Record<string, unknown>).subtract = vi
+    .fn()
+    .mockReturnValue({ x: 1, y: 0, z: 0 });
+  (MockCartesian3 as unknown as Record<string, unknown>).add = vi
+    .fn()
+    .mockReturnValue({ x: 1, y: 1, z: 0 });
+  (MockCartesian3 as unknown as Record<string, unknown>).multiplyByScalar = vi
+    .fn()
+    .mockReturnValue({ x: 1, y: 0, z: 0 });
+  (MockCartesian3 as unknown as Record<string, unknown>).cross = vi
+    .fn()
+    .mockReturnValue({ x: 0, y: 0, z: 1 });
+  (MockCartesian3 as unknown as Record<string, unknown>).magnitude = vi.fn().mockReturnValue(1);
+  (MockCartesian3 as unknown as Record<string, unknown>).divideByScalar = vi
+    .fn()
+    .mockReturnValue({ x: 0, y: 0, z: 1 });
 
   return {
     BillboardCollection: vi.fn(function () {
@@ -47,6 +73,46 @@ vi.mock("cesium", () => {
         },
       };
     }),
+    PrimitiveCollection: vi.fn(function () {
+      return {
+        add: mockPrimitiveAdd,
+        removeAll: mockPrimitiveRemoveAll,
+        get: mockPrimitiveGet,
+        get length() {
+          return mockPrimitiveCollectionLength;
+        },
+        get show() {
+          return mockPrimitiveCollectionShow;
+        },
+        set show(v: boolean) {
+          mockPrimitiveCollectionShow = v;
+        },
+      };
+    }),
+    Primitive: vi.fn(function (opts: unknown) {
+      return { ...(opts as object), isPrimitive: true };
+    }),
+    GeometryInstance: vi.fn(function (opts: unknown) {
+      return { ...(opts as object) };
+    }),
+    Geometry: vi.fn(function (opts: unknown) {
+      return { ...(opts as object) };
+    }),
+    GeometryAttribute: vi.fn(function (opts: unknown) {
+      return { ...(opts as object) };
+    }),
+    GeometryAttributes: vi.fn(function () {
+      return {};
+    }),
+    MaterialAppearance: vi.fn(function (opts: unknown) {
+      return { ...(opts as object) };
+    }),
+    Material: vi.fn(function (opts: unknown) {
+      return { ...(opts as object), uniforms: { alpha: 1 } };
+    }),
+    ComponentDatatype: { DOUBLE: 0, FLOAT: 1 },
+    PrimitiveType: { TRIANGLES: 4 },
+    BoundingSphere: { fromVertices: vi.fn().mockReturnValue({ radius: 1 }) },
     HorizontalOrigin: { CENTER: 0 },
     VerticalOrigin: { CENTER: 0 },
     Color: {
@@ -64,6 +130,8 @@ vi.mock("cesium", () => {
     },
     Matrix4: {
       multiplyByPoint: vi.fn().mockReturnValue({ x: 10, y: 20, z: 30 }),
+      fromColumnMajorArray: vi.fn().mockReturnValue({ isMatrix4: true }),
+      IDENTITY: { isIdentity: true },
     },
   };
 });
@@ -116,6 +184,11 @@ beforeEach(() => {
   mockGet.mockClear();
   mockBillboardShow = true;
   mockBillboardLength = 0;
+  mockPrimitiveAdd.mockClear();
+  mockPrimitiveRemoveAll.mockClear();
+  mockPrimitiveGet.mockClear();
+  mockPrimitiveCollectionShow = true;
+  mockPrimitiveCollectionLength = 0;
 });
 
 describe("createConstellationArtLayer", () => {
@@ -127,7 +200,8 @@ describe("createConstellationArtLayer", () => {
   it("registers a BillboardCollection with scene.primitives", () => {
     const scene = makeMockScene();
     createConstellationArtLayer(scene as never);
-    expect(mockPrimitivesAdd).toHaveBeenCalledOnce();
+    const registered = mockPrimitivesAdd.mock.calls.map((call) => call[0] as { add: unknown });
+    expect(registered.some((collection) => collection.add === mockAdd)).toBe(true);
   });
 
   it("exposes update, setVisible, setOpacity", () => {
@@ -169,33 +243,28 @@ describe("ConstellationArtLayer.update", () => {
 
 describe("ConstellationArtLayer manifest lookup", () => {
   it("uses the placeholder canvas when the manifest has file: null", () => {
-    const loadImage = vi.fn();
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({ Ori: { file: null } }),
-      loadImage,
     });
     layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
-    expect(loadImage).not.toHaveBeenCalled();
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
     const call = mockAdd.mock.calls[0]![0] as { image: unknown; scale: number };
     expect(call.image).toBeDefined();
     expect(call.scale).toBe(1.0);
   });
 
   it("uses the placeholder when the constellation is not in the manifest", () => {
-    const loadImage = vi.fn();
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({}),
-      loadImage,
     });
     layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
-    expect(loadImage).not.toHaveBeenCalled();
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
     expect(mockAdd).toHaveBeenCalledOnce();
   });
 
   it("uses the placeholder when a file is set but no anchors resolve", () => {
     // Entry has anchors, but lookup returns undefined for every HIP → cannot
     // solve the affine → falls back to placeholder + centroid.
-    const loadImage = vi.fn().mockReturnValue({ src: "" } as HTMLImageElement);
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({
         Ori: {
@@ -208,101 +277,15 @@ describe("ConstellationArtLayer manifest lookup", () => {
           ],
         },
       }),
-      loadImage,
     });
     layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
-    expect(loadImage).not.toHaveBeenCalled();
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
     const call = mockAdd.mock.calls[0]![0] as { scale: number };
     expect(call.scale).toBe(1.0);
   });
 
-  it("loads the file and applies the anchored scale when all anchors resolve", () => {
-    const fakeImg = { src: "" } as HTMLImageElement;
-    const loadImage = vi.fn().mockReturnValue(fakeImg);
-    const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({
-        Ori: {
-          file: "Ori.png",
-          size: [512, 512],
-          anchors: [
-            { pos: [100, 100], hip: 27913 },
-            { pos: [300, 200], hip: 27366 },
-            { pos: [200, 400], hip: 22449 },
-          ],
-        },
-      }),
-      loadImage,
-    });
-    layer.update(
-      CONSTELLATIONS.slice(0, 1),
-      stubLookup({
-        27913: { alt: 40, az: 170 },
-        27366: { alt: 30, az: 175 },
-        22449: { alt: 45, az: 180 },
-      }),
-      33,
-      -117,
-    );
-    expect(loadImage).toHaveBeenCalledOnce();
-    expect(loadImage.mock.calls[0]![0]).toContain("Ori.png");
-    const call = mockAdd.mock.calls[0]![0] as { image: unknown; scale: number };
-    expect(call.image).toBe(fakeImg);
-    // Anchored path applies BASE_ANCHORED_SCALE (0.5), not the placeholder 1.0
-    expect(call.scale).toBe(0.5);
-  });
-
-  it("caches loadImage calls per file across multiple constellations", () => {
-    const fakeImg = { src: "" } as HTMLImageElement;
-    const loadImage = vi.fn().mockReturnValue(fakeImg);
-    const layer = createConstellationArtLayer(makeMockScene() as never, {
-      manifest: makeManifest({
-        Ori: {
-          file: "Ori.png",
-          size: [512, 512],
-          anchors: [
-            { pos: [100, 100], hip: 1 },
-            { pos: [300, 200], hip: 2 },
-            { pos: [200, 400], hip: 3 },
-          ],
-        },
-        UMa: {
-          file: "Ori.png",
-          size: [512, 512],
-          anchors: [
-            { pos: [100, 100], hip: 1 },
-            { pos: [300, 200], hip: 2 },
-            { pos: [200, 400], hip: 3 },
-          ],
-        },
-        Sco: {
-          file: "Ori.png",
-          size: [512, 512],
-          anchors: [
-            { pos: [100, 100], hip: 1 },
-            { pos: [300, 200], hip: 2 },
-            { pos: [200, 400], hip: 3 },
-          ],
-        },
-      }),
-      loadImage,
-    });
-    layer.update(
-      CONSTELLATIONS,
-      stubLookup({
-        1: { alt: 40, az: 170 },
-        2: { alt: 30, az: 175 },
-        3: { alt: 45, az: 180 },
-      }),
-      33,
-      -117,
-    );
-    expect(loadImage).toHaveBeenCalledOnce();
-    expect(mockAdd).toHaveBeenCalledTimes(3);
-  });
-
   it("falls back to placeholder when only some anchor stars are visible", () => {
     // 2 of 3 anchors resolve — not enough to solve; placeholder path.
-    const loadImage = vi.fn();
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({
         Ori: {
@@ -315,7 +298,6 @@ describe("ConstellationArtLayer manifest lookup", () => {
           ],
         },
       }),
-      loadImage,
     });
     layer.update(
       CONSTELLATIONS.slice(0, 1),
@@ -327,14 +309,13 @@ describe("ConstellationArtLayer manifest lookup", () => {
       33,
       -117,
     );
-    expect(loadImage).not.toHaveBeenCalled();
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
     const call = mockAdd.mock.calls[0]![0] as { scale: number };
     expect(call.scale).toBe(1.0);
   });
 
   it("falls back to placeholder when the three anchor pixels are collinear", () => {
-    // Degenerate triangle — barycentric solve fails, no anchored position.
-    const loadImage = vi.fn();
+    // Degenerate triangle — the affine solve fails, no model matrix.
     const layer = createConstellationArtLayer(makeMockScene() as never, {
       manifest: makeManifest({
         Ori: {
@@ -347,7 +328,6 @@ describe("ConstellationArtLayer manifest lookup", () => {
           ],
         },
       }),
-      loadImage,
     });
     layer.update(
       CONSTELLATIONS.slice(0, 1),
@@ -359,9 +339,146 @@ describe("ConstellationArtLayer manifest lookup", () => {
       33,
       -117,
     );
-    expect(loadImage).not.toHaveBeenCalled();
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
     const call = mockAdd.mock.calls[0]![0] as { scale: number };
     expect(call.scale).toBe(1.0);
+  });
+
+  it("falls back to placeholder when the entry has fewer than three anchors", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: makeManifest({
+        Ori: {
+          file: "Ori.png",
+          size: [512, 512],
+          anchors: [
+            { pos: [100, 100], hip: 1 },
+            { pos: [300, 200], hip: 2 },
+          ],
+        },
+      }),
+    });
+    layer.update(CONSTELLATIONS.slice(0, 1), stubLookup({ 1: { alt: 40, az: 170 } }), 33, -117);
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
+    expect(mockAdd).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to placeholder when a file is set but size/anchors are missing", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: makeManifest({ Ori: { file: "Ori.png" } }),
+    });
+    layer.update(CONSTELLATIONS.slice(0, 1), NEVER_LOOKUP, 33, -117);
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
+    expect(mockAdd).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ConstellationArtLayer anchored primitives", () => {
+  const ANCHORED = makeManifest({
+    Ori: {
+      file: "Ori.png",
+      size: [512, 512],
+      anchors: [
+        { pos: [59, 11], hip: 27913 },
+        { pos: [329, 477], hip: 27366 },
+        { pos: [421, 91], hip: 22449 },
+      ],
+    },
+  });
+
+  const ALL_VISIBLE = stubLookup({
+    27913: { alt: 40, az: 180 },
+    27366: { alt: 30, az: 175 },
+    22449: { alt: 45, az: 185 },
+  });
+
+  it("registers a PrimitiveCollection with scene.primitives", () => {
+    const scene = makeMockScene();
+    createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    // One BillboardCollection (placeholders) + one PrimitiveCollection (art).
+    expect(mockPrimitivesAdd).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds a primitive, not a billboard, when all anchors resolve", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(mockPrimitiveAdd).toHaveBeenCalledTimes(1);
+    expect(mockAdd).not.toHaveBeenCalled();
+  });
+
+  it("adds a placeholder billboard, not a primitive, when anchors do not resolve", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], NEVER_LOOKUP, 61, -149);
+
+    expect(mockAdd).toHaveBeenCalledTimes(1);
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
+  });
+
+  it("attaches the VisibleConstellation as the geometry instance id (pickable)", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    // Preserves the pick contract the constellation-line layer established
+    // (#305 / #308) — hovering the art must resolve to a typed payload.
+    const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
+      geometryInstances: { id: unknown };
+    };
+    expect(primitive.geometryInstances.id).toBe(CONSTELLATIONS[0]);
+  });
+
+  it("carries the anchor affine as the primitive's modelMatrix", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as { modelMatrix: unknown };
+    expect(primitive.modelMatrix).toEqual({ isMatrix4: true });
+  });
+
+  it("textures the quad with the emitted asset URL at the current opacity", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.setOpacity(0.42);
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
+      appearance: { material: { fabric: { uniforms: { image: string; alpha: number } } } };
+    };
+    const uniforms = primitive.appearance.material.fabric.uniforms;
+    expect(uniforms.image).toContain("Ori");
+    expect(uniforms.alpha).toBe(0.42);
+  });
+
+  it("clears both collections before adding new content", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(mockRemoveAll).toHaveBeenCalled();
+    expect(mockPrimitiveRemoveAll).toHaveBeenCalled();
+  });
+
+  it("falls back to a placeholder billboard when the art asset was not emitted", () => {
+    const scene = makeMockScene();
+    const missing = makeManifest({
+      Ori: {
+        file: "DoesNotExist.png",
+        size: [512, 512],
+        anchors: [
+          { pos: [0, 0], hip: 27913 },
+          { pos: [512, 0], hip: 27366 },
+          { pos: [0, 512], hip: 22449 },
+        ],
+      },
+    });
+    const layer = createConstellationArtLayer(scene as never, { manifest: missing });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(mockAdd).toHaveBeenCalledTimes(1);
+    expect(mockPrimitiveAdd).not.toHaveBeenCalled();
   });
 });
 
@@ -379,6 +496,14 @@ describe("ConstellationArtLayer.setVisible", () => {
     layer.setVisible(true);
     expect(mockBillboardShow).toBe(true);
   });
+
+  it("toggles the primitive collection show flag too", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never);
+    layer.setVisible(false);
+    expect(mockPrimitiveCollectionShow).toBe(false);
+    layer.setVisible(true);
+    expect(mockPrimitiveCollectionShow).toBe(true);
+  });
 });
 
 describe("ConstellationArtLayer.setOpacity", () => {
@@ -393,6 +518,22 @@ describe("ConstellationArtLayer.setOpacity", () => {
     mockBillboardLength = CONSTELLATIONS.length;
     mockGet.mockImplementation(() => ({ color: { alpha: 0 } }));
     expect(() => layer.setOpacity(0.5)).not.toThrow();
+  });
+
+  it("rewrites the alpha uniform of already-added art primitives", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never);
+    const primitive = { appearance: { material: { uniforms: { alpha: 0.35 } } } };
+    mockPrimitiveCollectionLength = 1;
+    mockPrimitiveGet.mockImplementation(() => primitive);
+    layer.setOpacity(0.75);
+    expect(primitive.appearance.material.uniforms.alpha).toBe(0.75);
+  });
+
+  it("ignores primitives that carry no material uniforms", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never);
+    mockPrimitiveCollectionLength = 1;
+    mockPrimitiveGet.mockImplementation(() => ({}));
+    expect(() => layer.setOpacity(0.75)).not.toThrow();
   });
 });
 
