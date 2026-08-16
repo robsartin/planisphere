@@ -36,6 +36,25 @@ describe("createViewer", () => {
     document.body.removeChild(container);
   });
 
+  it("constructs the viewer with scene3DOnly so primitives skip the 2D projection", async () => {
+    // The constellation-art layer draws unit quads whose model-space vertices
+    // include the origin, positioned by the Primitive's modelMatrix. When
+    // scene3DOnly is false Cesium's geometry pipeline projects the raw
+    // model-space positions to 2D, and projecting (0, 0, 0) throws a
+    // DeveloperError that halts the whole render loop.
+    const { Viewer } = await import("cesium");
+    const mock = vi.mocked(Viewer);
+    mock.mockClear();
+
+    const container = document.createElement("div");
+    container.id = "cesium-3donly";
+    document.body.appendChild(container);
+    createViewer("cesium-3donly");
+    document.body.removeChild(container);
+
+    expect(mock.mock.calls[0]?.[1]).toMatchObject({ scene3DOnly: true });
+  });
+
   it("returns Err when container does not exist", () => {
     const r = createViewer("nonexistent");
     expect(isErr(r)).toBe(true);
