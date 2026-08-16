@@ -209,24 +209,19 @@ function buildQuad(constellation: VisibleConstellation): GeometryInstance {
   });
 }
 
-/**
- * Custom fabric rather than `Material.fromType("Image")` so the layer owns a
- * scalar `alpha` uniform that `setOpacity` can drive directly on a live
- * material. `texture(...)` (not `texture2D`) matches the GLSL 300 es form
- * Cesium 1.144's own built-in materials use.
- */
 function buildMaterial(image: string, alpha: number): Material {
-  return new Material({
-    fabric: {
-      type: "ConstellationArt",
-      uniforms: { image, alpha },
-      components: {
-        diffuse: "texture(image, materialInput.st).rgb",
-        alpha: "texture(image, materialInput.st).a * alpha",
-      },
-    },
-    translucent: true,
+  const material = Material.fromType("Image", {
+    image,
+    color: Color.WHITE.withAlpha(alpha),
   });
+  // The built-in Image material registers `translucent` as a function of
+  // color.alpha, and Appearance.isTranslucent() prefers the material's answer
+  // over the appearance's flag — so at alpha 1.0 the render state would flip
+  // to depth-writing with no alpha blending and every PNG's transparent
+  // background would draw opaque. The public property takes precedence over
+  // the registered function.
+  material.translucent = true;
+  return material;
 }
 
 /**
@@ -345,16 +340,9 @@ export function createConstellationArtLayer(
         bb.color.alpha = opacity;
       }
     }
-    const primitiveCount = collectionLength(primitives);
-    for (let i = 0; i < primitiveCount; i++) {
-      const p = collectionAt<{ appearance?: { material?: { uniforms?: { alpha: number } } } }>(
-        primitives,
-        i,
-      );
-      const uniforms = p?.appearance?.material?.uniforms;
-      if (uniforms !== undefined) {
-        uniforms.alpha = opacity;
-      }
+    for (const primitive of primitiveCache.values()) {
+      const material = (primitive.appearance as MaterialAppearance).material;
+      (material.uniforms as { color: { alpha: number } }).color.alpha = opacity;
     }
   }
 

@@ -9,6 +9,14 @@ import {
 import type { VisibleConstellation } from "../astro";
 import bundledManifest from "../../data/art/western/manifest.json";
 
+// Shape the mocked `Material.fromType` hands back — mirrors the built-in
+// Image material's uniform set.
+type MockMaterial = {
+  type: string;
+  uniforms: { image: string; color: { alpha: number } };
+  translucent: boolean;
+};
+
 const mockGetContext = vi.fn().mockReturnValue(null);
 beforeAll(() => {
   HTMLCanvasElement.prototype.getContext =
@@ -33,10 +41,18 @@ let mockPrimitiveCollectionLength = 0;
 // plain module-scope const would still be in its TDZ when the factory runs).
 // The caching tests count constructor calls, so they need the spy itself
 // rather than the collection's `add`.
-const { mockPrimitiveCtor } = vi.hoisted(() => ({
+const { mockPrimitiveCtor, mockMaterialFromType } = vi.hoisted(() => ({
   mockPrimitiveCtor: vi.fn(function (opts: unknown) {
     return { ...(opts as object), isPrimitive: true };
   }),
+  // Mirrors the real Material.fromType: caller uniforms override the
+  // registered defaults, and `translucent` arrives false-y so that dropping
+  // the layer's explicit `material.translucent = true` is detectable.
+  mockMaterialFromType: vi.fn((type: string, uniforms: Record<string, unknown>) => ({
+    type,
+    uniforms: { image: null, repeat: { x: 1, y: 1 }, color: { alpha: 1 }, ...uniforms },
+    translucent: false,
+  })),
 }));
 
 vi.mock("cesium", () => {
@@ -117,9 +133,7 @@ vi.mock("cesium", () => {
     MaterialAppearance: vi.fn(function (opts: unknown) {
       return { ...(opts as object) };
     }),
-    Material: vi.fn(function (opts: unknown) {
-      return { ...(opts as object), uniforms: { alpha: 1 } };
-    }),
+    Material: { fromType: mockMaterialFromType },
     ComponentDatatype: { DOUBLE: 0, FLOAT: 1 },
     PrimitiveType: { TRIANGLES: 4 },
     BoundingSphere: { fromVertices: vi.fn().mockReturnValue({ radius: 1 }) },
@@ -186,6 +200,27 @@ const NEVER_LOOKUP: AnchorStarLookup = () => undefined;
 function stubLookup(positions: Record<number, { alt: number; az: number }>): AnchorStarLookup {
   return (hip) => positions[hip];
 }
+
+// A manifest whose Ori entry anchors cleanly, plus the lookup that resolves
+// all three of its stars — together the only way to get a real art primitive
+// into the layer's cache.
+const ANCHORED = makeManifest({
+  Ori: {
+    file: "Ori.png",
+    size: [512, 512],
+    anchors: [
+      { pos: [59, 11], hip: 27913 },
+      { pos: [329, 477], hip: 27366 },
+      { pos: [421, 91], hip: 22449 },
+    ],
+  },
+});
+
+const ALL_VISIBLE = stubLookup({
+  27913: { alt: 40, az: 180 },
+  27366: { alt: 30, az: 175 },
+  22449: { alt: 45, az: 185 },
+});
 
 beforeEach(() => {
   mockAdd.mockClear();
@@ -385,28 +420,12 @@ describe("ConstellationArtLayer manifest lookup", () => {
 });
 
 describe("ConstellationArtLayer anchored primitives", () => {
-  const ANCHORED = makeManifest({
-    Ori: {
-      file: "Ori.png",
-      size: [512, 512],
-      anchors: [
-        { pos: [59, 11], hip: 27913 },
-        { pos: [329, 477], hip: 27366 },
-        { pos: [421, 91], hip: 22449 },
-      ],
-    },
-  });
-
-  const ALL_VISIBLE = stubLookup({
-    27913: { alt: 40, az: 180 },
-    27366: { alt: 30, az: 175 },
-    22449: { alt: 45, az: 185 },
-  });
-
   it("registers a PrimitiveCollection with scene.primitives", () => {
     const scene = makeMockScene();
     createConstellationArtLayer(scene as never, { manifest: ANCHORED });
     // One BillboardCollection (placeholders) + one PrimitiveCollection (art).
+    const registered = mockPrimitivesAdd.mock.calls.map((call) => call[0] as { add: unknown });
+    expect(registered.some((collection) => collection.add === mockPrimitiveAdd)).toBe(true);
     expect(mockPrimitivesAdd).toHaveBeenCalledTimes(2);
   });
 
@@ -457,11 +476,29 @@ describe("ConstellationArtLayer anchored primitives", () => {
     layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
 
     const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
-      appearance: { material: { fabric: { uniforms: { image: string; alpha: number } } } };
+      appearance: { material: MockMaterial };
     };
-    const uniforms = primitive.appearance.material.fabric.uniforms;
-    expect(uniforms.image).toContain("Ori");
-    expect(uniforms.alpha).toBe(0.42);
+    const material = primitive.appearance.material;
+    expect(material.type).toBe("Image");
+    expect(material.uniforms.image).toContain("Ori");
+    expect(material.uniforms.color.alpha).toBe(0.42);
+  });
+
+  it("forces material translucency so transparent PNG areas still blend at alpha 1", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+    layer.setOpacity(1);
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    // The built-in Image material registers `translucent` as a function of
+    // color.alpha, and Appearance.isTranslucent() prefers the material's
+    // answer — at alpha 1 that flips the render state to depthMask/no-blend
+    // and every PNG's transparent background draws opaque. Setting the public
+    // property overrides the registered function.
+    const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
+      appearance: { material: MockMaterial };
+    };
+    expect(primitive.appearance.material.translucent).toBe(true);
   });
 
   it("clears placeholder billboards before adding new content", () => {
@@ -590,20 +627,18 @@ describe("ConstellationArtLayer.setOpacity", () => {
     expect(() => layer.setOpacity(0.5)).not.toThrow();
   });
 
-  it("rewrites the alpha uniform of already-added art primitives", () => {
-    const layer = createConstellationArtLayer(makeMockScene() as never);
-    const primitive = { appearance: { material: { uniforms: { alpha: 0.35 } } } };
-    mockPrimitiveCollectionLength = 1;
-    mockPrimitiveGet.mockImplementation(() => primitive);
-    layer.setOpacity(0.75);
-    expect(primitive.appearance.material.uniforms.alpha).toBe(0.75);
-  });
+  it("rewrites the color alpha of already-cached art primitives", () => {
+    const layer = createConstellationArtLayer(makeMockScene() as never, { manifest: ANCHORED });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const primitive = mockPrimitiveCtor.mock.results[0]!.value as {
+      appearance: { material: MockMaterial };
+    };
 
-  it("ignores primitives that carry no material uniforms", () => {
-    const layer = createConstellationArtLayer(makeMockScene() as never);
-    mockPrimitiveCollectionLength = 1;
-    mockPrimitiveGet.mockImplementation(() => ({}));
-    expect(() => layer.setOpacity(0.75)).not.toThrow();
+    layer.setOpacity(0.75);
+
+    // Cached primitives are never rebuilt, so an opacity change has to reach
+    // the live material rather than waiting for the next construction.
+    expect(primitive.appearance.material.uniforms.color.alpha).toBe(0.75);
   });
 });
 
