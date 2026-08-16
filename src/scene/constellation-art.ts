@@ -178,6 +178,28 @@ const QUAD_ST = new Float32Array([0, 1, 1, 1, 1, 0, 0, 0]);
 const QUAD_NORMALS = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 0, 2, 3]);
 
+/**
+ * `VisibleConstellation` with its fields writable. `filterVisibleConstellations`
+ * allocates a fresh frozen-by-type object every rerender, but `Primitive` bakes
+ * its pick ids at creation and drops `geometryInstances` after upload
+ * (`releaseGeometryInstances` defaults true), so a cached primitive's pick
+ * payload can never be reassigned. The layer therefore attaches its own mirror
+ * and refreshes its contents in place — the baked reference stays valid while
+ * the values it exposes track the current frame.
+ */
+type MutableVisibleConstellation = {
+  -readonly [K in keyof VisibleConstellation]: VisibleConstellation[K];
+};
+
+type CachedArt = {
+  readonly primitive: Primitive;
+  // Held here rather than read back off the primitive at eviction time:
+  // PrimitiveCollection.remove destroys the primitive, and destroyObject
+  // replaces every property with a throwing accessor.
+  readonly material: Material;
+  readonly pickPayload: MutableVisibleConstellation;
+};
+
 function buildQuad(constellation: VisibleConstellation): GeometryInstance {
   const attributes = new GeometryAttributes();
   attributes.position = new GeometryAttribute({
@@ -259,7 +281,7 @@ export function createConstellationArtLayer(
   // renders as Cesium's default 1x1 white texture. Camera moves and the
   // time-animation loop both drive `update` continuously, so primitives are
   // cached by constellation id and a rerender only reassigns `modelMatrix`.
-  const primitiveCache = new Map<string, Primitive>();
+  const primitiveCache = new Map<string, CachedArt>();
 
   let currentOpacity = 0.35;
 
@@ -283,21 +305,22 @@ export function createConstellationArtLayer(
         stillAnchored.add(constellation.id);
         const cached = primitiveCache.get(constellation.id);
         if (cached !== undefined) {
-          cached.modelMatrix = modelMatrix;
+          cached.primitive.modelMatrix = modelMatrix;
+          // Copy wholesale so a new VisibleConstellation field cannot be
+          // silently left stale. The id is the cache key, so it is a no-op.
+          Object.assign(cached.pickPayload, constellation);
           continue;
         }
-        const created = new Primitive({
-          geometryInstances: buildQuad(constellation),
-          appearance: new MaterialAppearance({
-            material: buildMaterial(url, currentOpacity),
-            translucent: true,
-            flat: true,
-          }),
+        const pickPayload: MutableVisibleConstellation = { ...constellation };
+        const material = buildMaterial(url, currentOpacity);
+        const primitive = new Primitive({
+          geometryInstances: buildQuad(pickPayload),
+          appearance: new MaterialAppearance({ material, translucent: true, flat: true }),
           asynchronous: false,
           modelMatrix,
         });
-        primitiveCache.set(constellation.id, created);
-        primitives.add(created);
+        primitiveCache.set(constellation.id, { primitive, material, pickPayload });
+        primitives.add(primitive);
         continue;
       }
 
@@ -318,10 +341,13 @@ export function createConstellationArtLayer(
 
     // PrimitiveCollection.remove destroys the primitive (destroyPrimitives
     // defaults to true), so the cache entry has to go with it — a destroyed
-    // Primitive throws on reuse.
-    for (const [id, primitive] of primitiveCache) {
+    // Primitive throws on reuse. Primitive.destroy tears down _sp / _va /
+    // _pickIds / _batchTable but never appearance.material, so the material
+    // and its GPU texture have to be released by hand.
+    for (const [id, entry] of primitiveCache) {
       if (stillAnchored.has(id)) continue;
-      primitives.remove(primitive);
+      primitives.remove(entry.primitive);
+      entry.material.destroy();
       primitiveCache.delete(id);
     }
   }
@@ -340,9 +366,8 @@ export function createConstellationArtLayer(
         bb.color.alpha = opacity;
       }
     }
-    for (const primitive of primitiveCache.values()) {
-      const material = (primitive.appearance as MaterialAppearance).material;
-      (material.uniforms as { color: { alpha: number } }).color.alpha = opacity;
+    for (const entry of primitiveCache.values()) {
+      (entry.material.uniforms as { color: { alpha: number } }).color.alpha = opacity;
     }
   }
 

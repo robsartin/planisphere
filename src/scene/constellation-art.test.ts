@@ -15,6 +15,7 @@ type MockMaterial = {
   type: string;
   uniforms: { image: string; color: { alpha: number } };
   translucent: boolean;
+  destroy: ReturnType<typeof vi.fn>;
 };
 
 const mockGetContext = vi.fn().mockReturnValue(null);
@@ -33,9 +34,7 @@ let mockBillboardLength = 0;
 const mockPrimitiveAdd = vi.fn();
 const mockPrimitiveRemove = vi.fn();
 const mockPrimitiveRemoveAll = vi.fn();
-const mockPrimitiveGet = vi.fn();
 let mockPrimitiveCollectionShow = true;
-let mockPrimitiveCollectionLength = 0;
 
 // Hoisted so the `vi.mock` factory can reference it as a property value (a
 // plain module-scope const would still be in its TDZ when the factory runs).
@@ -52,6 +51,7 @@ const { mockPrimitiveCtor, mockMaterialFromType } = vi.hoisted(() => ({
     type,
     uniforms: { image: null, repeat: { x: 1, y: 1 }, color: { alpha: 1 }, ...uniforms },
     translucent: false,
+    destroy: vi.fn(),
   })),
 }));
 
@@ -105,10 +105,6 @@ vi.mock("cesium", () => {
         add: mockPrimitiveAdd,
         remove: mockPrimitiveRemove,
         removeAll: mockPrimitiveRemoveAll,
-        get: mockPrimitiveGet,
-        get length() {
-          return mockPrimitiveCollectionLength;
-        },
         get show() {
           return mockPrimitiveCollectionShow;
         },
@@ -233,9 +229,8 @@ beforeEach(() => {
   mockPrimitiveRemove.mockClear();
   mockPrimitiveRemoveAll.mockClear();
   mockPrimitiveCtor.mockClear();
-  mockPrimitiveGet.mockClear();
+  mockMaterialFromType.mockClear();
   mockPrimitiveCollectionShow = true;
-  mockPrimitiveCollectionLength = 0;
 });
 
 describe("createConstellationArtLayer", () => {
@@ -447,17 +442,47 @@ describe("ConstellationArtLayer anchored primitives", () => {
     expect(mockPrimitiveAdd).not.toHaveBeenCalled();
   });
 
-  it("attaches the VisibleConstellation as the geometry instance id (pickable)", () => {
+  it("attaches a VisibleConstellation as the geometry instance id (pickable)", () => {
     const scene = makeMockScene();
     const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
     layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
 
     // Preserves the pick contract the constellation-line layer established
     // (#305 / #308) — hovering the art must resolve to a typed payload.
+    // It is a layer-owned mirror rather than the caller's object, because
+    // Primitive bakes the pick id at creation: the payload has to be an object
+    // the layer can keep current for the primitive's whole lifetime.
     const primitive = mockPrimitiveAdd.mock.calls[0]?.[0] as {
-      geometryInstances: { id: unknown };
+      geometryInstances: { id: VisibleConstellation };
     };
-    expect(primitive.geometryInstances.id).toBe(CONSTELLATIONS[0]);
+    expect(primitive.geometryInstances.id).not.toBe(CONSTELLATIONS[0]);
+    expect(primitive.geometryInstances.id).toEqual(CONSTELLATIONS[0]);
+  });
+
+  it("keeps the cached primitive's pick payload current as the constellation moves", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const moved: VisibleConstellation = {
+      ...CONSTELLATIONS[0]!,
+      lines: [{ start: { alt: 14, az: 90 }, end: { alt: 11, az: 86 } }],
+      centroid: { alt: 12.5, az: 88.25 },
+    };
+    layer.update([moved], ALL_VISIBLE, 61, -149);
+
+    // Primitive bakes its pick id at creation and drops geometryInstances
+    // after upload (releaseGeometryInstances defaults true), so a cached
+    // primitive would hand back the frame-0 payload forever. object-card's
+    // "Copy link" dispatches set-view from centroid.alt/az, so a stale payload
+    // frames the view where the constellation was hours of sky-time ago —
+    // while picking the same constellation's LINES gives a fresh position.
+    const payload = mockPrimitiveCtor.mock.calls[0]![0] as {
+      geometryInstances: { id: VisibleConstellation };
+    };
+    expect(payload.geometryInstances.id.centroid).toEqual({ alt: 12.5, az: 88.25 });
+    expect(payload.geometryInstances.id.lines).toEqual(moved.lines);
+    expect(payload.geometryInstances.id.id).toBe("Ori");
   });
 
   it("carries the anchor affine as the primitive's modelMatrix", () => {
@@ -552,6 +577,21 @@ describe("ConstellationArtLayer anchored primitives", () => {
 
     layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
     expect(mockPrimitiveCtor).toHaveBeenCalledTimes(2);
+  });
+
+  it("destroys the material of an evicted primitive", () => {
+    const scene = makeMockScene();
+    const layer = createConstellationArtLayer(scene as never, { manifest: ANCHORED });
+
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    const material = mockMaterialFromType.mock.results[0]!.value as MockMaterial;
+    layer.update([], ALL_VISIBLE, 61, -149);
+
+    // Primitive.destroy tears down _sp / _va / _pickIds / _batchTable but
+    // never appearance.material, so the texture would outlive the primitive.
+    // A constellation oscillating around the anchor threshold during time
+    // animation would churn one orphaned Material per crossing.
+    expect(material.destroy).toHaveBeenCalledTimes(1);
   });
 
   it("evicts the cached primitive when the constellation falls back to a placeholder", () => {
