@@ -1392,9 +1392,31 @@ Expected: all pass. `test:cov` must not report a threshold failure for `src/scen
 
 - [ ] **Step 5: Confirm the assets are in the build**
 
-Run: `find dist -path "*art*" -name "*.png" | wc -l`
+Vite flattens emitted assets to `dist/assets/<basename>-<hash>.png` — there is no `art/` path segment, so a `find dist -path "*art*"` check reports zero even when emission is working. Cross-check against the manifest instead:
 
-Expected: `85`.
+```bash
+node -e "
+const m=require('./data/art/western/manifest.json');
+const files=Object.values(m.constellations).map(e=>e.file).filter(Boolean);
+const dist=require('fs').readdirSync('dist/assets');
+const missing=files.filter(f=>{const b=f.replace(/\.png\$/,'');return !dist.some(d=>d.startsWith(b+'-')&&d.endsWith('.png'));});
+console.log('manifest:',files.length,'missing:',missing.length,missing.slice(0,5));
+"
+```
+
+Expected: `manifest: 85 missing: 0`.
+
+- [ ] **Step 5b: Make CI assert emission (from the Task 1 review)**
+
+The Task 1 reviewer found that CI's `build` job runs `pnpm build` but never asserts the art PNGs came out the other side — so a build-time emission regression would still show all-green, which is precisely the failure this whole plan exists to fix. The unit guard covers import resolution; nothing covers emission.
+
+Add a `scripts/check-art-emitted.mjs` running the manifest↔`dist/assets` cross-check from Step 5 and exiting non-zero on any miss (SPDX comment on line 2, matching the other scripts), then chain it in `.github/workflows/ci.yml` immediately after the existing `- run: pnpm build` step in the `build` job:
+
+```yaml
+- run: node scripts/check-art-emitted.mjs
+```
+
+Verify by temporarily reverting the glob in `constellation-art.ts` to the old concatenation, running `pnpm build && node scripts/check-art-emitted.mjs`, and confirming it exits non-zero. Restore the glob afterwards.
 
 - [ ] **Step 6: Commit and push**
 
