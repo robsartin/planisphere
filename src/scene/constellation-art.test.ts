@@ -522,8 +522,12 @@ describe("ConstellationArtLayer anchored primitives", () => {
     };
     const material = primitive.appearance.material;
     expect(material.type).toBe("Image");
-    expect(material.uniforms.image).toContain("Ori");
     expect(material.uniforms.color.alpha).toBe(0.42);
+    // #406 — the image uniform is a decoded element the layer loaded, never
+    // the URL. Handing Cesium a URL makes the material fetch it and show its
+    // default white texture in the meantime. Which element arrives, and when,
+    // is covered by the art-image-loading block below.
+    expect(typeof material.uniforms.image).not.toBe("string");
   });
 
   it("forces material translucency so transparent PNG areas still blend at alpha 1", () => {
@@ -719,5 +723,112 @@ describe("artAssetUrl", () => {
     for (const file of files) {
       expect(artAssetUrl(file), `no emitted asset for ${file}`).not.toBeNull();
     }
+  });
+});
+
+/**
+ * #406 — a Cesium `Material` built from a URL starts bound to the engine's
+ * default 1x1 white texture and only swaps to the real image once its own
+ * fetch resolves. With ~30 constellations that showed as a screen of flat grey
+ * parallelograms for a second or two, which reads as a rendering fault rather
+ * than a loading state.
+ *
+ * The layer now loads each PNG itself, keeps the primitive hidden until that
+ * image is in hand, and hands the decoded element to the material — so the
+ * white default is never on screen and the material owns no fetch of its own.
+ */
+describe("ConstellationArtLayer art image loading (#406)", () => {
+  type FakeImage = {
+    src: string;
+    onload: (() => void) | null;
+    onerror: (() => void) | null;
+  };
+
+  function makeLoader() {
+    const created: FakeImage[] = [];
+    const loadImage = vi.fn((url: string) => {
+      const img: FakeImage = { src: url, onload: null, onerror: null };
+      created.push(img);
+      return img as unknown as HTMLImageElement;
+    });
+    return { loadImage, created };
+  }
+
+  function firstPrimitive() {
+    return mockPrimitiveAdd.mock.calls[0]?.[0] as {
+      show: boolean;
+      appearance: { material: MockMaterial };
+    };
+  }
+
+  it("keeps the primitive hidden until its image has loaded", () => {
+    const { loadImage } = makeLoader();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: ANCHORED,
+      loadImage,
+    });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(mockPrimitiveAdd).toHaveBeenCalledTimes(1);
+    expect(firstPrimitive().show).toBe(false);
+  });
+
+  it("never puts the art URL in the material, so the default white texture cannot show", () => {
+    const { loadImage } = makeLoader();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: ANCHORED,
+      loadImage,
+    });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    // A string here is the bug: it makes the material fetch, and fetch means a
+    // white-textured window plus an in-flight request the layer does not own.
+    expect(typeof firstPrimitive().appearance.material.uniforms.image).not.toBe("string");
+  });
+
+  it("reveals the primitive and hands it the decoded image once loading finishes", () => {
+    const { loadImage, created } = makeLoader();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: ANCHORED,
+      loadImage,
+    });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(created).toHaveLength(1);
+    expect(created[0]?.src).toContain("Ori");
+    created[0]?.onload?.();
+
+    expect(firstPrimitive().show).toBe(true);
+    expect(firstPrimitive().appearance.material.uniforms.image).toBe(created[0]);
+  });
+
+  it("loads each art image once across rerenders", () => {
+    const { loadImage, created } = makeLoader();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: ANCHORED,
+      loadImage,
+    });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    created[0]?.onload?.();
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+
+    expect(loadImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the placeholder billboard when the image fails to load", () => {
+    const { loadImage, created } = makeLoader();
+    const layer = createConstellationArtLayer(makeMockScene() as never, {
+      manifest: ANCHORED,
+      loadImage,
+    });
+    layer.update([CONSTELLATIONS[0]!], ALL_VISIBLE, 61, -149);
+    expect(mockAdd).not.toHaveBeenCalled();
+
+    created[0]?.onerror?.();
+
+    // A permanently hidden primitive would leave the constellation with no
+    // art and no placeholder — worse than the pre-#406 behaviour.
+    expect(mockAdd).toHaveBeenCalledTimes(1);
   });
 });

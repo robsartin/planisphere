@@ -78,6 +78,12 @@ export type ConstellationArtLayer = {
 
 export type CreateConstellationArtLayerOptions = {
   manifest?: ConstellationArtManifest;
+  /**
+   * Starts loading an art PNG and returns the element that will receive it.
+   * Injectable because jsdom never fires `load`, so the layer's
+   * hidden-until-ready behaviour is otherwise untestable.
+   */
+  loadImage?: (url: string) => HTMLImageElement;
 };
 
 const DEFAULT_MANIFEST = bundledManifest as unknown as ConstellationArtManifest;
@@ -114,7 +120,7 @@ function generatePlaceholderSprite(): HTMLCanvasElement {
 
 // Vite resolves this glob to a map of source path → hashed emitted asset URL
 // at build time. `eager` resolves URLs only — it does not fetch image data;
-// the texture itself is fetched by Cesium when a material first uses the URL.
+// the layer loads each PNG itself when a constellation first needs it (#406).
 //
 // The previous implementation concatenated a dynamic basename onto a literal
 // directory base. Vite's asset plugin only rewrites `new URL()` when the
@@ -269,7 +275,26 @@ function buildQuad(constellation: VisibleConstellation): GeometryInstance {
   });
 }
 
-function buildMaterial(image: string, alpha: number): Material {
+function defaultLoadImage(url: string): HTMLImageElement {
+  const img = new Image();
+  img.src = url;
+  return img;
+}
+
+/**
+ * 1x1 fully transparent texture the material carries until its real art
+ * arrives. Cesium's own default for an unresolved image uniform is 1x1 *white*,
+ * which is what #406 saw on screen; the primitive is hidden until load anyway,
+ * so this is belt and braces — nothing white can ever reach a frame.
+ */
+function transparentPixel(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  return canvas;
+}
+
+function buildMaterial(image: HTMLCanvasElement | HTMLImageElement, alpha: number): Material {
   const material = Material.fromType("Image", {
     image,
     color: Color.WHITE.withAlpha(alpha),
@@ -306,6 +331,7 @@ export function createConstellationArtLayer(
   options: CreateConstellationArtLayerOptions = {},
 ): ConstellationArtLayer {
   const manifest = options.manifest ?? DEFAULT_MANIFEST;
+  const loadImage = options.loadImage ?? defaultLoadImage;
 
   const billboards = new BillboardCollection({ scene });
   scene.primitives.add(billboards);
@@ -321,9 +347,47 @@ export function createConstellationArtLayer(
   // cached by constellation id and a rerender only reassigns `modelMatrix`.
   const primitiveCache = new Map<string, CachedArt>();
 
+  // #406 — the layer owns art loading rather than letting each Material fetch
+  // its own URL, so a primitive is only revealed once its texture is in hand.
+  const loadedImages = new Map<string, HTMLImageElement>();
+  const loadingImages = new Set<string>();
+  const failedImages = new Set<string>();
+  // Lets an image landing (or failing) re-drive the layer without the app
+  // scheduling a rerender: with the animation paused and nothing else moving,
+  // no rerender would otherwise come and the art would never appear.
+  let lastUpdate: (() => void) | null = null;
+
   // Pre-init fallback only — app.ts calls setOpacity with the URL-synced
   // state value on bootstrap. Kept in step with DEFAULT_CONSTELLATION_ART_OPACITY.
   let currentOpacity = 0.5;
+
+  /**
+   * Returns the decoded image if it is ready, else null — kicking off the load
+   * on first ask. A null means "not drawable yet", which the caller turns into
+   * a hidden primitive rather than a placeholder, so the sky simply stays clear
+   * until the art can be drawn properly.
+   */
+  function artImage(url: string): HTMLImageElement | null {
+    const ready = loadedImages.get(url);
+    if (ready !== undefined) return ready;
+    if (loadingImages.has(url) || failedImages.has(url)) return null;
+
+    loadingImages.add(url);
+    const img = loadImage(url);
+    img.onload = (): void => {
+      loadingImages.delete(url);
+      loadedImages.set(url, img);
+      lastUpdate?.();
+    };
+    img.onerror = (): void => {
+      loadingImages.delete(url);
+      failedImages.add(url);
+      // Re-drive so the constellation falls back to its placeholder instead of
+      // being left with a permanently hidden primitive and nothing drawn.
+      lastUpdate?.();
+    };
+    return null;
+  }
 
   function update(
     constellations: VisibleConstellation[],
@@ -331,6 +395,9 @@ export function createConstellationArtLayer(
     lat: number,
     lon: number,
   ): void {
+    lastUpdate = () => {
+      update(constellations, lookup, lat, lon);
+    };
     billboards.removeAll();
     const stillAnchored = new Set<string>();
 
@@ -339,25 +406,34 @@ export function createConstellationArtLayer(
         file: null,
       };
       const modelMatrix = anchoredMatrix(entry, lookup, lat, lon);
-      const url = entry.file !== null ? artAssetUrl(entry.file) : null;
+      const resolved = entry.file !== null ? artAssetUrl(entry.file) : null;
+      // A failed download is treated exactly like an unemitted asset: the
+      // constellation takes the placeholder path.
+      const url = resolved !== null && !failedImages.has(resolved) ? resolved : null;
 
       if (modelMatrix !== null && url !== null) {
         stillAnchored.add(constellation.id);
+        const image = artImage(url);
         const cached = primitiveCache.get(constellation.id);
         if (cached !== undefined) {
           cached.primitive.modelMatrix = modelMatrix;
           // Copy wholesale so a new VisibleConstellation field cannot be
           // silently left stale. The id is the cache key, so it is a no-op.
           Object.assign(cached.pickPayload, constellation);
+          if (image !== null && !cached.primitive.show) {
+            (cached.material.uniforms as { image: unknown }).image = image;
+            cached.primitive.show = true;
+          }
           continue;
         }
         const pickPayload: MutableVisibleConstellation = { ...constellation };
-        const material = buildMaterial(url, currentOpacity);
+        const material = buildMaterial(image ?? transparentPixel(), currentOpacity);
         const primitive = new Primitive({
           geometryInstances: buildQuad(pickPayload),
           appearance: new MaterialAppearance({ material, translucent: true, flat: true }),
           asynchronous: false,
           modelMatrix,
+          show: image !== null,
         });
         primitiveCache.set(constellation.id, { primitive, material, pickPayload });
         primitives.add(primitive);
