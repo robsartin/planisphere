@@ -22,6 +22,17 @@ updates:
     # rebase keeps our branches intact so we can push fixes without losing
     # the PR. (#396)
     rebase-strategy: "disabled"
+    # TypeScript majors are held back until typescript-eslint supports them.
+    # typescript-eslint hard-errors on an unsupported TS major ("typescript-eslint
+    # does not support TS 7.0"), so a TS major bump fails `pnpm lint` outright —
+    # it is not a code problem we can fix on our side. We had pinned TS back to
+    # 6.0.3 by hand four times (#371, #392, #395, #408) before adding this.
+    # Patch and minor updates inside the current major still come through.
+    # Remove this once https://github.com/typescript-eslint/typescript-eslint/issues/10940
+    # lands, then bump TypeScript deliberately in its own PR.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       npm_and_yarn:
         patterns:
