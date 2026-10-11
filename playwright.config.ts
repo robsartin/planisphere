@@ -15,7 +15,8 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // One retry in CI only: the suite flakes under Xvfb software-GL load (#416).
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   // CI gets GitHub annotations *and* an HTML report written to
   // `playwright-report/` so the workflow's upload-artifact step has
