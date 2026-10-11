@@ -63,10 +63,20 @@ function computeSourceAgeSeconds(text: string, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - newestEpochMs) / 1000));
 }
 
+/**
+ * Deadline for the Celestrak request. `bootstrap` awaits `fetchTle` before it
+ * wires the HUD and flips `__PLANISPHERE_READY__`, so a host that accepts the
+ * connection and never answers would otherwise leave the app on a bare globe
+ * forever. Past this the bundled snapshot is served (`usedFallback: true`).
+ */
+export const TLE_FETCH_TIMEOUT_MS = 5_000;
+
 export async function fetchTle(): Promise<Result<TleFetchOk, TleFetchError>> {
   const nowMs = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TLE_FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(CELESTRAK_URL);
+    const response = await fetch(CELESTRAK_URL, { signal: controller.signal });
     if (response.ok) {
       const text = await response.text();
       if (text.trim().length > 0) {
@@ -78,7 +88,9 @@ export async function fetchTle(): Promise<Result<TleFetchOk, TleFetchError>> {
       }
     }
   } catch {
-    // network error — fall through to bundled
+    // network error or timeout — fall through to bundled
+  } finally {
+    clearTimeout(timer);
   }
   console.warn("[planisphere] TLE fetch failed, using bundled data");
   return ok({

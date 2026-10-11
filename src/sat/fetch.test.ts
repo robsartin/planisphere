@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { isOk, expectOk } from "../result";
-import { fetchTle } from "./fetch";
+import { fetchTle, TLE_FETCH_TIMEOUT_MS } from "./fetch";
 
 // TLE epochs in the mocks below are anchored on 2024-04-09T12:00:00Z (year
 // 2024, day-of-year 100.5). The fake system time in the "age" tests below is
@@ -65,6 +65,27 @@ describe("fetchTle", () => {
     expect(isOk(r)).toBe(true);
     const val = expectOk(r);
     expect(val.text).toContain("HUBBLE");
+    expect(val.text).toBe(BUNDLED_TLE);
+  });
+
+  it("falls back to bundled data when the fetch never settles", async () => {
+    // A third-party host that accepts the connection and then never answers
+    // must not stall app bootstrap: the abort signal has to fire and the
+    // bundled snapshot has to be served (PR #418 CI run, celestrak hang).
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      ),
+    );
+    const pending = fetchTle();
+    await vi.advanceTimersByTimeAsync(TLE_FETCH_TIMEOUT_MS + 1);
+    const val = expectOk(await pending);
+    expect(val.usedFallback).toBe(true);
     expect(val.text).toBe(BUNDLED_TLE);
   });
 
