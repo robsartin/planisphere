@@ -74,7 +74,15 @@ export async function waitForPlanisphereReady(page: Page, timeoutMs = 15_000): P
  * console plumbing, no timing race.
  */
 export async function expectNoRenderErrors(page: Page): Promise<void> {
-  await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
+  const panels = page.locator(".cesium-widget-errorPanel");
+  const count = await panels.count();
+  // Put the panel's FULL textContent (the stack) in the failure message: the
+  // bare `toHaveCount` diff says only "expected 0, got 1" (issue #416).
+  const detail =
+    count === 0
+      ? ""
+      : (await panels.allTextContents()).map((t, i) => `[panel ${i}] ${t}`).join("\n");
+  expect(count, `Cesium render-loop error panel present:\n${detail}`).toBe(0);
 }
 
 /**
