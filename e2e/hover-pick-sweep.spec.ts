@@ -28,8 +28,10 @@ test("hover-pick sweep yields ≥ 25 hover popups across a 7×37 grid", async ({
   // round-trips burns ~700 ms each on Xvfb on ubuntu-latest, > 3 min total
   // and well over the default 60 s test timeout. The bumped 180 s timeout
   // here is belt-and-suspenders for slow runners; the in-page sweep runs
-  // in well under a minute even on Xvfb.
-  test.setTimeout(180_000);
+  // in well under a minute even on Xvfb. A CI full-suite run still hit the
+  // 180 s limit under software-GL load (#416), so this one spec — the
+  // slowest, 259 probes — gets 300 s; the global timeout is unchanged.
+  test.setTimeout(300_000);
 
   await seedDefaultStorage(page);
   // Anchorage at midnight — same fixture used by #302's diagnostic.
