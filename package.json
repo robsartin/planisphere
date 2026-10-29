@@ -62,7 +62,7 @@
     "@tiptap/suggestion": "^3.31.4",
     "astronomy-engine": "^2.1.19",
     "cesium": "^1.146.0",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "marked": "^18.1.0",
     "satellite.js": "^7.1.0"
   }
