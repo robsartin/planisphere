@@ -33,7 +33,7 @@ jobs:
       - name: Calculate DORA metrics
         if: steps.releases.outputs.count != '0'
         id: dora
-        uses: stenjo/devops-metrics-action@v1
+        uses: stenjo/devops-metrics-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
